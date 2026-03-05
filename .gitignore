@@ -1,0 +1,22 @@
+target/
+*.iml
+.idea/
+.settings/
+.classpath
+.project
+
+# Logs and DB
+logs/
+*.log
+app.pid
+run.pid
+*.diff
+dependency-reduced-pom.xml
+data/
+*.txt
+pom.xml.versionsBackup
+settings.local.json
+/workspace/
+sessions.sqlite
+summaries.db
+sessions-bak.sqlite

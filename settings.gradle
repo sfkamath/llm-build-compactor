@@ -1,0 +1,4 @@
+rootProject.name = 'llm-build-compactor'
+include 'core'
+include 'maven-plugin'
+include 'gradle-plugin'

@@ -1,0 +1,21 @@
+{
+  "status": "FAILED",
+  "testsRun": 12,
+  "failures": 1,
+  "errors": [
+    {
+      "type": "COMPILATION_ERROR",
+      "file": "src/main/java/example/FooService.java",
+      "line": 42,
+      "message": "cannot find symbol processPayment"
+    }
+  ],
+  "fixTargets": [
+    {
+      "file": "src/main/java/example/FooService.java",
+      "line": 42,
+      "reason": "Compilation failure",
+      "snippet": "paymentService.processPayment(order)"
+    }
+  ]
+}
