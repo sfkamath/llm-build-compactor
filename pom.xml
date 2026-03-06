@@ -19,7 +19,8 @@
 
     <modules>
         <module>core</module>
-        <module>maven-plugin</module>
+        <module>llm-compactor-maven-plugin</module>
+        <module>maven-extension</module>
     </modules>
 
     <profiles>

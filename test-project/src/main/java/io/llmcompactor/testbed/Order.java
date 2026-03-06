@@ -6,8 +6,8 @@ import java.math.BigDecimal;
 @Slf4j
 public class Order {
 
-    private final String id;
-    private final BigDecimal amount;
+    private String id;
+    private BigDecimal amount;
 
     public Order(String id, BigDecimal amount) {
         log.debug("Creating order {} with amount {}", id, amount);

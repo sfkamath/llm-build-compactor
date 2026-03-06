@@ -6,79 +6,70 @@ import java.util.List;
 public class StackTraceCompressor {
 
     private static final List<String> FRAMEWORK_PREFIXES = List.of(
-            "java.", "javax.", "sun.", "com.sun.",
+            "java.", "javax.", "sun.", "com.sun.", "jdk.",
             "org.junit.", "org.testng.", "org.apache.maven.",
-            "org.gradle.", "org.springframework.", "org.hibernate."
+            "org.gradle.", "org.springframework.", "org.hibernate.",
+            "io.projectreactor.", "reactor.core.", "io.micronaut."
     );
 
-    public static String compress(String stackTrace, String projectPackage) {
+    /**
+     * Compresses a stack trace into a single string containing only "useful" parts:
+     * - All project frames (any frame NOT in the framework list)
+     * - Frames explicitly requested via includePackages
+     * - "Caused by" lines that lead to useful frames
+     */
+    public static String compress(String stackTrace, String projectPackage, List<String> includePackages) {
         if (stackTrace == null || stackTrace.isEmpty()) {
             return "";
         }
 
         String[] lines = stackTrace.split("\n");
-        List<String> projectFrames = new ArrayList<>();
-        List<String> frameworkFrames = new ArrayList<>();
+        StringBuilder result = new StringBuilder();
+        boolean hasContent = false;
 
         for (String line : lines) {
-            if (line.trim().startsWith("at")) {
-                if (isProjectFrame(line, projectPackage)) {
-                    projectFrames.add(line);
-                } else if (isFrameworkFrame(line)) {
-                    frameworkFrames.add(line);
+            String trimmed = line.trim();
+            if (trimmed.startsWith("at ")) {
+                if (isUsefulFrame(trimmed, projectPackage, includePackages)) {
+                    if (hasContent) result.append("\n");
+                    result.append(trimmed);
+                    hasContent = true;
                 }
-            }
-        }
-
-        StringBuilder result = new StringBuilder();
-
-        if (!projectFrames.isEmpty()) {
-            result.append("Project frames:\n");
-            for (String frame : projectFrames) {
-                result.append("  ").append(frame).append("\n");
-            }
-        }
-
-        if (!frameworkFrames.isEmpty()) {
-            result.append("\nFramework frames (truncated):\n");
-            int show = Math.min(5, frameworkFrames.size());
-            for (int i = 0; i < show; i++) {
-                result.append("  ").append(frameworkFrames.get(i)).append("\n");
-            }
-            if (frameworkFrames.size() > 5) {
-                result.append("  ... and ").append(frameworkFrames.size() - 5).append(" more\n");
+            } else if (trimmed.startsWith("Caused by:")) {
+                if (hasContent) result.append("\n");
+                result.append(trimmed);
+                hasContent = true;
             }
         }
 
         return result.toString();
     }
 
-    private static boolean isProjectFrame(String line, String projectPackage) {
-        if (projectPackage != null && !projectPackage.isEmpty()) {
-            return line.contains(projectPackage);
-        }
-        for (String prefix : FRAMEWORK_PREFIXES) {
-            if (line.contains("at " + prefix)) {
-                return false;
+    private static boolean isUsefulFrame(String trimmedLine, String projectPackage, List<String> includePackages) {
+        // 1. Check explicit inclusions (overrides defaults)
+        if (includePackages != null) {
+            for (String pkg : includePackages) {
+                if (trimmedLine.contains("at " + pkg)) {
+                    return true;
+                }
             }
         }
-        return true;
-    }
 
-    private static boolean isFrameworkFrame(String line) {
-        for (String prefix : FRAMEWORK_PREFIXES) {
-            if (line.contains("at " + prefix)) {
+        // 2. If we have a project package, check for it
+        if (projectPackage != null && !projectPackage.isEmpty()) {
+            if (trimmedLine.contains(projectPackage)) {
                 return true;
             }
         }
-        return false;
-    }
+        
+        // 3. Exclude known framework prefixes
+        for (String prefix : FRAMEWORK_PREFIXES) {
+            if (trimmedLine.contains("at " + prefix)) {
+                return false;
+            }
+        }
 
-    public static String findProjectFrame(List<String> frames, String groupId) {
-        return frames.stream()
-                .filter(f -> f.contains(groupId))
-                .findFirst()
-                .orElse(null);
+        // 4. Default: include it if it's not a known framework
+        return true;
     }
-
 }

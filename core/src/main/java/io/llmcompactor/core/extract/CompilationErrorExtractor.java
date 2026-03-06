@@ -26,7 +26,8 @@ public class CompilationErrorExtractor {
                         "COMPILATION_ERROR",
                         m.group(1),
                         Integer.parseInt(m.group(2)),
-                        m.group(4)
+                        m.group(4),
+                        ""
                 ));
 
             }

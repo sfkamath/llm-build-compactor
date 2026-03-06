@@ -19,7 +19,20 @@
         <junit.version>5.10.0</junit.version>
         <lombok.version>1.18.30</lombok.version>
         <logback.version>1.4.11</logback.version>
+        <reactor.version>2023.0.0</reactor.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.projectreactor</groupId>
+                <artifactId>reactor-bom</artifactId>
+                <version>${reactor.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -39,6 +52,18 @@
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -108,11 +133,16 @@
                 </executions>
             </plugin>
 
-            <!-- LLM Compactor Plugin for testing -->
             <plugin>
                 <groupId>io.llmcompactor</groupId>
-                <artifactId>maven-plugin</artifactId>
+                <artifactId>llm-compactor-maven-plugin</artifactId>
                 <version>0.1.0</version>
+                <configuration>
+                    <outputAsJson>false</outputAsJson>
+                    <compressStackFrames>true</compressStackFrames>
+                    <showFixTargets>false</showFixTargets>
+                    <showRecentChanges>false</showRecentChanges>
+                </configuration>
                 <executions>
                     <execution>
                         <goals>

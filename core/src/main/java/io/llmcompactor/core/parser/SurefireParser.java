@@ -2,9 +2,13 @@ package io.llmcompactor.core.parser;
 
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.StackTraceCompressor;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -12,158 +16,158 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 public class SurefireParser {
 
-    // Match: at package.ClassName.methodName(FileName.java:line)
-    // Group 1: full class name with method (e.g., io.llmcompactor.testbed.OrderServiceTest.testOrderWithDiscount)
-    // Group 2: file name (e.g., OrderServiceTest.java)
-    // Group 3: line number (e.g., 24)
-    private static final Pattern STACK_TRACE_LINE = Pattern.compile("at\\s+([\\w.$]+)\\((\\w+\\.java):(\\d+)\\)");
+    private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\\.java:(\\d+)\\)");
 
-    public static TestResult parse(Path reportsDir) {
-
+    public static TestResult parse(Path targetDir, boolean compressStackFrames, List<String> includePackages) {
         List<BuildError> failures = new ArrayList<>();
-        AtomicInteger testsRun = new AtomicInteger(0);
+        AtomicInteger totalTests = new AtomicInteger(0);
         AtomicInteger testFailures = new AtomicInteger(0);
 
-        Path surefireDir = reportsDir.resolve("surefire-reports");
-        Path failsafeDir = reportsDir.resolve("failsafe-reports");
-
-        parseReports(surefireDir, testsRun, testFailures, failures);
-        parseReports(failsafeDir, testsRun, testFailures, failures);
-
-        return new TestResult(testsRun.get(), testFailures.get(), failures);
-    }
-
-    private static void parseReports(Path reportsDir, AtomicInteger testsRun,
-                                      AtomicInteger testFailures, List<BuildError> failures) {
+        Path reportsDir = targetDir.resolve("surefire-reports");
         if (!Files.exists(reportsDir)) {
-            return;
+            reportsDir = targetDir.resolve("failsafe-reports");
         }
 
-        try {
+        if (Files.exists(reportsDir)) {
+            try (Stream<Path> files = Files.list(reportsDir)) {
+                files.filter(p -> p.toString().endsWith(".xml"))
+                     .forEach(file -> {
+                         try {
+                             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+                             DocumentBuilder builder = factory.newDocumentBuilder();
+                             Document doc = builder.parse(file.toFile());
 
-            Files.list(reportsDir)
-                    .filter(p -> p.toString().endsWith(".xml"))
-                    .forEach(file -> {
+                             String tests = doc.getDocumentElement().getAttribute("tests");
+                             totalTests.addAndGet(Integer.parseInt(tests));
 
-                        try {
+                             var failureNodes = doc.getElementsByTagName("failure");
+                             for (int i = 0; i < failureNodes.getLength(); i++) {
+                                 var node = failureNodes.item(i);
+                                 String type = ((Element) node).getAttribute("type");
+                                 String message = node.getTextContent();
+                                 
+                                 // Attempt to find original file/line from stack trace
+                                 String sourceFile = null;
+                                 int line = -1;
+                                 
+                                 // Try to find the first project frame
+                                 String[] lines = message.split("\n");
+                                 for (String l : lines) {
+                                     if (l.contains(".java:") && !isFrameworkFrame(l, includePackages)) {
+                                         Matcher m = LINE_NUMBER_PATTERN.matcher(l);
+                                         if (m.find()) {
+                                             line = Integer.parseInt(m.group(1));
+                                             // Find the class/file name from the frame
+                                             int atIndex = l.indexOf("at ");
+                                             int parenIndex = l.indexOf("(");
+                                             if (atIndex >= 0 && parenIndex > atIndex) {
+                                                 String fullClass = l.substring(atIndex + 3, parenIndex);
+                                                 int lastDotInClass = fullClass.lastIndexOf(".");
+                                                 if (lastDotInClass > 0) {
+                                                     String packageName = fullClass.substring(0, lastDotInClass);
+                                                     sourceFile = "src/test/java/" + packageName.replace(".", "/") + "/" + l.substring(parenIndex + 1, l.indexOf(".java:") + 5);
+                                                 }
+                                             }
+                                             break; 
+                                         }
+                                     }
+                                 }
 
-                            var doc = DocumentBuilderFactory
-                                    .newInstance()
-                                    .newDocumentBuilder()
-                                    .parse(file.toFile());
+                                 String stackTrace = compressStackFrames ? StackTraceCompressor.compress(message, null, includePackages) : message;
 
-                            var testcaseNodes = doc.getElementsByTagName("testcase");
-                            testsRun.addAndGet(testcaseNodes.getLength());
+                                 failures.add(new BuildError(
+                                         type,
+                                         sourceFile != null ? sourceFile : file.getFileName().toString(),
+                                         line,
+                                         extractFirstLine(message),
+                                         stackTrace
+                                 ));
+                                 testFailures.incrementAndGet();
+                             }
 
-                            var failureNodes = doc.getElementsByTagName("failure");
+                             var errorNodes = doc.getElementsByTagName("error");
+                             for (int i = 0; i < errorNodes.getLength(); i++) {
+                                 var node = errorNodes.item(i);
+                                 String type = ((Element) node).getAttribute("type");
+                                 String message = node.getTextContent();
+                                 
+                                 String sourceFile = null;
+                                 int line = -1;
+                                 
+                                 String[] lines = message.split("\n");
+                                 for (String l : lines) {
+                                     if (l.contains(".java:") && !isFrameworkFrame(l, includePackages)) {
+                                         Matcher m = LINE_NUMBER_PATTERN.matcher(l);
+                                         if (m.find()) {
+                                             line = Integer.parseInt(m.group(1));
+                                             int atIndex = l.indexOf("at ");
+                                             int parenIndex = l.indexOf("(");
+                                             if (atIndex >= 0 && parenIndex > atIndex) {
+                                                 String fullClass = l.substring(atIndex + 3, parenIndex);
+                                                 int lastDotInClass = fullClass.lastIndexOf(".");
+                                                 if (lastDotInClass > 0) {
+                                                     String packageName = fullClass.substring(0, lastDotInClass);
+                                                     sourceFile = "src/test/java/" + packageName.replace(".", "/") + "/" + l.substring(parenIndex + 1, l.indexOf(".java:") + 5);
+                                                 }
+                                             }
+                                             break;
+                                         }
+                                     }
+                                 }
 
-                            for (int i = 0; i < failureNodes.getLength(); i++) {
+                                 String stackTrace = compressStackFrames ? StackTraceCompressor.compress(message, null, includePackages) : message;
 
-                                var node = failureNodes.item(i);
-                                String message = node.getTextContent();
-                                String type = "TEST_FAILURE";
+                                 failures.add(new BuildError(
+                                         type,
+                                         sourceFile != null ? sourceFile : file.getFileName().toString(),
+                                         line,
+                                         extractFirstLine(message),
+                                         stackTrace
+                                 ));
+                                 testFailures.incrementAndGet();
+                             }
 
-                                if (node instanceof Element) {
-                                    String attrType = ((Element) node).getAttribute("type");
-                                    if (attrType != null && !attrType.isEmpty()) {
-                                        type = attrType;
-                                    }
-                                }
+                         } catch (Exception ignored) {}
+                     });
+            } catch (Exception ignored) {}
+        }
 
-                                String[] fileAndLine = extractFileAndLine(message);
-                                String sourceFile = fileAndLine[0];
-                                int line = Integer.parseInt(fileAndLine[1]);
-
-                                String compressed = StackTraceCompressor.compress(message, null);
-                                String finalMessage = compressed.isEmpty() ? message.trim() : compressed;
-
-                                failures.add(new BuildError(
-                                        type,
-                                        sourceFile != null ? sourceFile : file.getFileName().toString(),
-                                        line,
-                                        type + ": " + finalMessage
-                                ));
-                                testFailures.incrementAndGet();
-
-                            }
-
-                            var errorNodes = doc.getElementsByTagName("error");
-
-                            for (int i = 0; i < errorNodes.getLength(); i++) {
-
-                                var node = errorNodes.item(i);
-                                String message = node.getTextContent();
-                                String type = "TEST_ERROR";
-
-                                if (node instanceof Element) {
-                                    String attrType = ((Element) node).getAttribute("type");
-                                    if (attrType != null && !attrType.isEmpty()) {
-                                        type = attrType;
-                                    }
-                                }
-
-                                String[] fileAndLine = extractFileAndLine(message);
-                                String sourceFile = fileAndLine[0];
-                                int line = Integer.parseInt(fileAndLine[1]);
-
-                                String compressed = StackTraceCompressor.compress(message, null);
-                                String finalMessage = compressed.isEmpty() ? message.trim() : compressed;
-
-                                failures.add(new BuildError(
-                                        type,
-                                        sourceFile != null ? sourceFile : file.getFileName().toString(),
-                                        line,
-                                        type + ": " + finalMessage
-                                ));
-                                testFailures.incrementAndGet();
-
-                            }
-
-                        } catch (Exception ignored) {}
-
-                    });
-
-        } catch (Exception ignored) {}
+        return new TestResult(totalTests.get(), testFailures.get(), failures);
     }
 
-    private static String[] extractFileAndLine(String message) {
-        // Find the first project frame (io.llmcompactor.*)
-        Matcher matcher = STACK_TRACE_LINE.matcher(message);
-        while (matcher.find()) {
-            String fullClassName = matcher.group(1);  // e.g., io.llmcompactor.testbed.OrderServiceTest.testOrderWithDiscount
-            String fileName = matcher.group(2);        // e.g., OrderServiceTest.java
-            String lineNum = matcher.group(3);         // e.g., 24
+    private static String extractFirstLine(String message) {
+        if (message == null || message.isEmpty()) return "";
+        return message.split("\n")[0].trim();
+    }
 
-            if (fullClassName.startsWith("io.llmcompactor.")) {
-                // Extract class name without method: remove the last segment after the final dot
-                // e.g., "io.llmcompactor.testbed.OrderServiceTest.testOrderWithDiscount" -> "io.llmcompactor.testbed.OrderServiceTest"
-                int lastDot = fullClassName.lastIndexOf('.');
-                if (lastDot > 0) {
-                    String className = fullClassName.substring(0, lastDot);
-                    
-                    // Convert package to path: io.llmcompactor.testbed -> io/llmcompactor/testbed
-                    int pkgEnd = className.lastIndexOf('.');
-                    if (pkgEnd > 0) {
-                        String packagePath = className.substring(0, pkgEnd).replace('.', '/');
+    private static boolean isFrameworkFrame(String line, List<String> includePackages) {
+        String trimmed = line.trim();
+        if (!trimmed.startsWith("at ")) return false;
 
-                        // Check in order: test, it, main
-                        String sourcePath = "src/test/java/" + packagePath + "/" + fileName;
-                        if (!Files.exists(Path.of(sourcePath))) {
-                            sourcePath = "src/it/java/" + packagePath + "/" + fileName;
-                        }
-                        if (!Files.exists(Path.of(sourcePath))) {
-                            sourcePath = "src/main/java/" + packagePath + "/" + fileName;
-                        }
-
-                        return new String[]{sourcePath, lineNum};
-                    }
+        // Explicit inclusion overrides framework detection
+        if (includePackages != null) {
+            for (String pkg : includePackages) {
+                if (trimmed.contains("at " + pkg)) {
+                    return false; // It's not a framework frame (we want to keep it)
                 }
-                return new String[]{null, "-1"};
             }
         }
-        return new String[]{null, "-1"};
+        
+        String[] frameworkPrefixes = {
+            "org.junit.", "org.opentest4j.", "java.", "javax.", "sun.", "com.sun.", "jdk.",
+            "org.apache.maven.", "org.gradle.", "org.springframework.", "org.hibernate.",
+            "io.projectreactor.", "reactor.core.", "io.micronaut."
+        };
+        
+        for (String prefix : frameworkPrefixes) {
+            if (trimmed.contains("at " + prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 }
