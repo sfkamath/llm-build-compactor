@@ -9,18 +9,15 @@ import io.llmcompactor.core.extract.FixTargetGenerator;
 import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.GradleParser;
 import io.llmcompactor.core.parser.TestResult;
+import org.gradle.BuildAdapter;
+import org.gradle.BuildResult;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.logging.configuration.ShowStacktrace;
+import org.gradle.api.logging.StandardOutputListener;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
-import org.gradle.api.services.BuildService;
-import org.gradle.api.services.BuildServiceParameters;
-import org.gradle.api.tasks.testing.Test;
-import org.gradle.build.event.BuildEventsListenerRegistry;
+import org.gradle.api.tasks.compile.JavaCompile;
 
-import javax.inject.Inject;
-import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -38,6 +35,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         Property<Boolean> getShowRecentChanges();
     }
 
+    private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
+
     @Override
     public void apply(Project project) {
         LlmCompactorExtension extension = project.getExtensions().create("llmCompactor", LlmCompactorExtension.class);
@@ -48,10 +47,25 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         extension.getShowRecentChanges().convention(true);
 
         if (project.equals(project.getRootProject())) {
-            // Only emit summary from root project at the end
-            project.getGradle().buildFinished(result -> {
-                if (Boolean.TRUE.equals(extension.getEnabled().get())) {
-                    emitSummary(project, extension);
+            StandardOutputListener listener = logLines::add;
+            
+            project.allprojects(p -> {
+                p.getLogging().addStandardOutputListener(listener);
+                p.getLogging().addStandardErrorListener(listener);
+                
+                // Explicitly add to JavaCompile tasks as well
+                p.getTasks().withType(JavaCompile.class).configureEach(task -> {
+                    task.getLogging().addStandardOutputListener(listener);
+                    task.getLogging().addStandardErrorListener(listener);
+                });
+            });
+
+            project.getGradle().addBuildListener(new BuildAdapter() {
+                @Override
+                public void buildFinished(BuildResult result) {
+                    if (Boolean.TRUE.equals(extension.getEnabled().get())) {
+                        emitSummary(project, extension);
+                    }
                 }
             });
         }
@@ -62,17 +76,31 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         int totalTestsRun = 0;
         int totalTestFailures = 0;
 
+        // Add compilation errors first
+        List<String> stringLogLines = logLines.stream()
+                .map(Object::toString)
+                .collect(Collectors.toList());
+        
+        List<BuildError> compilationErrors = CompilationErrorExtractor.extract(stringLogLines);
+        allErrors.addAll(compilationErrors);
+
         // Collect results from all projects
         for (Project p : project.getAllprojects()) {
-            Path testResultsDir = p.getBuildDir().toPath().resolve("test-results");
-            TestResult result = GradleParser.parse(
-                    testResultsDir, 
-                    extension.getCompressStackFrames().get(), 
-                    extension.getIncludePackages().get()
-            );
-            totalTestsRun += result.testsRun();
-            totalTestFailures += result.failures();
-            allErrors.addAll(result.errors());
+            try {
+                Path testResultsDir = p.getLayout().getBuildDirectory().getAsFile().get().toPath().resolve("test-results");
+                if (testResultsDir.toFile().exists()) {
+                    TestResult result = GradleParser.parse(
+                            testResultsDir,
+                            extension.getCompressStackFrames().get(),
+                            extension.getIncludePackages().getOrElse(Collections.emptyList())
+                    );
+                    totalTestsRun += result.testsRun();
+                    totalTestFailures += result.failures();
+                    allErrors.addAll(result.errors());
+                }
+            } catch (Exception e) {
+                // Ignore
+            }
         }
 
         List<FixTarget> targets = extension.getShowFixTargets().get() ?
