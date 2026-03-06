@@ -1,11 +1,19 @@
 plugins {
     id 'java'
+    id 'io.llmcompactor.gradle' apply false
 }
 
 allprojects {
     repositories {
         mavenCentral()
     }
+}
+
+apply plugin: 'io.llmcompactor.gradle'
+
+llmCompactor {
+    enabled = true
+    outputAsJson = false
 }
 
 subprojects {

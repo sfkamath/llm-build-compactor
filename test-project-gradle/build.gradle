@@ -1,0 +1,44 @@
+plugins {
+    id 'java'
+    id 'io.llmcompactor.gradle'
+}
+
+group = 'io.llmcompactor'
+version = '1.0.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'org.projectlombok:lombok:1.18.30'
+    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    implementation 'ch.qos.logback:logback-classic:1.4.11'
+
+    testImplementation platform('io.projectreactor:reactor-bom:2023.0.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testImplementation 'io.projectreactor:reactor-core'
+    testImplementation 'io.projectreactor:reactor-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+sourceSets {
+    test {
+        java {
+            srcDirs += 'src/it/java'
+        }
+    }
+}
+
+test {
+    useJUnitPlatform()
+    ignoreFailures = true
+}
+
+llmCompactor {
+    enabled = true
+    outputAsJson = false
+    compressStackFrames = true
+    showFixTargets = true
+    showRecentChanges = true
+}
