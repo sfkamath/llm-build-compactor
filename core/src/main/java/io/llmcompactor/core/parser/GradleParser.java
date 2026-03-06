@@ -91,9 +91,7 @@ public final class GradleParser {
                     testFailures.incrementAndGet();
                   }
 
-                } catch (ParserConfigurationException
-                    | SAXException
-                    | IOException e) {
+                } catch (ParserConfigurationException | SAXException | IOException e) {
                   // Ignore corrupt XML
                 }
               });

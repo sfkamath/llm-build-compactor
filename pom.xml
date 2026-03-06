@@ -18,7 +18,7 @@
 
         <junit-jupiter.version>5.14.3</junit-jupiter.version>
         <assertj.version>3.27.7</assertj.version>
-        <jackson.version>2.15.2</jackson.version>
+        <jackson.version>2.21.1</jackson.version>
 
         <spotbugs.version>4.9.8.2</spotbugs.version>
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
@@ -26,6 +26,18 @@
         <modernizer-maven-plugin.version>3.2.0</modernizer-maven-plugin.version>
         <jacoco.version>0.8.14</jacoco.version>
         <jacoco.coverage.minimum>0.80</jacoco.coverage.minimum>
+
+        <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
+        <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
+        <maven-core.version>3.9.4</maven-core.version>
+        <maven-plugin-api.version>3.9.4</maven-plugin-api.version>
+        <maven-plugin-annotations.version>3.15.2</maven-plugin-annotations.version>
+        <maven-plugin-plugin.version>3.15.2</maven-plugin-plugin.version>
+        <javax.inject.version>1</javax.inject.version>
+        <dependency-check-maven.version>12.2.0</dependency-check-maven.version>
+        <rewrite-maven-plugin.version>6.28.1</rewrite-maven-plugin.version>
+        <sisu-maven-plugin.version>1.0.0</sisu-maven-plugin.version>
     </properties>
 
     <modules>
@@ -73,25 +85,25 @@
             <dependency>
                 <groupId>org.apache.maven</groupId>
                 <artifactId>maven-core</artifactId>
-                <version>3.9.4</version>
+                <version>${maven-core.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.maven</groupId>
                 <artifactId>maven-plugin-api</artifactId>
-                <version>3.9.4</version>
+                <version>${maven-plugin-api.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>org.apache.maven.plugin-tools</groupId>
                 <artifactId>maven-plugin-annotations</artifactId>
-                <version>3.9.0</version>
+                <version>${maven-plugin-annotations.version}</version>
                 <scope>provided</scope>
             </dependency>
             <dependency>
                 <groupId>javax.inject</groupId>
                 <artifactId>javax.inject</artifactId>
-                <version>1</version>
+                <version>${javax.inject.version}</version>
                 <scope>provided</scope>
             </dependency>
         </dependencies>
@@ -102,12 +114,12 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.5</version>
+                <version>${maven-surefire-plugin.version}</version>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
-                <version>3.5.5</version>
+                <version>${maven-failsafe-plugin.version}</version>
                 <executions>
                     <execution>
                         <goals>
@@ -173,7 +185,7 @@
                     <plugin>
                         <groupId>org.owasp</groupId>
                         <artifactId>dependency-check-maven</artifactId>
-                        <version>12.2.0</version>
+                        <version>${dependency-check-maven.version}</version>
                         <executions>
                             <execution>
                                 <goals>
@@ -190,7 +202,7 @@
                     <plugin>
                         <groupId>org.openrewrite.maven</groupId>
                         <artifactId>rewrite-maven-plugin</artifactId>
-                        <version>6.28.1</version>
+                        <version>${rewrite-maven-plugin.version}</version>
                         <configuration>
                             <recipeArtifactCoordinates>
                                 org.openrewrite.recipe:rewrite-static-analysis:2.25.0
@@ -293,8 +305,8 @@
                 <plugins>
                     <plugin>
                         <groupId>io.llmcompactor</groupId>
-                        <artifactId>maven-plugin</artifactId>
-                        <version>0.1.0</version>
+                        <artifactId>llm-compactor-maven-plugin</artifactId>
+                        <version>${project.version}</version>
                         <executions>
                             <execution>
                                 <goals>

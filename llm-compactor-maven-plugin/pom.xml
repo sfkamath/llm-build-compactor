@@ -57,7 +57,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-plugin-plugin</artifactId>
-                <version>3.9.0</version>
+                <version>${maven-plugin-plugin.version}</version>
                 <executions>
                     <execution>
                         <id>mojo-descriptor</id>
@@ -71,7 +71,7 @@
             <plugin>
                 <groupId>org.eclipse.sisu</groupId>
                 <artifactId>sisu-maven-plugin</artifactId>
-                <version>0.3.5</version>
+                <version>${sisu-maven-plugin.version}</version>
                 <executions>
                     <execution>
                         <id>generate-index</id>
