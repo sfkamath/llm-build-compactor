@@ -1,39 +1,43 @@
 package io.llmcompactor.core.git;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GitDiffExtractor {
+public final class GitDiffExtractor {
 
-    public static List<String> changedFiles() {
+  public static List<String> changedFiles() {
 
-        List<String> files = new ArrayList<>();
+    List<String> files = new ArrayList<>();
 
-        try {
+    try {
 
-            Process p = new ProcessBuilder(
-                    "git",
-                    "diff",
-                    "--name-only",
-                    "HEAD"
-            ).start();
+      Process p = new ProcessBuilder("git", "diff", "--name-only", "HEAD").start();
 
-            BufferedReader reader =
-                    new BufferedReader(
-                            new InputStreamReader(p.getInputStream()));
+      try (BufferedReader reader =
+          new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
 
-            String line;
+        String line;
 
-            while ((line = reader.readLine()) != null) {
-                files.add(line);
-            }
+        while ((line = reader.readLine()) != null) {
+          files.add(line.trim());
+        }
+      }
 
-        } catch (Exception ignored) {}
+      p.waitFor();
 
-        return files;
-
+    } catch (IOException | InterruptedException ignored) {
+      // Best effort, ignore if git is not available or not a repo
+      if (Thread.interrupted()) {
+        Thread.currentThread().interrupt();
+      }
     }
 
+    return files;
+  }
+
+  private GitDiffExtractor() {}
 }

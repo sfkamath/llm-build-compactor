@@ -19,49 +19,50 @@
  */
 package io.llmcompactor.maven;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-/**
- * Installs the Maven extension into the project by creating .mvn/extensions.xml.
- */
+/** Installs the Maven extension into the project by creating .mvn/extensions.xml. */
 @Mojo(name = "install")
 public class LlmInstallMojo extends AbstractMojo {
 
-    @Parameter(defaultValue = "${project.basedir}", readonly = true)
-    private java.io.File basedir;
+  @Parameter(defaultValue = "${project.basedir}", readonly = true)
+  private File basedir;
 
-    @Parameter(property = "llmCompactor.version", defaultValue = "0.1.0")
-    private String version;
+  @Parameter(property = "llmCompactor.version", defaultValue = "0.1.0")
+  private String version;
 
-    public void execute() throws MojoExecutionException {
-        Path mvnDir = basedir.toPath().resolve(".mvn");
-        Path extensionsXml = mvnDir.resolve("extensions.xml");
+  public void execute() throws MojoExecutionException {
+    Path mvnDir = basedir.toPath().resolve(".mvn");
+    Path extensionsXml = mvnDir.resolve("extensions.xml");
 
-        try {
-            Files.createDirectories(mvnDir);
+    try {
+      Files.createDirectories(mvnDir);
 
-            String content = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                    "<extensions>\n" +
-                    "    <extension>\n" +
-                    "        <groupId>io.llmcompactor</groupId>\n" +
-                    "        <artifactId>maven-extension</artifactId>\n" +
-                    "        <version>" + version + "</version>\n" +
-                    "    </extension>\n" +
-                    "</extensions>";
+      String content =
+          "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+              + "<extensions>\n"
+              + "    <extension>\n"
+              + "        <groupId>io.llmcompactor</groupId>\n"
+              + "        <artifactId>maven-extension</artifactId>\n"
+              + "        <version>"
+              + version
+              + "</version>\n"
+              + "    </extension>\n"
+              + "</extensions>";
 
-            Files.writeString(extensionsXml, content);
-            getLog().info("Successfully installed LLM Build Compactor extension to " + extensionsXml);
-            getLog().info("Future Maven commands will run in silent mode with JSON summary output.");
+      Files.writeString(extensionsXml, content);
+      getLog().info("Successfully installed LLM Build Compactor extension to " + extensionsXml);
+      getLog().info("Future Maven commands will run in silent mode with JSON summary output.");
 
-        } catch (IOException e) {
-            throw new MojoExecutionException("Failed to install extension: " + e.getMessage(), e);
-        }
+    } catch (IOException e) {
+      throw new MojoExecutionException("Failed to install extension: " + e.getMessage(), e);
     }
+  }
 }

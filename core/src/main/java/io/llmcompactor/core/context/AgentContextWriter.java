@@ -1,27 +1,24 @@
 package io.llmcompactor.core.context;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 import java.nio.file.Path;
 import java.util.Map;
 
-public class AgentContextWriter {
+public final class AgentContextWriter {
 
-    private static final ObjectMapper mapper = new ObjectMapper();
+  private static final ObjectMapper mapper = new ObjectMapper();
 
-    public static void write(Map<String,Object> ctx, Path path) {
+  public static void write(Map<String, Object> ctx, Path path) {
 
-        try {
+    try {
 
-            mapper.writerWithDefaultPrettyPrinter()
-                    .writeValue(path.toFile(), ctx);
+      mapper.writerWithDefaultPrettyPrinter().writeValue(path.toFile(), ctx);
 
-        } catch (Exception e) {
+    } catch (Exception e) {
 
-            throw new RuntimeException(e);
-
-        }
-
+      throw new RuntimeException(e);
     }
+  }
 
+  private AgentContextWriter() {}
 }

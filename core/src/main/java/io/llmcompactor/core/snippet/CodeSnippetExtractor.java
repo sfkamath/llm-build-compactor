@@ -5,27 +5,28 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-public class CodeSnippetExtractor {
+public final class CodeSnippetExtractor {
 
-    public static String extract(Path file, int line) {
-        try {
+  public static String extract(Path file, int line) {
+    try {
 
-            List<String> lines = Files.readAllLines(file);
+      List<String> lines = Files.readAllLines(file);
 
-            int start = Math.max(0, line - 3);
-            int end = Math.min(lines.size(), line + 3);
+      int start = Math.max(0, line - 3);
+      int end = Math.min(lines.size(), line + 3);
 
-            StringBuilder snippet = new StringBuilder();
+      StringBuilder snippet = new StringBuilder();
 
-            for (int i = start; i < end; i++) {
-                snippet.append(lines.get(i)).append("\n");
-            }
+      for (int i = start; i < end; i++) {
+        snippet.append(lines.get(i)).append("\n");
+      }
 
-            return snippet.toString();
+      return snippet.toString();
 
-        } catch (IOException e) {
-            return "";
-        }
+    } catch (IOException e) {
+      return "";
     }
+  }
 
+  private CodeSnippetExtractor() {}
 }

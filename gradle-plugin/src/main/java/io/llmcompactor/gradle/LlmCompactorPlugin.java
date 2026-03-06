@@ -1,73 +1,99 @@
 package io.llmcompactor.gradle;
 
-import io.llmcompactor.core.*;
+import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.BuildSummary;
+import io.llmcompactor.core.FixTarget;
+import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
 import io.llmcompactor.core.extract.FixTargetGenerator;
 import io.llmcompactor.core.git.GitDiffExtractor;
-import io.llmcompactor.core.parser.SurefireParser;
+import io.llmcompactor.core.parser.GradleParser;
 import io.llmcompactor.core.parser.TestResult;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.logging.configuration.ShowStacktrace;
+import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.services.BuildService;
+import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.build.event.BuildEventsListenerRegistry;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.InputStreamReader;
-import java.nio.file.Files;
+import javax.inject.Inject;
+import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class LlmCompactorPlugin implements Plugin<Project> {
 
-    public void apply(Project project) {
-
-        project.getTasks().withType(Test.class).configureEach(test -> {
-
-            test.doLast(task -> {
-                generateSummary(project);
-            });
-
-        });
-
+    public interface LlmCompactorExtension {
+        Property<Boolean> getEnabled();
+        Property<Boolean> getOutputAsJson();
+        Property<Boolean> getCompressStackFrames();
+        ListProperty<String> getIncludePackages();
+        Property<Boolean> getShowFixTargets();
+        Property<Boolean> getShowRecentChanges();
     }
 
-    private void generateSummary(Project project) {
+    @Override
+    public void apply(Project project) {
+        LlmCompactorExtension extension = project.getExtensions().create("llmCompactor", LlmCompactorExtension.class);
+        extension.getEnabled().convention(true);
+        extension.getOutputAsJson().convention(true);
+        extension.getCompressStackFrames().convention(true);
+        extension.getShowFixTargets().convention(true);
+        extension.getShowRecentChanges().convention(true);
 
-        List<String> logs = new ArrayList<>();
+        if (project.equals(project.getRootProject())) {
+            // Only emit summary from root project at the end
+            project.getGradle().buildFinished(result -> {
+                if (Boolean.TRUE.equals(extension.getEnabled().get())) {
+                    emitSummary(project, extension);
+                }
+            });
+        }
+    }
 
-        Path buildLog = Path.of("build.log");
-        if (Files.exists(buildLog)) {
-            try {
-                logs = Files.readAllLines(buildLog);
-            } catch (Exception ignored) {}
+    private void emitSummary(Project project, LlmCompactorExtension extension) {
+        List<BuildError> allErrors = new ArrayList<>();
+        int totalTestsRun = 0;
+        int totalTestFailures = 0;
+
+        // Collect results from all projects
+        for (Project p : project.getAllprojects()) {
+            Path testResultsDir = p.getBuildDir().toPath().resolve("test-results");
+            TestResult result = GradleParser.parse(
+                    testResultsDir, 
+                    extension.getCompressStackFrames().get(), 
+                    extension.getIncludePackages().get()
+            );
+            totalTestsRun += result.testsRun();
+            totalTestFailures += result.failures();
+            allErrors.addAll(result.errors());
         }
 
-        List<BuildError> compileErrors = CompilationErrorExtractor.extract(logs);
+        List<FixTarget> targets = extension.getShowFixTargets().get() ?
+                FixTargetGenerator.generate(allErrors) : Collections.emptyList();
 
-        Path reportsDir = Path.of(project.getBuildDir(), "test-results");
-        TestResult testResult = SurefireParser.parse(reportsDir);
-        List<BuildError> testFailures = testResult.errors();
-
-        List<BuildError> allErrors = new ArrayList<>();
-        allErrors.addAll(compileErrors);
-        allErrors.addAll(testFailures);
-
-        List<FixTarget> targets = FixTargetGenerator.generate(allErrors);
-        List<String> recentChanges = GitDiffExtractor.changedFiles();
+        List<String> recentChanges = extension.getShowRecentChanges().get() ?
+                GitDiffExtractor.changedFiles() : Collections.emptyList();
 
         BuildSummary summary = new BuildSummary(
                 allErrors.isEmpty() ? "SUCCESS" : "FAILED",
-                testResult.testsRun(),
-                testResult.failures(),
+                totalTestsRun,
+                totalTestFailures,
                 allErrors,
                 targets,
                 recentChanges
         );
 
-        Path outputPath = Path.of(project.getBuildDir(), "llm-summary.json");
-        SummaryWriter.write(summary, outputPath);
-
-        System.out.println("LLM summary written to " + outputPath);
+        if (extension.getOutputAsJson().get()) {
+            System.out.println(SummaryWriter.toJson(summary));
+        } else {
+            System.out.println(SummaryWriter.toHumanReadable(summary));
+        }
     }
 }

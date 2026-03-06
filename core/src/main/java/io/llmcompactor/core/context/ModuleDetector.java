@@ -5,22 +5,36 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ModuleDetector {
+public final class ModuleDetector {
 
-    public static List<String> detectModules(Path root) {
+  public static boolean isMaven(Path root) {
+    return Files.exists(root.resolve("pom.xml"));
+  }
 
-        List<String> modules = new ArrayList<>();
+  public static boolean isGradle(Path root) {
+    return Files.exists(root.resolve("build.gradle"))
+        || Files.exists(root.resolve("build.gradle.kts"));
+  }
 
-        try {
+  public static List<String> detectModules(Path root) {
 
-            Files.list(root)
-                    .filter(p -> Files.exists(p.resolve("pom.xml")))
-                    .forEach(p -> modules.add(p.getFileName().toString()));
+    List<String> modules = new ArrayList<>();
 
-        } catch (Exception ignored) {}
+    try {
 
-        return modules;
+      Files.list(root)
+          .filter(
+              p ->
+                  Files.exists(p.resolve("pom.xml"))
+                      || Files.exists(p.resolve("build.gradle"))
+                      || Files.exists(p.resolve("build.gradle.kts")))
+          .forEach(p -> modules.add(p.getFileName().toString()));
 
+    } catch (Exception ignored) {
     }
 
+    return modules;
+  }
+
+  private ModuleDetector() {}
 }
