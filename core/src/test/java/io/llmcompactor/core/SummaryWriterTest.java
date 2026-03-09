@@ -39,7 +39,7 @@ class SummaryWriterTest {
     // or mock,
     // but let's test the error return
     String errorJson = SummaryWriter.toJson(null);
-    assertThat(errorJson).contains("Summary is null");
+    assertThat(errorJson).isEqualTo("{}");
   }
 
   @Test
@@ -55,9 +55,9 @@ class SummaryWriterTest {
             Collections.emptyList(),
             List.of("README.md"));
 
-    String output = SummaryWriter.toHumanReadable(summary);
+    String human = SummaryWriter.toHumanReadable(summary, true);
 
-    assertThat(output)
+    assertThat(human)
         .contains("Status: FAILED")
         .contains("Tests Run: 10")
         .contains("Failures: 2")

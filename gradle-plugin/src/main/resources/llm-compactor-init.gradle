@@ -1,0 +1,10 @@
+// Gradle Init Script for LLM Compactor
+// This runs BEFORE settings.gradle, allowing us to silence Gradle's
+// output pipeline before the OutputEventRenderer locks in its configuration.
+
+gradle.startParameter.logLevel = LogLevel.ERROR
+gradle.startParameter.consoleOutput = ConsoleOutput.Plain
+gradle.startParameter.showStacktrace = ShowStacktrace.INTERNAL_EXCEPTIONS
+
+System.setProperty("org.gradle.welcome", "never")
+System.setProperty("org.gradle.internal.launcher.welcomeMessageEnabled", "false")

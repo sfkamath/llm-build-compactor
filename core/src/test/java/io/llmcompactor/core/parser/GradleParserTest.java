@@ -36,15 +36,17 @@ class GradleParserTest {
 
     Files.writeString(resultsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.xml"), xml);
 
-    TestResult result = GradleParser.parse(resultsDir, true, Collections.emptyList());
+    TestResult result = GradleParser.parse(resultsDir, true, Collections.emptyList(), 0);
 
     assertThat(result.testsRun()).isEqualTo(1);
     assertThat(result.failures()).isEqualTo(1);
     assertThat(result.errors()).hasSize(1);
+    assertThat(result.allDurations()).containsExactly(0.05);
 
     BuildError error = result.errors().get(0);
     assertThat(error.type()).isEqualTo("java.lang.RuntimeException");
     assertThat(error.file()).contains("OrderServiceTest.java");
     assertThat(error.line()).isEqualTo(10);
+    assertThat(error.testDuration()).isEqualTo(0.05);
   }
 }

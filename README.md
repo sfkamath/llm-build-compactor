@@ -1,16 +1,15 @@
 # LLM Build Compactor
 
-A lightweight tool that extracts **actionable build diagnostics** from Maven runs. It filters out thousands of lines of framework noise (JUnit, Spring, Micronaut, Reactor) and produces a high-signal JSON or human-readable summary of failures.
-
-This dramatically reduces context usage and improves the success rate for AI coding agents (and humans) fixing build errors.
+A universal, zero-config tool that extracts **actionable build diagnostics** from Maven and Gradle runs. It filters out thousands of lines of framework noise (JUnit, Spring, Micronaut, Reactor) and produces a high-signal JSON or human-readable summary of failures optimized for AI agents and build-repair loops.
 
 ## Features
 
-- **Absolute Silence**: Suppresses all Maven/SLF4J banners and logs using a Core Extension.
+- **Absolute Silence**: Suppresses all build banners and logs (Maven: 0 lines, Gradle: ~10 lines).
 - **Smart Compaction**: Filters stack traces to show only your project's code.
 - **Agent-First Output**: Pretty-printed JSON or clean human-readable text.
-- **Contextual Fixes**: Identifies the exact file/line and provides code snippets for errors.
+- **Contextual Fixes**: Identifies the exact file/line and provides 7-line code snippets for errors.
 - **Git Integration**: Includes a list of recently changed files to provide context.
+- **Test Insights**: Optional test duration tracking and percentile reports (p50-max).
 
 ---
 
@@ -26,9 +25,33 @@ This automatically creates `.mvn/extensions.xml` in your project, enabling the C
 
 ---
 
+## Installation (Gradle)
+
+### 1. Apply the Plugin
+
+Add the plugin to your `build.gradle`:
+
+```gradle
+plugins {
+    id 'io.llmcompactor.gradle' version '0.1.0'
+}
+```
+
+### 2. Enable Absolute Silence (Optional but Recommended)
+
+To achieve the highest level of silence (suppressing "BUILD SUCCESSFUL" and task headers), install the global init script:
+
+```bash
+./gradlew installLlmCompactor
+```
+
+This installs an init script to `~/.gradle/init.d/` that configures the logging pipeline before Gradle's internal renderer starts.
+
+---
+
 ## Configuration
 
-Settings can be configured in your `pom.xml` (via `<properties>` or plugin `<configuration>`) or passed as system properties on the command line.
+Settings can be configured in your `pom.xml` (Maven), `build.gradle` (Gradle), or passed as system properties.
 
 ### Available Options
 
@@ -39,46 +62,42 @@ Settings can be configured in your `pom.xml` (via `<properties>` or plugin `<con
 | `llmCompactor.compressStackFrames` | `true` | Filter out framework noise from stack traces. |
 | `llmCompactor.showFixTargets` | `true` | Include suggested files and snippets for fixing errors. |
 | `llmCompactor.showRecentChanges` | `true` | Include the list of files changed in git recently. |
-| `llmCompactor.includePackages` | (empty) | Comma-separated list of packages to *always* include in stack traces (overrides filtering). |
-| `llmCompactor.outputPath` | `target/llm-summary.json` | Path where the summary is saved. |
+| `llmCompactor.includePackages` | (empty) | Comma-separated list of packages to *always* include in stack traces. **Note:** The compactor automatically scans your `src/main`, `src/test`, and `src/it` to identify and preserve project-specific packages. |
+| `llmCompactor.showDuration` | `true` | Show duration for individual failing tests. |
+| `llmCompactor.showTotalDuration` | `false` | Include the total build execution time in the summary. |
+| `llmCompactor.showDurationReport` | `false` | Include a heuristic percentile report of test durations (p50, p90, p95, p99, max). |
+| `llmCompactor.outputPath` | (varies) | Path where the summary is saved (e.g., `target/llm-summary.json`). |
 
 ---
 
-## Usage Examples
+## Disabling the Compactor
 
-### 1. High-Signal Silent Build (Standard for AI Agents)
+If you need a standard build with full output (e.g., for debugging or when a build hangs), disable it via the command line:
+
 ```bash
-mvn verify -DllmCompactor.outputAsJson=true
+mvn verify -DllmCompactor.enabled=false
+# OR
+./gradlew build -DllmCompactor.enabled=false
 ```
 
-### 2. Human-Readable Debugging
-```bash
-mvn test -DllmCompactor.outputAsJson=false
-```
+---
 
-### 3. Including External Library Context
-If you are debugging an issue in a library like `com.example.lib`, you can force its frames to show up:
-```bash
-mvn verify -DllmCompactor.includePackages=com.example.lib
-```
+## Fix Targets & Code Snippets
 
-### 4. POM Configuration
-```xml
-<properties>
-    <llmCompactor.outputAsJson>false</llmCompactor.outputAsJson>
-    <llmCompactor.showFixTargets>false</llmCompactor.showFixTargets>
-</properties>
+For every build error, the compactor identifies the source file (checking `src/main`, `src/test`, and `src/it`) and provides a **7-line code snippet** (3 lines before/after the failure).
 
-<!-- OR within the plugin declaration -->
-<plugin>
-    <groupId>io.llmcompactor</groupId>
-    <artifactId>llm-compactor-maven-plugin</artifactId>
-    <version>0.1.0</version>
-    <configuration>
-        <outputAsJson>true</outputAsJson>
-        <compressStackFrames>true</compressStackFrames>
-    </configuration>
-</plugin>
+This provides **instant context** for AI agents, making fixes cheaper and faster by eliminating extra `read_file` calls.
+
+### Example in JSON:
+```json
+"fixTargets": [
+  {
+    "file": "src/it/java/io/llmcompactor/testbed/OrderProcessorIT.java",
+    "line": 49,
+    "reason": "org.opentest4j.AssertionFailedError: expected: <100.00> but was: <175.00>",
+    "snippet": "        BigDecimal total = processor.calculateTotal(orders);\n        \n        // Intentional failure - wrong expected total\n        assertEquals(new BigDecimal(\"100.00\"), total, \n            \"Total should be sum of all orders\");\n    }\n"
+  }
+]
 ```
 
 ---
@@ -99,7 +118,12 @@ mvn verify -DllmCompactor.includePackages=com.example.lib
       "message": "Order processing failed",
       "stackTrace": "at io.llmcompactor.testbed.StackTraceTest.testNestedException(StackTraceTest.java:37)\nCaused by: java.lang.IllegalArgumentException: Order validation failed\nat io.llmcompactor.testbed.StackTraceTest.validateOrder(StackTraceTest.java:47)"
     }
-  ]
+  ],
+  "testDurationPercentiles": {
+    "p50": 12.5,
+    "p95": 145.2,
+    "max": 512.0
+  }
 }
 ```
 

@@ -29,6 +29,7 @@ import io.llmcompactor.core.extract.FixTargetGenerator;
 import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResult;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
@@ -37,8 +38,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.TreeMap;
+import java.util.stream.Stream;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.maven.AbstractMavenLifecycleParticipant;
@@ -65,7 +70,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
   private MavenSession session;
   private final List<BuildError> compileErrors = new ArrayList<>();
-  private boolean initialized;
+  private volatile boolean initialized;
 
   public BuildOutputSpy() {}
 
@@ -88,6 +93,12 @@ public class BuildOutputSpy extends AbstractEventSpy {
       return;
     }
 
+    // Check for interactive/app-running goals
+    if (isInteractiveGoal(session)) {
+      initialized = true; // Skip redirection for interactive goals
+      return;
+    }
+
     originalOut = System.out;
     originalErr = System.err;
 
@@ -101,6 +112,40 @@ public class BuildOutputSpy extends AbstractEventSpy {
     System.setErr(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
 
     initialized = true;
+  }
+
+  private boolean isInteractiveGoal(MavenSession session) {
+    List<String> interactiveGoals =
+        List.of(
+            "exec:java",
+            "exec:exec",
+            "spring-boot:run",
+            "quarkus:dev",
+            "micronaut:run",
+            "jetty:run",
+            "tomcat:run",
+            "wildfly:run");
+
+    // 1. Check session goals if available
+    if (session != null && session.getGoals() != null) {
+      for (String goal : session.getGoals()) {
+        if (interactiveGoals.contains(goal)) {
+          return true;
+        }
+      }
+    }
+
+    // 2. Fallback: check command line arguments (important for early initialization)
+    String command = System.getProperty("sun.java.command");
+    if (command != null) {
+      for (String goal : interactiveGoals) {
+        if (command.contains(" " + goal) || command.endsWith(" " + goal)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   @Override
@@ -118,6 +163,10 @@ public class BuildOutputSpy extends AbstractEventSpy {
     switch (ee.getType()) {
       case SessionStarted -> {
         this.session = ee.getSession();
+        if (isInteractiveGoal(session)) {
+          initialized = true; // Mark as initialized to prevent later redirection
+          return;
+        }
         suppressTestOutput();
       }
       case MojoFailed -> {
@@ -181,7 +230,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
   }
 
   private void emitSummary() {
-    if (session == null || originalOut == null) {
+    if (session == null || originalOut == null || isInteractiveGoal(session)) {
       return;
     }
 
@@ -195,24 +244,58 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
     String includePackagesProp = getProperty("llmCompactor.includePackages", projectProps, "");
     List<String> includePackages =
-        includePackagesProp.isEmpty() ? List.of() : List.of(includePackagesProp.split(","));
+        new ArrayList<>(
+            includePackagesProp.isEmpty() ? List.of() : List.of(includePackagesProp.split(",")));
+
+    List<MavenProject> projects = session.getProjects();
+
+    // Auto-scan project packages from source directories
+    if (projects != null) {
+      for (MavenProject project : projects) {
+        includePackages.addAll(scanProjectPackages(project));
+      }
+    }
 
     List<BuildError> allErrors = new ArrayList<>(compileErrors);
+    List<Double> allDurations = new ArrayList<>();
     int totalTestsRun = 0;
     int totalTestFailures = 0;
 
+    long sessionStartTime = session.getStartTime() != null ? session.getStartTime().getTime() : 0;
+
     // Collect reports from all modules in the session
-    List<MavenProject> projects = session.getProjects();
     if (projects != null) {
       for (MavenProject project : projects) {
         Path targetDir = project.getBasedir().toPath().resolve("target");
         if (Files.exists(targetDir)) {
-          TestResult result = SurefireParser.parse(targetDir, compress, includePackages);
+          TestResult result =
+              SurefireParser.parse(targetDir, compress, includePackages, sessionStartTime);
           totalTestsRun += result.testsRun();
           totalTestFailures += result.failures();
           allErrors.addAll(result.errors());
+          allDurations.addAll(result.allDurations());
         }
       }
+    }
+
+    String showTotalDurationProp =
+        getProperty("llmCompactor.showTotalDuration", projectProps, "false");
+    Long totalBuildDurationMs = null;
+    if ("true".equalsIgnoreCase(showTotalDurationProp)) {
+      totalBuildDurationMs = System.currentTimeMillis() - sessionStartTime;
+    }
+
+    String showDurationReportProp =
+        getProperty("llmCompactor.showDurationReport", projectProps, "false");
+    Map<String, Double> testDurationPercentiles = null;
+    if ("true".equalsIgnoreCase(showDurationReportProp) && !allDurations.isEmpty()) {
+      Collections.sort(allDurations);
+      testDurationPercentiles = new TreeMap<>();
+      testDurationPercentiles.put("p50", allDurations.get((int) (allDurations.size() * 0.50)));
+      testDurationPercentiles.put("p90", allDurations.get((int) (allDurations.size() * 0.90)));
+      testDurationPercentiles.put("p95", allDurations.get((int) (allDurations.size() * 0.95)));
+      testDurationPercentiles.put("p99", allDurations.get((int) (allDurations.size() * 0.99)));
+      testDurationPercentiles.put("max", allDurations.get(allDurations.size() - 1));
     }
 
     String showFixTargetsProp = getProperty("llmCompactor.showFixTargets", projectProps, "true");
@@ -235,7 +318,14 @@ public class BuildOutputSpy extends AbstractEventSpy {
             totalTestFailures,
             allErrors,
             targets,
-            recentChanges);
+            recentChanges,
+            totalBuildDurationMs,
+            testDurationPercentiles);
+
+    String outputPath = getProperty("llmCompactor.outputPath", projectProps, null);
+    if (outputPath != null) {
+      SummaryWriter.write(summary, Path.of(outputPath));
+    }
 
     // Emit to real System.out
     if (realOut != null) {
@@ -243,9 +333,41 @@ public class BuildOutputSpy extends AbstractEventSpy {
       if ("true".equalsIgnoreCase(outputAsJson)) {
         realOut.print(SummaryWriter.toJson(summary));
       } else {
-        realOut.println(SummaryWriter.toHumanReadable(summary));
+        String showDurationProp = getProperty("llmCompactor.showDuration", projectProps, "true");
+        boolean showDuration = "true".equalsIgnoreCase(showDurationProp);
+        realOut.println(SummaryWriter.toHumanReadable(summary, showDuration));
       }
     }
+  }
+
+  private List<String> scanProjectPackages(MavenProject project) {
+    List<String> packages = new ArrayList<>();
+    List<String> sourceRoots = new ArrayList<>();
+    sourceRoots.addAll(project.getCompileSourceRoots());
+    sourceRoots.addAll(project.getTestCompileSourceRoots());
+
+    for (String root : sourceRoots) {
+      Path rootPath = Path.of(root);
+      if (Files.exists(rootPath)) {
+        try (Stream<Path> walk = Files.walk(rootPath)) {
+          walk.filter(Files::isRegularFile)
+              .filter(p -> p.toString().endsWith(".java"))
+              .forEach(
+                  p -> {
+                    Path relative = rootPath.relativize(p);
+                    if (relative.getParent() != null) {
+                      String pkg = relative.getParent().toString().replace("/", ".");
+                      if (!packages.contains(pkg)) {
+                        packages.add(pkg);
+                      }
+                    }
+                  });
+        } catch (IOException e) {
+          // Ignore
+        }
+      }
+    }
+    return packages;
   }
 
   private String getProperty(String key, Properties projectProps, String defaultValue) {
@@ -337,6 +459,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
     @Override
     public void afterProjectsRead(MavenSession session) throws MavenExecutionException {
+      spy.session = session;
       spy.ensureInitialized();
     }
   }

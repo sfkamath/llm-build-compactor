@@ -26,18 +26,23 @@ public final class GradleParser {
   private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\\.java:(\\d+)");
 
   public static TestResult parse(
-      Path testResultsDir, boolean compressStackFrames, List<String> includePackages) {
+      Path testResultsDir,
+      boolean compressStackFrames,
+      List<String> includePackages,
+      long sessionStartTime) {
     if (!Files.exists(testResultsDir)) {
       return new TestResult(0, 0, Collections.emptyList());
     }
 
     List<BuildError> failures = new ArrayList<>();
+    List<Double> allDurations = new ArrayList<>();
     AtomicInteger totalTests = new AtomicInteger(0);
     AtomicInteger testFailures = new AtomicInteger(0);
 
     try (Stream<Path> files = Files.walk(testResultsDir)) {
       files
           .filter(f -> f.toString().endsWith(".xml"))
+          .filter(p -> p.toFile().lastModified() >= sessionStartTime)
           .forEach(
               file -> {
                 try {
@@ -50,6 +55,20 @@ public final class GradleParser {
                     totalTests.addAndGet(Integer.parseInt(tests));
                   }
 
+                  // Collect all durations
+                  NodeList testCaseNodes = doc.getElementsByTagName("testcase");
+                  for (int i = 0; i < testCaseNodes.getLength(); i++) {
+                    Element testCase = (Element) testCaseNodes.item(i);
+                    String timeAttr = testCase.getAttribute("time");
+                    if (timeAttr != null && !timeAttr.isEmpty()) {
+                      try {
+                        allDurations.add(Double.parseDouble(timeAttr));
+                      } catch (NumberFormatException e) {
+                        // Ignore
+                      }
+                    }
+                  }
+
                   NodeList failureNodes = doc.getElementsByTagName("failure");
                   for (int i = 0; i < failureNodes.getLength(); i++) {
                     var node = failureNodes.item(i);
@@ -59,6 +78,15 @@ public final class GradleParser {
                     // In Gradle, the test case name and class are in the parent element
                     Element testCase = (Element) node.getParentNode();
                     String className = testCase.getAttribute("classname");
+                    String timeAttr = testCase.getAttribute("time");
+                    double duration = 0.0;
+                    if (timeAttr != null && !timeAttr.isEmpty()) {
+                      try {
+                        duration = Double.parseDouble(timeAttr);
+                      } catch (NumberFormatException e) {
+                        // Ignore
+                      }
+                    }
 
                     String sourceFile = null;
                     int line = -1;
@@ -70,7 +98,7 @@ public final class GradleParser {
                         Matcher m = LINE_NUMBER_PATTERN.matcher(l);
                         if (m.find()) {
                           line = Integer.parseInt(m.group(1));
-                          sourceFile = "src/test/java/" + className.replace(".", "/") + ".java";
+                          sourceFile = resolveSourceFile(className);
                           break;
                         }
                       }
@@ -87,7 +115,8 @@ public final class GradleParser {
                             sourceFile != null ? sourceFile : className,
                             line,
                             extractFirstLine(message),
-                            stackTrace));
+                            stackTrace,
+                            duration));
                     testFailures.incrementAndGet();
                   }
 
@@ -99,7 +128,23 @@ public final class GradleParser {
       // Ignore IO errors
     }
 
-    return new TestResult(totalTests.get(), testFailures.get(), failures);
+    return new TestResult(totalTests.get(), testFailures.get(), failures, allDurations);
+  }
+
+  private static String resolveSourceFile(String className) {
+    String relativePath = className.replace(".", "/") + ".java";
+    String[] roots = {
+      "src/main/java/", "src/test/java/", "src/it/java/", "src/integration-test/java/"
+    };
+
+    for (String root : roots) {
+      String fullPath = root + relativePath;
+      if (Files.exists(Path.of(fullPath))) {
+        return fullPath;
+      }
+    }
+    // Default to src/test/java if not found
+    return "src/test/java/" + relativePath;
   }
 
   private static boolean isProjectFrame(String line, String className) {
