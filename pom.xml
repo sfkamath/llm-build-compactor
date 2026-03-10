@@ -12,8 +12,8 @@
     <packaging>pom</packaging>
 
     <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <junit-jupiter.version>5.14.3</junit-jupiter.version>
@@ -170,7 +170,7 @@
                         <artifactId>modernizer-maven-plugin</artifactId>
                         <version>${modernizer-maven-plugin.version}</version>
                         <configuration>
-                            <javaVersion>21</javaVersion>
+                            <javaVersion>17</javaVersion>
                             <includeTestClasses>true</includeTestClasses>
                         </configuration>
                         <executions>
