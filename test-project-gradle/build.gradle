@@ -37,8 +37,4 @@ test {
 
 llmCompactor {
     enabled = true
-    outputAsJson = false
-    compressStackFrames = true
-    showFixTargets = true
-    showRecentChanges = true
 }

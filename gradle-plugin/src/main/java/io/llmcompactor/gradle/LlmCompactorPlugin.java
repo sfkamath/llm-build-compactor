@@ -59,10 +59,10 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 : true;
         project.getLogger().debug("[LLM Compactor] sysProp={} enabledValue={}", sysProp, enabledValue);
         extension.getEnabled().set(enabledValue);
-        extension.getOutputAsJson().convention(true);
+        extension.getOutputAsJson().convention(false);  // Match Maven default (human-readable)
         extension.getCompressStackFrames().convention(true);
-        extension.getShowFixTargets().convention(true);
-        extension.getShowRecentChanges().convention(true);
+        extension.getShowFixTargets().convention(false);  // Match Maven test-project config
+        extension.getShowRecentChanges().convention(false);  // Match Maven test-project config
         extension.getShowDuration().convention(true);
         extension.getShowTotalDuration().convention(false);
         extension.getShowDurationReport().convention(false);
@@ -95,16 +95,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             long sessionStartTime = System.currentTimeMillis();
             final boolean isEnabled = Boolean.TRUE.equals(extension.getEnabled().get());
 
-            // Save original streams
-            final PrintStream originalOut = System.out;
-            final PrintStream originalErr = System.err;
-
-            // Redirect System.out/err as a fallback for the current build
-            if (isEnabled) {
-                System.setOut(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
-                System.setErr(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
-            }
-
+            // Capture output for potential use (init script may have already redirected)
             StandardOutputListener listener = logLines::add;
             project.allprojects(p -> {
                 p.getLogging().addStandardOutputListener(listener);
@@ -122,9 +113,6 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
-                    // Restore original streams before emitting summary
-                    System.setOut(originalOut);
-                    System.setErr(originalErr);
                     emitSummary(project, extension, sessionStartTime);
                 }
             });

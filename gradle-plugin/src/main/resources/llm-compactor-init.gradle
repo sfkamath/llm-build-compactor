@@ -8,12 +8,24 @@ def projProp = gradle.startParameter.projectProperties['llmCompactor.enabled']
 def isCompactorEnabled = (sysProp ?: projProp ?: 'true').toBoolean()
 
 if (isCompactorEnabled) {
-    gradle.startParameter.logLevel = LogLevel.ERROR
+    gradle.startParameter.logLevel = LogLevel.QUIET
     gradle.startParameter.consoleOutput = ConsoleOutput.Plain
     gradle.startParameter.showStacktrace = ShowStacktrace.INTERNAL_EXCEPTIONS
 
     System.setProperty("org.gradle.welcome", "never")
     System.setProperty("org.gradle.internal.launcher.welcomeMessageEnabled", "false")
+
+    // Silence test output by configuring test logging for all projects
+    gradle.beforeProject { project ->
+        project.afterEvaluate {
+            project.tasks.withType(Test).configureEach { testTask ->
+                testTask.testLogging {
+                    events = []  // No test events
+                    showStandardStreams = false
+                }
+            }
+        }
+    }
 } else {
     println "[LLM Compactor] Disabled via command-line property"
 }
