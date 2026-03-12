@@ -1,6 +1,8 @@
-// Gradle Init Script for LLM Compactor
-// This runs BEFORE settings.gradle, allowing us to silence Gradle's
-// output pipeline before the OutputEventRenderer locks in its configuration.
+// Gradle Init Script for LLM Compactor - Silent mode
+// This script suppresses Gradle's test output. The Java plugin emits the summary.
+
+import org.gradle.api.tasks.testing.Test
+import org.gradle.api.logging.LogLevel
 
 // Check if llmCompactor is disabled via command-line property (-D or -P)
 def sysProp = System.getProperty('llmCompactor.enabled')
@@ -8,6 +10,7 @@ def projProp = gradle.startParameter.projectProperties['llmCompactor.enabled']
 def isCompactorEnabled = (sysProp ?: projProp ?: 'true').toBoolean()
 
 if (isCompactorEnabled) {
+    // Set quiet log level from the start
     gradle.startParameter.logLevel = LogLevel.QUIET
     gradle.startParameter.consoleOutput = ConsoleOutput.Plain
     gradle.startParameter.showStacktrace = ShowStacktrace.INTERNAL_EXCEPTIONS
@@ -15,19 +18,27 @@ if (isCompactorEnabled) {
     System.setProperty("org.gradle.welcome", "never")
     System.setProperty("org.gradle.internal.launcher.welcomeMessageEnabled", "false")
 
-    // Silence test output - apply just before test tasks run (after project config)
-    gradle.taskGraph.beforeTask { task ->
-        if (task instanceof Test) {
-            // Only configure once per task
-            if (!task.hasProperty('llmCompactorConfigured')) {
+    // Configure ALL test tasks before they run
+    gradle.taskGraph.whenReady { graph ->
+        graph.allTasks.each { task ->
+            if (task instanceof Test) {
+                // Configure test logging to suppress everything
                 task.testLogging {
-                    events = []  // No test events
+                    events = []
                     showStandardStreams = false
                     showExceptions = false
                     showCauses = false
                     showStackTraces = false
+                    exceptionFormat = 'short'
                 }
-                task.ext.llmCompactorConfigured = true
+                
+                // Disable Spock output
+                task.systemProperty('spock.useColor', 'false')
+                task.systemProperty('spock.filterByTestName', 'false')
+                
+                // Capture standard output/error at QUIET level (won't show with default log level)
+                task.logging.captureStandardOutput(LogLevel.QUIET)
+                task.logging.captureStandardError(LogLevel.QUIET)
             }
         }
     }

@@ -20,6 +20,20 @@ public final class StackTraceCompressor {
           "io.projectreactor.",
           "reactor.core.",
           "io.micronaut.");
+  // Note: io.micronaut. is included to filter out framework frames for most projects.
+  // For Micronaut projects, use includePackages to explicitly include your packages.
+
+  /**
+   * Normalizes a stack trace line by removing classloader prefixes like "app//", "bytebuddy.", etc.
+   */
+  private static String normalizeLine(String line) {
+    if (line == null || line.isEmpty()) {
+      return line;
+    }
+    // Remove classloader prefixes that Gradle adds
+    String normalized = line.replaceAll("^\\s*at\\s+(?:app|bytebuddy|transformation|[0-9a-f]+)//", "at ");
+    return normalized;
+  }
 
   /**
    * Compresses a stack trace into a single string containing only "useful" parts: - All project
@@ -60,26 +74,29 @@ public final class StackTraceCompressor {
 
   private static boolean isUsefulFrame(
       String trimmedLine, String projectPackage, List<String> includePackages) {
-    // 1. Check explicit inclusions (overrides defaults)
-    if (includePackages != null) {
-      for (String pkg : includePackages) {
-        if (trimmedLine.contains("at " + pkg)) {
-          return true;
-        }
-      }
-    }
-
-    // 2. If we have a project package, check for it
+    // Normalize the line to remove classloader prefixes
+    String normalized = normalizeLine(trimmedLine);
+    
+    // 1. If we have a project package, check for it FIRST (before framework exclusions)
     if (projectPackage != null && !projectPackage.isEmpty()) {
-      if (trimmedLine.contains(projectPackage)) {
+      if (normalized.contains(projectPackage)) {
         return true;
       }
     }
-
-    // 3. Exclude known framework prefixes
+    
+    // 2. Exclude known framework prefixes (this takes precedence over includePackages)
     for (String prefix : FRAMEWORK_PREFIXES) {
-      if (trimmedLine.contains("at " + prefix)) {
+      if (normalized.contains("at " + prefix)) {
         return false;
+      }
+    }
+    
+    // 3. Check explicit inclusions (only for non-framework packages)
+    if (includePackages != null) {
+      for (String pkg : includePackages) {
+        if (normalized.contains("at " + pkg)) {
+          return true;
+        }
       }
     }
 
