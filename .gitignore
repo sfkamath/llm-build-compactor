@@ -1,11 +1,25 @@
-target/
-build/
-.gradle/
-*.iml
+**/node_modules/
+**/dist/
+**/target/
+*.versionsBackup
+release.properties
+.DS_Store
 .idea/
-.settings/
-.classpath
-.project
+*.iml
+.vscode/
+.java-version
+.flattened-pom.xml
+**/playwright-report/
+**/test-results/
+workspace/
+.gradle/
+build/
+!.mvn/wrapper/maven-wrapper.jar
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+!**/src/main/**/build/
+!**/src/test/**/build/
 
 # Logs and DB
 logs/
@@ -16,11 +30,8 @@ run.pid
 dependency-reduced-pom.xml
 data/
 *.txt
-pom.xml.versionsBackup
 settings.local.json
-/workspace/
 sessions.sqlite
 summaries.db
 sessions-bak.sqlite
 test-project-mse/
-.DS_Store

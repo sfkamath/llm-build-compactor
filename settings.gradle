@@ -1,9 +1,0 @@
-pluginManagement {
-    includeBuild('gradle-plugin')
-}
-
-rootProject.name = 'llm-build-compactor'
-include 'core'
-include 'llm-compactor-maven-plugin'
-include 'maven-extension'
-include 'test-project-gradle'

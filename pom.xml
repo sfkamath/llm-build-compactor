@@ -8,10 +8,11 @@
 
     <groupId>io.llmcompactor</groupId>
     <artifactId>llm-build-compactor</artifactId>
-    <version>0.1.0</version>
+    <version>${revision}</version>
     <packaging>pom</packaging>
 
     <properties>
+        <revision>0.1.2</revision>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -112,6 +113,31 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.7.3</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
@@ -152,9 +178,84 @@
             <build>
                 <plugins>
                     <plugin>
+                        <groupId>org.openrewrite.maven</groupId>
+                        <artifactId>rewrite-maven-plugin</artifactId>
+                        <version>${rewrite-maven-plugin.version}</version>
+                        <dependencies>
+                            <dependency>
+                                <groupId>com.github.ben-manes.caffeine</groupId>
+                                <artifactId>caffeine</artifactId>
+                                <version>3.2.3</version>
+                            </dependency>
+                        </dependencies>
+                        <configuration>
+                            <recipeArtifactCoordinates>
+                                org.openrewrite.recipe:rewrite-static-analysis:2.25.0
+                            </recipeArtifactCoordinates>
+                            <activeRecipes>
+                                <recipe>org.openrewrite.java.ShortenFullyQualifiedTypeReferences</recipe>
+                                <recipe>org.openrewrite.staticanalysis.CommonStaticAnalysis</recipe>
+                                <recipe>org.openrewrite.staticanalysis.CodeCleanup</recipe>
+                                <recipe>org.openrewrite.java.RemoveUnusedImports</recipe>
+                                <recipe>org.openrewrite.staticanalysis.UnnecessaryParentheses</recipe>
+                                <recipe>org.openrewrite.staticanalysis.SimplifyBooleanExpression</recipe>
+                                <recipe>org.openrewrite.staticanalysis.NoDoubleBraceInitialization</recipe>
+                            </activeRecipes>
+                            <exclusions>
+                                <exclusion>**/target/generated-sources/**</exclusion>
+                                <exclusion>**/*.gradle.kts</exclusion>
+                                <exclusion>**/gradle-plugin/**</exclusion>
+                            </exclusions>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>rewrite-apply</id>
+                                <phase>process-sources</phase>
+                                <goals>
+                                    <goal>runNoFork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>com.diffplug.spotless</groupId>
+                        <artifactId>spotless-maven-plugin</artifactId>
+                        <version>${spotless-maven-plugin.version}</version>
+                        <configuration>
+                            <java>
+                                <includes>
+                                    <include>src/main/java/**/*.java</include>
+                                    <include>src/test/java/**/*.java</include>
+                                </includes>
+                                <importOrder/>
+                                <removeUnusedImports/>
+                                <googleJavaFormat/>
+                                <formatAnnotations/>
+                            </java>
+                            <pom>
+                                <includes>
+                                    <include>pom.xml</include>
+                                    <include>**/pom.xml</include>
+                                </includes>
+                            </pom>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>spotless-apply</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>apply</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
                         <groupId>com.github.spotbugs</groupId>
                         <artifactId>spotbugs-maven-plugin</artifactId>
                         <version>${spotbugs.version}</version>
+                        <configuration>
+                            <excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+                        </configuration>
                         <executions>
                             <execution>
                                 <id>spotbugs-check</id>
@@ -170,7 +271,7 @@
                         <artifactId>modernizer-maven-plugin</artifactId>
                         <version>${modernizer-maven-plugin.version}</version>
                         <configuration>
-                            <javaVersion>17</javaVersion>
+                            <javaVersion>${maven.compiler.source}</javaVersion>
                             <includeTestClasses>true</includeTestClasses>
                         </configuration>
                         <executions>
@@ -199,63 +300,6 @@
                             <dataDirectory>${user.home}/.m2/dependency-check-data</dataDirectory>
                             <skip>${dependency-check.skip}</skip>
                         </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.openrewrite.maven</groupId>
-                        <artifactId>rewrite-maven-plugin</artifactId>
-                        <version>${rewrite-maven-plugin.version}</version>
-                        <configuration>
-                            <recipeArtifactCoordinates>
-                                org.openrewrite.recipe:rewrite-static-analysis:2.25.0
-                            </recipeArtifactCoordinates>
-                            <activeRecipes>
-                                <recipe>org.openrewrite.java.ShortenFullyQualifiedTypeReferences</recipe>
-                                <recipe>org.openrewrite.staticanalysis.CommonStaticAnalysis</recipe>
-                                <recipe>org.openrewrite.staticanalysis.CodeCleanup</recipe>
-                                <recipe>org.openrewrite.java.RemoveUnusedImports</recipe>
-                                <recipe>org.openrewrite.staticanalysis.UnnecessaryParentheses</recipe>
-                                <recipe>org.openrewrite.staticanalysis.SimplifyBooleanExpression</recipe>
-                                <recipe>org.openrewrite.staticanalysis.NoDoubleBraceInitialization</recipe>
-                            </activeRecipes>
-                            <exclusions>
-                                <exclusion>**/target/generated-sources/**</exclusion>
-                            </exclusions>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>rewrite-apply</id>
-                                <phase>process-sources</phase>
-                                <goals>
-                                    <goal>runNoFork</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>com.diffplug.spotless</groupId>
-                        <artifactId>spotless-maven-plugin</artifactId>
-                        <version>${spotless-maven-plugin.version}</version>
-                        <configuration>
-                            <java>
-                                <includes>
-                                    <include>src/main/java/**/*.java</include>
-                                    <include>src/test/java/**/*.java</include>
-                                </includes>
-                                <importOrder/>
-                                <removeUnusedImports/>
-                                <googleJavaFormat/>
-                                <formatAnnotations/>
-                            </java>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>spotless-apply</id>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>apply</goal>
-                                </goals>
-                            </execution>
-                        </executions>
                     </plugin>
                     <plugin>
                         <groupId>org.jacoco</groupId>
@@ -313,6 +357,70 @@
                                 <goals>
                                     <goal>compact</goal>
                                 </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>ossrh</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.sonatype.central</groupId>
+                        <artifactId>central-publishing-maven-plugin</artifactId>
+                        <version>0.10.0</version>
+                        <extensions>true</extensions>
+                        <configuration>
+                            <publishingServerId>central</publishingServerId>
+                            <autoPublish>true</autoPublish>
+                            <waitUntil>validated</waitUntil>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.3.1</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar-no-fork</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.11.2</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>3.2.7</version>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                                <configuration>
+                                    <gpgArguments>
+                                        <arg>--pinentry-mode</arg>
+                                        <arg>loopback</arg>
+                                    </gpgArguments>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>

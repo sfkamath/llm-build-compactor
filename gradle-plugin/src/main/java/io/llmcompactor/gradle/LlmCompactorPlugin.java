@@ -54,8 +54,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         String sysProp = System.getProperty("llmCompactor.enabled");
         Boolean enabledValue = sysProp != null
             ? Boolean.parseBoolean(sysProp)
-            : project.hasProperty("llmCompactor.enabled")
-                ? Boolean.parseBoolean(project.property("llmCompactor.enabled").toString())
+            : project.getProviders().gradleProperty("llmCompactor.enabled").isPresent()
+                ? Boolean.parseBoolean(project.getProviders().gradleProperty("llmCompactor.enabled").get())
                 : true;
         project.getLogger().debug("[LLM Compactor] sysProp={} enabledValue={}", sysProp, enabledValue);
         extension.getEnabled().set(enabledValue);
@@ -72,8 +72,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         project.getTasks().register("installLlmCompactor", task -> {
             task.setGroup("llm-compactor");
             task.setDescription("Installs the LLM Compactor init script for complete Gradle silence");
+            Path initDir = project.getGradle().getGradleUserHomeDir().toPath().resolve("init.d");
             task.doLast(t -> {
-                Path initDir = project.getGradle().getGradleUserHomeDir().toPath().resolve("init.d");
                 try {
                     java.nio.file.Files.createDirectories(initDir);
                     try (var is = getClass().getResourceAsStream("/llm-compactor-init.gradle")) {

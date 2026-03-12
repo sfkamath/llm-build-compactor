@@ -18,7 +18,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 The easiest way to set up the compactor is using the `install` goal:
 
 ```bash
-mvn io.llmcompactor:llm-compactor-maven-plugin:0.1.0:install
+mvn io.llmcompactor:llm-compactor-maven-plugin:0.1.2:install
 ```
 
 This automatically creates `.mvn/extensions.xml` in your project, enabling the Core Extension for absolute silence.
@@ -29,15 +29,49 @@ This automatically creates `.mvn/extensions.xml` in your project, enabling the C
 
 ### 1. Apply the Plugin
 
-Add the plugin to your `build.gradle`:
+Add the plugin to your `build.gradle.kts` (Kotlin DSL):
 
-```gradle
+```kotlin
 plugins {
-    id 'io.llmcompactor.gradle' version '0.1.0'
+    id("io.llmcompactor.gradle") version "0.1.2"
 }
 ```
 
-### 2. Enable Absolute Silence (Optional but Recommended)
+Or `build.gradle` (Groovy DSL):
+
+```groovy
+plugins {
+    id 'io.llmcompactor.gradle' version '0.1.2'
+}
+```
+
+### 2. Configure the Plugin
+
+**Kotlin DSL** (`build.gradle.kts`):
+```kotlin
+llmCompactor {
+    enabled.set(true)
+    outputAsJson.set(false)
+    compressStackFrames.set(true)
+    showFixTargets.set(true)
+    showRecentChanges.set(true)
+    showDuration.set(true)
+}
+```
+
+**Groovy DSL** (`build.gradle`):
+```groovy
+llmCompactor {
+    enabled = true
+    outputAsJson = false
+    compressStackFrames = true
+    showFixTargets = true
+    showRecentChanges = true
+    showDuration = true
+}
+```
+
+### 3. Enable Absolute Silence (Optional but Recommended)
 
 To achieve the highest level of silence (suppressing "BUILD SUCCESSFUL" and task headers), install the global init script:
 

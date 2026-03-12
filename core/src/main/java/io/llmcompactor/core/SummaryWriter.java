@@ -8,7 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Collectors;
 
-public class SummaryWriter {
+public final class SummaryWriter {
   private static final ObjectMapper mapper =
       new ObjectMapper()
           .enable(SerializationFeature.INDENT_OUTPUT)
@@ -140,6 +140,5 @@ public class SummaryWriter {
     return text.replaceAll("[ \\t]{2,}", " ");
   }
 
-  private SummaryWriter() {
-  }
+  private SummaryWriter() {}
 }
