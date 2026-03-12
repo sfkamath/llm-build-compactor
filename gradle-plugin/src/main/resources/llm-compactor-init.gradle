@@ -2,9 +2,18 @@
 // This runs BEFORE settings.gradle, allowing us to silence Gradle's
 // output pipeline before the OutputEventRenderer locks in its configuration.
 
-gradle.startParameter.logLevel = LogLevel.ERROR
-gradle.startParameter.consoleOutput = ConsoleOutput.Plain
-gradle.startParameter.showStacktrace = ShowStacktrace.INTERNAL_EXCEPTIONS
+// Check if llmCompactor is disabled via command-line property (-D or -P)
+def sysProp = System.getProperty('llmCompactor.enabled')
+def projProp = gradle.startParameter.projectProperties['llmCompactor.enabled']
+def isCompactorEnabled = (sysProp ?: projProp ?: 'true').toBoolean()
 
-System.setProperty("org.gradle.welcome", "never")
-System.setProperty("org.gradle.internal.launcher.welcomeMessageEnabled", "false")
+if (isCompactorEnabled) {
+    gradle.startParameter.logLevel = LogLevel.ERROR
+    gradle.startParameter.consoleOutput = ConsoleOutput.Plain
+    gradle.startParameter.showStacktrace = ShowStacktrace.INTERNAL_EXCEPTIONS
+
+    System.setProperty("org.gradle.welcome", "never")
+    System.setProperty("org.gradle.internal.launcher.welcomeMessageEnabled", "false")
+} else {
+    println "[LLM Compactor] Disabled via command-line property"
+}

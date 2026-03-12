@@ -51,7 +51,14 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         installInitScript(project);
 
         LlmCompactorExtension extension = project.getExtensions().create("llmCompactor", LlmCompactorExtension.class);
-        extension.getEnabled().convention(true);
+        String sysProp = System.getProperty("llmCompactor.enabled");
+        Boolean enabledValue = sysProp != null
+            ? Boolean.parseBoolean(sysProp)
+            : project.hasProperty("llmCompactor.enabled")
+                ? Boolean.parseBoolean(project.property("llmCompactor.enabled").toString())
+                : true;
+        project.getLogger().debug("[LLM Compactor] sysProp={} enabledValue={}", sysProp, enabledValue);
+        extension.getEnabled().set(enabledValue);
         extension.getOutputAsJson().convention(true);
         extension.getCompressStackFrames().convention(true);
         extension.getShowFixTargets().convention(true);
@@ -86,9 +93,10 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
         if (project.equals(project.getRootProject())) {
             long sessionStartTime = System.currentTimeMillis();
+            final boolean isEnabled = Boolean.TRUE.equals(extension.getEnabled().get());
 
             // Redirect System.out/err as a fallback for the current build
-            if (Boolean.TRUE.equals(extension.getEnabled().get())) {
+            if (isEnabled) {
                 System.setOut(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
                 System.setErr(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
             }
@@ -104,7 +112,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             });
 
             project.getGradle().buildFinished(result -> {
-                if (Boolean.TRUE.equals(extension.getEnabled().get())) {
+                if (isEnabled) {
                     try {
                         Thread.sleep(500);
                     } catch (InterruptedException e) {
