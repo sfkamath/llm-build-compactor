@@ -39,6 +39,11 @@ if (isCompactorEnabled) {
                 // Capture standard output/error at QUIET level
                 task.logging.captureStandardOutput(LogLevel.QUIET)
                 task.logging.captureStandardError(LogLevel.QUIET)
+                
+                // Swallow all test output using onOutput callback
+                task.onOutput { descriptor, event ->
+                    // Swallow all output - do nothing
+                }
             }
         }
     }
