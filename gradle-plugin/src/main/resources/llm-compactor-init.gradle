@@ -36,7 +36,7 @@ if (isCompactorEnabled) {
                 task.systemProperty('spock.useColor', 'false')
                 task.systemProperty('spock.filterByTestName', 'false')
                 
-                // Capture standard output/error at QUIET level (won't show with default log level)
+                // Capture standard output/error at QUIET level
                 task.logging.captureStandardOutput(LogLevel.QUIET)
                 task.logging.captureStandardError(LogLevel.QUIET)
             }
