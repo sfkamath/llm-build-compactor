@@ -1,12 +1,7 @@
-// Gradle Init Script for LLM Compactor - Maximum silence mode
+// Gradle Init Script for LLM Compactor - Silent mode
+// This script suppresses Gradle's test output. The Java plugin emits the summary.
 
-import org.gradle.BuildListener
-import org.gradle.BuildResult
-import org.gradle.api.Task
-import org.gradle.api.execution.TaskExecutionListener
 import org.gradle.api.tasks.testing.Test
-import org.gradle.api.tasks.testing.TestResult
-import org.gradle.api.tasks.testing.TestDescriptor
 import org.gradle.api.logging.LogLevel
 
 // Check if llmCompactor is disabled via command-line property (-D or -P)
@@ -23,40 +18,9 @@ if (isCompactorEnabled) {
     System.setProperty("org.gradle.welcome", "never")
     System.setProperty("org.gradle.internal.launcher.welcomeMessageEnabled", "false")
 
-    // Store test results for summary
-    def testResults = [testsRun: 0, failures: 0, failedTests: []]
-    
-    // Custom build listener that completely suppresses Gradle output
-    class CompactorBuildListener implements BuildListener, TaskExecutionListener {
-        def testResults
-        def originalOut
-        def originalErr
-        def silentOut
-        def silentErr
-        
-        CompactorBuildListener(testResults) {
-            this.testResults = testResults
-            this.originalOut = System.out
-            this.originalErr = System.err
-            this.silentOut = new PrintStream(new OutputStream() { void write(int b) {} })
-            this.silentErr = new PrintStream(new OutputStream() { void write(int b) {} })
-        }
-        
-        void buildStarted(Gradle gradle) {
-            // Suppress ALL output from the very beginning
-            System.setOut(silentOut)
-            System.setErr(silentErr)
-        }
-        
-        void settingsEvaluated(Settings settings) {}
-        void projectsLoaded(Gradle gradle) {}
-        void projectsEvaluated(Gradle gradle) {}
-        
-        void beforeExecute(Task task) {
-            // Keep output suppressed
-            System.setOut(silentOut)
-            System.setErr(silentErr)
-            
+    // Configure ALL test tasks before they run
+    gradle.taskGraph.whenReady { graph ->
+        graph.allTasks.each { task ->
             if (task instanceof Test) {
                 // Configure test logging to suppress everything
                 task.testLogging {
@@ -72,66 +36,12 @@ if (isCompactorEnabled) {
                 task.systemProperty('spock.useColor', 'false')
                 task.systemProperty('spock.filterByTestName', 'false')
                 
-                // Capture at QUIET level
+                // Capture standard output/error at QUIET level (won't show with default log level)
                 task.logging.captureStandardOutput(LogLevel.QUIET)
                 task.logging.captureStandardError(LogLevel.QUIET)
-                
-                // Add test listener to collect results
-                task.addTestListener(new org.gradle.api.tasks.testing.TestListener() {
-                    void beforeSuite(TestDescriptor suite) {}
-                    void afterSuite(TestDescriptor suite, TestResult result) {
-                        testResults.testsRun += result.testCount
-                        testResults.failures += result.failedTestCount
-                        if (result.resultType == TestResult.ResultType.FAILURE) {
-                            result.failedTest.each { failure ->
-                                testResults.failedTests << [
-                                    name: failure.name,
-                                    cause: failure.cause?.class?.simpleName ?: (failure.exception?.class?.simpleName ?: 'AssertionError'),
-                                    message: failure.message?.take(200) ?: ''
-                                ]
-                            }
-                        }
-                    }
-                    void beforeTest(TestDescriptor test) {}
-                    void afterTest(TestDescriptor test, TestResult result) {}
-                })
-            }
-        }
-        
-        void afterExecute(Task task, TaskState state) {}
-        
-        void buildFinished(BuildResult result) {
-            // Restore output for our summary ONLY
-            System.setOut(originalOut)
-            System.setErr(originalErr)
-            
-            // Print only the summary with compressed stacktraces
-            println ""
-            println "=== LLM Build Summary ==="
-            println "Status: ${result.failure ? 'FAILED' : 'SUCCESS'}"
-            println "Tests Run: ${testResults.testsRun}"
-            println "Failures: ${testResults.failures}"
-            
-            if (!testResults.failedTests.isEmpty()) {
-                println ""
-                println "Errors:"
-                testResults.failedTests.each { f ->
-                    println "  - ${f.cause} at ${f.name}"
-                    if (f.message) {
-                        println "    ${f.message}"
-                    }
-                }
-            }
-            
-            // Exit with proper code (don't let Gradle print its own error)
-            if (result.failure) {
-                System.exit(1)
             }
         }
     }
-    
-    // Use the custom listener - this REPLACES Gradle's default output
-    gradle.useListener(new CompactorBuildListener(testResults))
 } else {
     println "[LLM Compactor] Disabled via command-line property"
 }
