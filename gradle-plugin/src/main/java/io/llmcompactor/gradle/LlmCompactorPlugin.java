@@ -95,6 +95,10 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             long sessionStartTime = System.currentTimeMillis();
             final boolean isEnabled = Boolean.TRUE.equals(extension.getEnabled().get());
 
+            // Save original streams
+            final PrintStream originalOut = System.out;
+            final PrintStream originalErr = System.err;
+
             // Redirect System.out/err as a fallback for the current build
             if (isEnabled) {
                 System.setOut(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
@@ -118,6 +122,9 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
+                    // Restore original streams before emitting summary
+                    System.setOut(originalOut);
+                    System.setErr(originalErr);
                     emitSummary(project, extension, sessionStartTime);
                 }
             });
@@ -225,12 +232,11 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             SummaryWriter.write(summary, Path.of(extension.getOutputPath().get()));
         }
 
-        // We use project.getLogger().error() because we set the global log level to ERROR in the init script.
-        // This is the ONLY output that will be visible, ensuring absolute silence for everything else.
+        // Output summary to System.err
         if (extension.getOutputAsJson().get()) {
-            project.getLogger().error(SummaryWriter.toJson(summary));
+            System.err.println(SummaryWriter.toJson(summary));
         } else {
-            project.getLogger().error(SummaryWriter.toHumanReadable(summary, extension.getShowDuration().get()));
+            System.err.println(SummaryWriter.toHumanReadable(summary, extension.getShowDuration().get()));
         }
     }
 
