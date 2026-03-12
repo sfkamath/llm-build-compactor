@@ -18,31 +18,14 @@ if (isCompactorEnabled) {
     System.setProperty("org.gradle.welcome", "never")
     System.setProperty("org.gradle.internal.launcher.welcomeMessageEnabled", "false")
 
-    // Configure ALL test tasks before they run
-    gradle.taskGraph.whenReady { graph ->
-        graph.allTasks.each { task ->
-            if (task instanceof Test) {
-                // Configure test logging to suppress everything
-                task.testLogging {
+    // Configure ALL test tasks using withType/configureEach pattern
+    gradle.projectsLoaded {
+        gradle.allprojects { project ->
+            project.tasks.withType(Test).configureEach { Test test ->
+                // Suppress the "Test ... PASSED" console lines
+                test.testLogging {
                     events = []
                     showStandardStreams = false
-                    showExceptions = false
-                    showCauses = false
-                    showStackTraces = false
-                    exceptionFormat = 'short'
-                }
-                
-                // Disable Spock output
-                task.systemProperty('spock.useColor', 'false')
-                task.systemProperty('spock.filterByTestName', 'false')
-                
-                // Capture standard output/error at QUIET level
-                task.logging.captureStandardOutput(LogLevel.QUIET)
-                task.logging.captureStandardError(LogLevel.QUIET)
-                
-                // Swallow all test output using onOutput callback
-                task.onOutput { descriptor, event ->
-                    // Swallow all output - do nothing
                 }
             }
         }
