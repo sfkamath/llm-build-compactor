@@ -15,14 +15,19 @@ if (isCompactorEnabled) {
     System.setProperty("org.gradle.welcome", "never")
     System.setProperty("org.gradle.internal.launcher.welcomeMessageEnabled", "false")
 
-    // Silence test output by configuring test logging for all projects
-    gradle.beforeProject { project ->
-        project.afterEvaluate {
-            project.tasks.withType(Test).configureEach { testTask ->
-                testTask.testLogging {
+    // Silence test output - apply just before test tasks run (after project config)
+    gradle.taskGraph.beforeTask { task ->
+        if (task instanceof Test) {
+            // Only configure once per task
+            if (!task.hasProperty('llmCompactorConfigured')) {
+                task.testLogging {
                     events = []  // No test events
                     showStandardStreams = false
+                    showExceptions = false
+                    showCauses = false
+                    showStackTraces = false
                 }
+                task.ext.llmCompactorConfigured = true
             }
         }
     }
