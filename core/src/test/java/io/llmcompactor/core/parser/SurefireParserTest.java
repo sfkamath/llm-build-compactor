@@ -44,7 +44,7 @@ class SurefireParserTest {
     assertThat(error.type()).isEqualTo("java.lang.RuntimeException");
     assertThat(error.message()).isEqualTo("java.lang.RuntimeException: Order validation failed");
     assertThat(error.file()).contains("OrderService.java");
-    assertThat(error.line()).isEqualTo(15);
+    assertThat(error.lines()).containsExactly(15);
     assertThat(error.testDuration()).isEqualTo(0.05);
   }
 

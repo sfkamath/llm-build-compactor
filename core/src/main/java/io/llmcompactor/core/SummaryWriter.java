@@ -43,7 +43,7 @@ public final class SummaryWriter {
                           new BuildError(
                               e.type(),
                               e.file(),
-                              e.line(),
+                              e.lines(),
                               condenseForJson(e.message()),
                               condenseForJson(e.stackTrace()),
                               e.testDuration()))
@@ -65,7 +65,7 @@ public final class SummaryWriter {
 
   public static String toHumanReadable(BuildSummary summary, boolean showTestDuration) {
     StringBuilder sb = new StringBuilder();
-    sb.append("=== LLM Build Summary ===\n");
+    sb.append("=== LLM Build Compactor Summary ===\n");
     sb.append("Status: ").append(summary.status()).append("\n");
     sb.append("Tests Run: ").append(summary.testsRun()).append("\n");
     sb.append("Failures: ").append(summary.failures()).append("\n");
@@ -97,8 +97,12 @@ public final class SummaryWriter {
         sb.append("  - ").append(error.type());
         if (error.file() != null) {
           sb.append(" at ").append(error.file());
-          if (error.line() > 0) {
-            sb.append(":").append(error.line());
+          if (error.lines() != null && !error.lines().isEmpty()) {
+            sb.append(":")
+                .append(
+                    error.lines().stream()
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(", ")));
           }
         }
         if (showTestDuration && error.testDuration() > 0) {

@@ -1,26 +1,52 @@
 # Usage Options
 
-The `llm-compactor-maven-plugin` provides several configuration options to customize the build summary output. These can be configured in your project's `pom.xml` or passed as system properties.
+The compactor uses the same `llmCompactor.*` property family across:
 
-## Maven Plugin Parameters
+- the Maven core extension
+- the Maven fallback Mojo
+- the Gradle plugin
+
+These values can be supplied through:
+
+- Maven system properties
+- Maven `pom.xml` properties or plugin configuration
+- Gradle build configuration
+- Gradle system properties
+
+## Common Options
 
 | Property | Default | Description |
 |----------|---------|-------------|
-| `llmCompactor.enabled` | `true` | Toggle the entire plugin on/off. |
-| `llmCompactor.outputPath` | `target/llm-summary.json` | Path where the JSON summary is saved. |
-| `llmCompactor.outputAsJson` | `true` | If true, prints pretty-printed JSON to stdout. If false, prints human-readable summary. |
-| `llmCompactor.compressStackFrames` | `true` | Filter out non-project stack frames (JUnit, Maven, Java internals). |
-| `llmCompactor.showFixTargets` | `true` | Include suggested files and snippets for fixing errors. |
-| `llmCompactor.showRecentChanges` | `true` | Include list of files changed in the last few commits. |
+| `llmCompactor.enabled` | `true` | Toggle the compactor on or off. |
+| `llmCompactor.outputAsJson` | `true` | Emit JSON when `true`; emit human-readable text when `false`. |
+| `llmCompactor.compressStackFrames` | `true` | Filter framework-heavy stack traces down to useful project frames. |
+| `llmCompactor.showFixTargets` | `true` | Include suggested file/line fix targets and snippets when available. |
+| `llmCompactor.showRecentChanges` | `true` | Include recently changed Git files in the summary. |
+| `llmCompactor.includePackages` | empty | Comma-separated packages to keep in compressed stack traces even if they look framework-like. |
+| `llmCompactor.showDuration` | `true` | Show duration for individual failing tests in human-readable output. |
+| `llmCompactor.showTotalDuration` | `false` | Include total build duration in the summary when available. |
+| `llmCompactor.showDurationReport` | `false` | Include test duration percentile data when available. |
+| `llmCompactor.outputPath` | varies by integration | Write the summary to a file as well as emitting it to the console. |
 
-## Core Extension Settings
+## Integration Notes
 
-The same system properties (prefixed with `llmCompactor.`) also control the behavior of the Core Extension (`maven-extension`).
+### Maven
 
-## Example: Silence mode
+- Preferred path: the core extension installed via `.mvn/extensions.xml`
+- Fallback path: the `compact` Mojo
+- Typical file output: `target/llm-summary.json`
 
-For completely silent builds with only the LLM summary output:
+### Gradle
+
+- Uses the Gradle plugin plus the companion init script bootstrap
+- The plugin emits a final compact summary at build end
+- File output is optional through `llmCompactor.outputPath`
+
+## Example
+
+Human-readable output with stack-trace compression enabled:
 
 ```bash
-mvn verify -DllmCompactor.outputAsJson=true
+mvn verify -DllmCompactor.outputAsJson=false
+./gradlew build -DllmCompactor.outputAsJson=false
 ```

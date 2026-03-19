@@ -84,19 +84,19 @@ public final class StackTraceCompressor {
       }
     }
     
-    // 2. Exclude known framework prefixes (this takes precedence over includePackages)
-    for (String prefix : FRAMEWORK_PREFIXES) {
-      if (normalized.contains("at " + prefix)) {
-        return false;
-      }
-    }
-    
-    // 3. Check explicit inclusions (only for non-framework packages)
+    // 2. Check explicit inclusions before framework exclusions so user overrides win
     if (includePackages != null) {
       for (String pkg : includePackages) {
         if (normalized.contains("at " + pkg)) {
           return true;
         }
+      }
+    }
+
+    // 3. Exclude known framework prefixes
+    for (String prefix : FRAMEWORK_PREFIXES) {
+      if (normalized.contains("at " + prefix)) {
+        return false;
       }
     }
 

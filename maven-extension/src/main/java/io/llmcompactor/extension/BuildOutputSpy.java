@@ -60,6 +60,7 @@ import org.apache.maven.project.MavenProject;
 public class BuildOutputSpy extends AbstractEventSpy {
 
   private static final String REDIRECT_TEST_OUTPUT_PROP = "maven.test.redirectTestOutputToFile";
+  private static final String EXTENSION_ACTIVE_PROPERTY = "llmCompactor.extension.active";
 
   private static final PrintStream realOut = System.out;
   private static final PrintStream realErr = System.err;
@@ -89,12 +90,14 @@ public class BuildOutputSpy extends AbstractEventSpy {
     Properties projectProps = topProject != null ? topProject.getProperties() : new Properties();
     String enabledProp = getProperty("llmCompactor.enabled", projectProps, "true");
     if ("false".equalsIgnoreCase(enabledProp)) {
+      System.clearProperty(EXTENSION_ACTIVE_PROPERTY);
       initialized = true; // Mark as initialized but skip redirection
       return;
     }
 
     // Check for interactive/app-running goals
     if (isInteractiveGoal(session)) {
+      System.clearProperty(EXTENSION_ACTIVE_PROPERTY);
       initialized = true; // Skip redirection for interactive goals
       return;
     }
@@ -110,6 +113,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
     // Suppress all console output
     System.setOut(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
     System.setErr(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
+    System.setProperty(EXTENSION_ACTIVE_PROPERTY, "true");
 
     initialized = true;
   }
@@ -201,9 +205,22 @@ public class BuildOutputSpy extends AbstractEventSpy {
     if ("maven-compiler-plugin".equals(mojo.getArtifactId())) {
       String output = extractFailureOutput(ee);
       if (output != null) {
-        compileErrors.addAll(CompilationErrorExtractor.extract(List.of(output.split("\n"))));
+        List<BuildError> extracted =
+            CompilationErrorExtractor.extract(List.of(output.split("\n")));
+        if (extracted.isEmpty()) {
+          extracted = List.of(createGenericCompilationError(ee, output));
+        }
+        compileErrors.addAll(extracted);
       }
     }
+  }
+
+  private BuildError createGenericCompilationError(ExecutionEvent ee, String output) {
+    MavenProject project = ee.getProject();
+    String file =
+        project != null && project.getFile() != null ? project.getFile().getPath() : "pom.xml";
+    String message = extractFirstLine(output);
+    return new BuildError("COMPILATION_ERROR", file, 1, message, output);
   }
 
   private String extractFailureOutput(ExecutionEvent ee) {
@@ -227,6 +244,13 @@ public class BuildOutputSpy extends AbstractEventSpy {
     } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
       return null;
     }
+  }
+
+  private String extractFirstLine(String message) {
+    if (message == null || message.isEmpty()) {
+      return "";
+    }
+    return message.split("\n")[0].trim();
   }
 
   private void emitSummary() {
@@ -297,6 +321,8 @@ public class BuildOutputSpy extends AbstractEventSpy {
       testDurationPercentiles.put("p99", allDurations.get((int) (allDurations.size() * 0.99)));
       testDurationPercentiles.put("max", allDurations.get(allDurations.size() - 1));
     }
+
+    allErrors = BuildSummary.aggregateErrors(allErrors);
 
     String showFixTargetsProp = getProperty("llmCompactor.showFixTargets", projectProps, "true");
     List<FixTarget> targets =
@@ -417,6 +443,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
     System.setOut(originalOut);
     System.setErr(originalErr);
+    System.clearProperty(EXTENSION_ACTIVE_PROPERTY);
   }
 
   private void resetSlf4j() {

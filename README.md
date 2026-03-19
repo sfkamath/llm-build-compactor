@@ -4,7 +4,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 
 ## Features
 
-- **Absolute Silence**: Suppresses all build banners and logs (Maven: 0 lines, Gradle: ~10 lines).
+- **High-Signal Output**: Suppresses most build noise and emits a compact final summary instead of raw build logs.
 - **Smart Compaction**: Filters stack traces to show only your project's code.
 - **Agent-First Output**: Pretty-printed JSON or clean human-readable text.
 - **Contextual Fixes**: Identifies the exact file/line and provides 7-line code snippets for errors.
@@ -18,7 +18,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 The easiest way to set up the compactor is using the `install` goal:
 
 ```bash
-mvn io.llmcompactor:llm-compactor-maven-plugin:0.1.2:install
+mvn io.llmcompactor:llm-compactor-maven-plugin:0.1.3:install
 ```
 
 This automatically creates `.mvn/extensions.xml` in your project, enabling the Core Extension for absolute silence.
@@ -33,7 +33,7 @@ Add the plugin to your `build.gradle.kts` (Kotlin DSL):
 
 ```kotlin
 plugins {
-    id("io.llmcompactor.gradle") version "0.1.2"
+    id("io.llmcompactor.gradle") version "0.1.3"
 }
 ```
 
@@ -41,7 +41,7 @@ Or `build.gradle` (Groovy DSL):
 
 ```groovy
 plugins {
-    id 'io.llmcompactor.gradle' version '0.1.2'
+    id 'io.llmcompactor.gradle' version '0.1.3'
 }
 ```
 
@@ -71,15 +71,18 @@ llmCompactor {
 }
 ```
 
-### 3. Enable Absolute Silence (Optional but Recommended)
+### 3. Install the Bootstrap Files
 
-To achieve the highest level of silence (suppressing "BUILD SUCCESSFUL" and task headers), install the global init script:
+To enable the Gradle bootstrap path, install the companion init script:
 
 ```bash
 ./gradlew installLlmCompactor
 ```
 
-This installs an init script to `~/.gradle/init.d/` that configures the logging pipeline before Gradle's internal renderer starts.
+This installs:
+- a companion init script in `~/.gradle/init.d/`
+
+The plugin then applies task-level suppression and emits a single final summary for the build.
 
 ---
 
@@ -163,7 +166,7 @@ This provides **instant context** for AI agents, making fixes cheaper and faster
 
 ### Human-Readable
 ```text
-=== LLM Build Summary ===
+=== LLM Build Compactor Summary ===
 Status: FAILED
 Tests Run: 18
 Failures: 9

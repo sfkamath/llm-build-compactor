@@ -23,7 +23,7 @@ class CompilationErrorExtractorTest {
 
     assertThat(errors.get(0).file())
         .isEqualTo("/Users/sfk/Developer/project/src/main/java/io/App.java");
-    assertThat(errors.get(0).line()).isEqualTo(20);
+    assertThat(errors.get(0).lines()).containsExactly(20);
     assertThat(errors.get(0).message())
         .isEqualTo(
             "error: method compress in class StackTraceCompressor cannot be applied to given types;");
@@ -31,7 +31,7 @@ class CompilationErrorExtractorTest {
 
     assertThat(errors.get(1).file())
         .isEqualTo("/Users/sfk/Developer/project/src/main/java/io/Service.java");
-    assertThat(errors.get(1).line()).isEqualTo(10);
+    assertThat(errors.get(1).lines()).containsExactly(10);
     assertThat(errors.get(1).message()).isEqualTo("error: cannot find symbol");
   }
 

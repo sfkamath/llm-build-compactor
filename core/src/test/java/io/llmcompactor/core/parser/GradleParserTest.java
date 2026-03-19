@@ -46,7 +46,7 @@ class GradleParserTest {
     BuildError error = result.errors().get(0);
     assertThat(error.type()).isEqualTo("java.lang.RuntimeException");
     assertThat(error.file()).contains("OrderServiceTest.java");
-    assertThat(error.line()).isEqualTo(10);
+    assertThat(error.lines()).containsExactly(10);
     assertThat(error.testDuration()).isEqualTo(0.05);
   }
 }

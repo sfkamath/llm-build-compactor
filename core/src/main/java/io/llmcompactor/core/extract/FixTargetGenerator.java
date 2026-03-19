@@ -18,18 +18,19 @@ public final class FixTargetGenerator {
 
     for (BuildError error : errors) {
 
-      if (error.file() == null || error.line() <= 0) {
+      if (error.file() == null || error.lines() == null || error.lines().isEmpty()) {
         continue;
       }
 
-      String key = error.file() + ":" + error.line();
+      int line = error.lines().get(0);
+      String key = error.file() + ":" + line;
       if (!seen.add(key)) {
         continue;
       }
 
-      String snippet = CodeSnippetExtractor.extract(Path.of(error.file()), error.line());
+      String snippet = CodeSnippetExtractor.extract(Path.of(error.file()), line);
 
-      targets.add(new FixTarget(error.file(), error.line(), error.message(), snippet));
+      targets.add(new FixTarget(error.file(), line, error.message(), snippet));
     }
 
     return targets;

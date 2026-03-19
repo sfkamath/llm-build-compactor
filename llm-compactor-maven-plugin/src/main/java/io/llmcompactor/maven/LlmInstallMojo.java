@@ -35,7 +35,7 @@ public class LlmInstallMojo extends AbstractMojo {
   @Parameter(defaultValue = "${project.basedir}", readonly = true)
   private File basedir;
 
-  @Parameter(property = "llmCompactor.version", defaultValue = "0.1.0")
+  @Parameter(property = "llmCompactor.version", defaultValue = "${project.version}")
   private String version;
 
   public void execute() throws MojoExecutionException {

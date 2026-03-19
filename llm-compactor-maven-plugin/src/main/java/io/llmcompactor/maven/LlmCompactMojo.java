@@ -8,14 +8,15 @@ import io.llmcompactor.core.extract.FixTargetGenerator;
 import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResult;
-import io.llmcompactor.extension.BuildOutputSpy;
 import java.io.PrintStream;
+import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
@@ -24,6 +25,7 @@ import org.apache.maven.plugins.annotations.Parameter;
 
 @Mojo(name = "compact", defaultPhase = LifecyclePhase.VERIFY)
 public class LlmCompactMojo extends AbstractMojo {
+  private static final String EXTENSION_ACTIVE_PROPERTY = "llmCompactor.extension.active";
 
   @Parameter(property = "llmCompactor.enabled", defaultValue = "true")
   private boolean enabled;
@@ -55,6 +57,15 @@ public class LlmCompactMojo extends AbstractMojo {
   @Parameter(property = "llmCompactor.includePackages")
   private String includePackages;
 
+  @Parameter(defaultValue = "${session}", readonly = true)
+  private MavenSession session;
+
+  @Parameter(defaultValue = "${project.build.directory}", readonly = true)
+  private File buildDirectory;
+
+  @Parameter(defaultValue = "${project.basedir}", readonly = true)
+  private File basedir;
+
   public void execute() throws MojoExecutionException {
 
     if (!enabled) {
@@ -63,7 +74,7 @@ public class LlmCompactMojo extends AbstractMojo {
 
     // If BuildOutputSpy is active, it handles everything automatically via SessionEnded event.
     // This Mojo can be skipped when the extension is present to avoid double summaries.
-    if (BuildOutputSpy.getRealOut() != null) {
+    if (Boolean.getBoolean(EXTENSION_ACTIVE_PROPERTY)) {
       return;
     }
 
@@ -73,8 +84,13 @@ public class LlmCompactMojo extends AbstractMojo {
             : List.of(includePackages.split(","));
 
     // Parse test results from existing reports
+    long sessionStartTime = session != null && session.getStartTime() != null
+        ? session.getStartTime().getTime()
+        : 0L;
+    Path targetDir = buildDirectory != null ? buildDirectory.toPath() : Path.of("target");
     TestResult testResult =
-        SurefireParser.parse(Path.of("target"), compressStackFrames, includePackagesList, 0);
+        SurefireParser.parse(
+            targetDir, compressStackFrames, includePackagesList, sessionStartTime);
     List<BuildError> testFailures = testResult.errors();
     List<Double> allDurations = testResult.allDurations();
 
@@ -84,6 +100,8 @@ public class LlmCompactMojo extends AbstractMojo {
     List<BuildError> allErrors = new ArrayList<>();
     allErrors.addAll(compileErrors);
     allErrors.addAll(testFailures);
+
+    allErrors = BuildSummary.aggregateErrors(allErrors);
 
     List<FixTarget> targets = showFixTargets ? FixTargetGenerator.generate(allErrors) : List.of();
 
@@ -117,13 +135,13 @@ public class LlmCompactMojo extends AbstractMojo {
             totalBuildDurationMs,
             testDurationPercentiles);
 
-    SummaryWriter.write(summary, Path.of(outputPath));
-
-    // Output to real System.out captured by BuildOutputSpy
-    PrintStream out = BuildOutputSpy.getRealOut();
-    if (out == null) {
-      out = System.out;
+    Path resolvedOutputPath = Path.of(outputPath);
+    if (!resolvedOutputPath.isAbsolute() && basedir != null) {
+      resolvedOutputPath = basedir.toPath().resolve(resolvedOutputPath);
     }
+    SummaryWriter.write(summary, resolvedOutputPath);
+
+    PrintStream out = System.out;
 
     if (outputAsJson) {
       out.print(SummaryWriter.toJson(summary));

@@ -1,35 +1,26 @@
-// Gradle Init Script for LLM Compactor - Silent mode
-// This script suppresses Gradle's test output. The Java plugin emits the summary.
-
-import org.gradle.api.tasks.testing.Test
 import org.gradle.api.logging.LogLevel
+import org.gradle.api.tasks.testing.Test
 
-// Check if llmCompactor is disabled via command-line property (-D or -P)
-def sysProp = System.getProperty('llmCompactor.enabled')
-def projProp = gradle.startParameter.projectProperties['llmCompactor.enabled']
-def isCompactorEnabled = (sysProp ?: projProp ?: 'true').toBoolean()
-
-if (isCompactorEnabled) {
-    // Set quiet log level from the start
-    gradle.startParameter.logLevel = LogLevel.QUIET
-    gradle.startParameter.consoleOutput = ConsoleOutput.Plain
-    gradle.startParameter.showStacktrace = ShowStacktrace.INTERNAL_EXCEPTIONS
-
-    System.setProperty("org.gradle.welcome", "never")
-    System.setProperty("org.gradle.internal.launcher.welcomeMessageEnabled", "false")
-
-    // Configure ALL test tasks using withType/configureEach pattern
-    gradle.projectsLoaded {
-        gradle.allprojects { project ->
-            project.tasks.withType(Test).configureEach { Test test ->
-                // Suppress the "Test ... PASSED" console lines
-                test.testLogging {
-                    events = []
-                    showStandardStreams = false
-                }
-            }
+// This init script handles late build-scoped suppression only.
+// Full Gradle quiet mode must be configured before the session starts,
+// which the plugin now bootstraps via Gradle user-home gradle.properties.
+gradle.allprojects {
+    logging.captureStandardOutput(LogLevel.DEBUG)
+    logging.captureStandardError(LogLevel.DEBUG)
+    
+    tasks.withType(Test).configureEach { Test t ->
+        t.testLogging {
+            events = []
+            showStandardStreams = false
+            showExceptions = false
+            showCauses = false
+            showStackTraces = false
         }
+        
+        t.addTestOutputListener(new org.gradle.api.tasks.testing.TestOutputListener() {
+            void onOutput(TestDescriptor descriptor, org.gradle.api.tasks.testing.TestOutputEvent event) {
+                // Swallow all stdout/stderr from tests
+            }
+        })
     }
-} else {
-    println "[LLM Compactor] Disabled via command-line property"
 }

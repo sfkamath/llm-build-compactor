@@ -136,7 +136,7 @@
             <plugin>
                 <groupId>io.llmcompactor</groupId>
                 <artifactId>llm-compactor-maven-plugin</artifactId>
-                <version>0.1.0</version>
+                <version>0.1.3</version>
                 <configuration>
                     <outputAsJson>false</outputAsJson>
                     <compressStackFrames>true</compressStackFrames>

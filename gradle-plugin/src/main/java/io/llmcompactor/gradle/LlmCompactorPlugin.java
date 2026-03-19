@@ -11,10 +11,15 @@ import io.llmcompactor.core.parser.GradleParser;
 import io.llmcompactor.core.parser.TestResult;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
+import org.gradle.api.logging.LogLevel;
 import org.gradle.api.logging.StandardOutputListener;
+import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.testing.Test;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -29,6 +34,8 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 public class LlmCompactorPlugin implements Plugin<Project> {
+    private static final String ROOT_LISTENER_REGISTERED = "llmCompactorRootListenerRegistered";
+    private static final String INIT_SCRIPT_NAME = "llm-compactor-silence.gradle";
 
     public interface LlmCompactorExtension {
         Property<Boolean> getEnabled();
@@ -71,49 +78,86 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         // Register the installation task mirroring the Maven install mojo
         project.getTasks().register("installLlmCompactor", task -> {
             task.setGroup("llm-compactor");
-            task.setDescription("Installs the LLM Compactor init script for complete Gradle silence");
-            Path initDir = project.getGradle().getGradleUserHomeDir().toPath().resolve("init.d");
+            task.setDescription("Installs the LLM Compactor init script");
             task.doLast(t -> {
                 try {
-                    java.nio.file.Files.createDirectories(initDir);
-                    try (var is = getClass().getResourceAsStream("/llm-compactor-init.gradle")) {
-                        if (is != null) {
-                            java.nio.file.Files.write(
-                                    initDir.resolve("llm-compactor.gradle"),
-                                    is.readAllBytes()
-                            );
-                            System.out.println("Installed llm-compactor init script to " + initDir);
-                        }
-                    }
+                    Path gradleUserHome = project.getGradle().getGradleUserHomeDir().toPath();
+                    installInitScript(gradleUserHome);
+                    System.out.println("Installed llm-compactor init script to " + gradleUserHome.resolve("init.d"));
                 } catch (IOException e) {
-                    throw new RuntimeException("Failed to install init script", e);
+                    throw new RuntimeException("Failed to install Gradle init script", e);
                 }
             });
         });
 
-        if (project.equals(project.getRootProject())) {
+        Project rootProject = project.getRootProject();
+        if (!rootProject.getExtensions().getExtraProperties().has(ROOT_LISTENER_REGISTERED)) {
+            rootProject.getExtensions().getExtraProperties().set(ROOT_LISTENER_REGISTERED, true);
             long sessionStartTime = System.currentTimeMillis();
             final boolean isEnabled = Boolean.TRUE.equals(extension.getEnabled().get());
+            final PrintStream originalOut = System.out;
+            final PrintStream originalErr = System.err;
+
+            if (isEnabled) {
+                System.setProperty("org.gradle.logging.level", "quiet");
+                rootProject.getGradle().getStartParameter().setLogLevel(org.gradle.api.logging.LogLevel.QUIET);
+                rootProject.getGradle().getStartParameter().setWarningMode(org.gradle.api.logging.configuration.WarningMode.None);
+                rootProject.getGradle().getStartParameter().setShowStacktrace(org.gradle.api.logging.configuration.ShowStacktrace.INTERNAL_EXCEPTIONS);
+                System.setOut(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
+                System.setErr(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
+                
+                rootProject.allprojects(p -> {
+                    p.getLogging().captureStandardOutput(org.gradle.api.logging.LogLevel.DEBUG);
+                    p.getLogging().captureStandardError(org.gradle.api.logging.LogLevel.DEBUG);
+                });
+            }
 
             // Capture output for potential use (init script may have already redirected)
             StandardOutputListener listener = logLines::add;
-            project.allprojects(p -> {
+            rootProject.allprojects(p -> {
                 p.getLogging().addStandardOutputListener(listener);
                 p.getLogging().addStandardErrorListener(listener);
+                p.getTasks().configureEach(task -> {
+                    if (isEnabled) {
+                        applyQuietTaskLogging(task);
+                        task.doFirst(ignored -> applyQuietTaskLogging(task));
+                    }
+                });
                 p.getTasks().withType(JavaCompile.class).configureEach(task -> {
+                    if (isEnabled) {
+                        applyQuietJavaCompileOptions(task);
+                        task.doFirst(ignored -> applyQuietJavaCompileOptions(task));
+                    }
                     task.getLogging().addStandardOutputListener(listener);
                     task.getLogging().addStandardErrorListener(listener);
                 });
+                p.getTasks().withType(Checkstyle.class).configureEach(task -> {
+                    if (isEnabled) {
+                        task.setShowViolations(false);
+                    }
+                });
+                p.getTasks().withType(Test.class).configureEach(task -> {
+                    if (isEnabled) {
+                        task.systemProperty("slf4j.internal.verbosity", "ERROR");
+                    }
+                });
+                p.getTasks().withType(JavaExec.class).configureEach(task -> {
+                    if (isEnabled) {
+                        task.systemProperty("slf4j.internal.verbosity", "ERROR");
+                    }
+                });
             });
 
-            project.getGradle().buildFinished(result -> {
+            rootProject.getGradle().buildFinished(result -> {
                 if (isEnabled) {
                     try {
                         Thread.sleep(500);
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                     }
-                    emitSummary(project, extension, sessionStartTime);
+                    System.setOut(originalOut);
+                    System.setErr(originalErr);
+                    emitSummary(rootProject, extension, sessionStartTime);
                 }
             });
         }
@@ -121,27 +165,33 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
     private void installInitScript(Project project) {
         try {
-            Path initDir = project.getGradle().getGradleUserHomeDir().toPath().resolve("init.d");
-            java.nio.file.Files.createDirectories(initDir);
-            Path initScript = initDir.resolve("llm-compactor-silence.gradle");
-
-            try (var is = getClass().getResourceAsStream("/llm-compactor-init.gradle")) {
-                if (is != null) {
-                    byte[] contentBytes = is.readAllBytes();
-                    boolean needsWrite = true;
-                    if (java.nio.file.Files.exists(initScript)) {
-                        byte[] existingBytes = java.nio.file.Files.readAllBytes(initScript);
-                        if (java.util.Arrays.equals(existingBytes, contentBytes)) {
-                            needsWrite = false;
-                        }
-                    }
-                    if (needsWrite) {
-                        java.nio.file.Files.write(initScript, contentBytes);
-                    }
-                }
-            }
+            Path gradleUserHome = project.getGradle().getGradleUserHomeDir().toPath();
+            installInitScript(gradleUserHome);
         } catch (Exception e) {
             // Non-fatal
+        }
+    }
+
+    private void installInitScript(Path gradleUserHome) throws IOException {
+        Path initDir = gradleUserHome.resolve("init.d");
+        java.nio.file.Files.createDirectories(initDir);
+        Path initScript = initDir.resolve(INIT_SCRIPT_NAME);
+
+        try (var is = getClass().getResourceAsStream("/llm-compactor-init.gradle")) {
+            if (is == null) {
+                return;
+            }
+            byte[] contentBytes = is.readAllBytes();
+            boolean needsWrite = true;
+            if (java.nio.file.Files.exists(initScript)) {
+                byte[] existingBytes = java.nio.file.Files.readAllBytes(initScript);
+                if (java.util.Arrays.equals(existingBytes, contentBytes)) {
+                    needsWrite = false;
+                }
+            }
+            if (needsWrite) {
+                java.nio.file.Files.write(initScript, contentBytes);
+            }
         }
     }
 
@@ -199,6 +249,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             testDurationPercentiles.put("max", allDurations.get(allDurations.size() - 1));
         }
 
+        allErrors = BuildSummary.aggregateErrors(allErrors);
+
         List<FixTarget> targets = extension.getShowFixTargets().get() ?
                 FixTargetGenerator.generate(allErrors) : Collections.emptyList();
 
@@ -220,12 +272,55 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             SummaryWriter.write(summary, Path.of(extension.getOutputPath().get()));
         }
 
-        // Output summary to System.err
+        String renderedSummary;
         if (extension.getOutputAsJson().get()) {
-            System.err.println(SummaryWriter.toJson(summary));
+            renderedSummary = SummaryWriter.toJson(summary);
         } else {
-            System.err.println(SummaryWriter.toHumanReadable(summary, extension.getShowDuration().get()));
+            renderedSummary = SummaryWriter.toHumanReadable(summary, extension.getShowDuration().get());
         }
+        project.getLogger().quiet(renderedSummary);
+    }
+
+    private void applyQuietTaskLogging(Task task) {
+        task.getLogging().captureStandardOutput(LogLevel.DEBUG);
+        task.getLogging().captureStandardError(LogLevel.DEBUG);
+    }
+
+    private void applyQuietJavaCompileOptions(JavaCompile task) {
+        task.getOptions().setFork(false);
+        task.getOptions().setWarnings(false);
+        task.getOptions().setDeprecation(false);
+        @SuppressWarnings("rawtypes")
+        List compilerArgs = task.getOptions().getCompilerArgs();
+        compilerArgs.removeIf(arg -> "-Amicronaut.processing.incremental=true".equals(String.valueOf(arg)));
+        if (!containsCompilerArg(compilerArgs, "-nowarn")) {
+            compilerArgs.add("-nowarn");
+        }
+        if (!containsCompilerArg(compilerArgs, "-Xlint:none")) {
+            compilerArgs.add("-Xlint:none");
+        }
+        if (!containsCompilerArg(compilerArgs, "-Xlint:-processing")) {
+            compilerArgs.add("-Xlint:-processing");
+        }
+        if (!containsCompilerArg(compilerArgs, "-Xlint:-unchecked")) {
+            compilerArgs.add("-Xlint:-unchecked");
+        }
+        if (!containsCompilerArg(compilerArgs, "-Xlint:-deprecation")) {
+            compilerArgs.add("-Xlint:-deprecation");
+        }
+        if (!containsCompilerArg(compilerArgs, "-Xlint:-removal")) {
+            compilerArgs.add("-Xlint:-removal");
+        }
+    }
+
+    @SuppressWarnings("rawtypes")
+    private boolean containsCompilerArg(List compilerArgs, String value) {
+        for (Object arg : compilerArgs) {
+            if (value.equals(String.valueOf(arg))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<String> scanProjectPackages(Project project) {
