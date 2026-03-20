@@ -351,8 +351,28 @@ Failures: 9
 Errors:
   - java.lang.RuntimeException at src/test/java/io/llmcompactor/testbed/StackTraceTest.java:37
     Order processing failed
-    Stack trace:
         at io.llmcompactor.testbed.StackTraceTest.testNestedException(StackTraceTest.java:37)
       Caused by: java.lang.IllegalArgumentException: Order validation failed
         at io.llmcompactor.testbed.StackTraceTest.validateOrder(StackTraceTest.java:47)
 ```
+
+---
+
+## Development
+
+For information on building, testing, and contributing to the LLM Build Compactor itself, see [`docs/development-guide.md`](docs/development-guide.md).
+
+**Quick Start:**
+
+```bash
+# Build all modules (requires Java 8+)
+./mvnw clean install
+
+# Run tests across all Java versions (8, 11, 17, 21, 25)
+./scripts/test-quick.sh
+
+# Test with intentional failures (verifies plugin behavior)
+cd test-project && mvn clean verify
+```
+
+**Java Version Support:** Java 8 through 25. See [`docs/development-guide.md`](docs/development-guide.md) for the Gradle wrapper strategy and multi-version testing.
