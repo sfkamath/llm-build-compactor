@@ -137,6 +137,107 @@ Settings can be configured in your `pom.xml` (Maven), `build.gradle` (Gradle), o
 | `llmCompactor.showTotalDuration` | `false` | Include the total build execution time in the summary. |
 | `llmCompactor.showDurationReport` | `false` | Include a heuristic percentile report of test durations (p50, p90, p95, p99, max). |
 | `llmCompactor.outputPath` | (varies) | Path where the summary is saved (e.g., `target/llm-summary.json`). |
+| `llmCompactor.showFailedTestLogs` | `true` | Capture and display test output logs (System.out, System.err, SLF4J, Log4j2) for failed tests. |
+
+---
+
+## Capturing Test Logs
+
+When `showFailedTestLogs` is enabled (default: `true`), the compactor captures and displays test output logs for failed tests:
+
+### What Gets Captured
+
+- **System.out.println()** - Standard output from tests
+- **System.err.println()** - Standard error from tests
+- **SLF4J logs** - Via Logback or Log4j2 bindings
+- **Log4j2 logs** - Direct Log4j2 API calls
+
+### Maven Configuration
+
+```xml
+<plugin>
+    <groupId>io.llmcompactor</groupId>
+    <artifactId>llm-compactor-maven-plugin</artifactId>
+    <version>0.1.3</version>
+    <configuration>
+        <showFailedTestLogs>true</showFailedTestLogs>
+    </configuration>
+</plugin>
+```
+
+### Gradle Configuration
+
+```groovy
+llmCompactor {
+    showFailedTestLogs = true
+}
+```
+
+### Example Output
+
+```text
+Errors:
+  - org.opentest4j.AssertionFailedError at OrderServiceTest.java:35
+    Discount calculation failed
+    Stack trace:
+        at OrderServiceTest.testOrderWithDiscount(OrderServiceTest.java:35)
+    Test logs:
+        13:07:03.506 [main] INFO  i.l.testbed.OrderServiceTest - SLF4J: Testing refund processing
+        System.out: Applying 10% discount to order ORD-101
+        System.err: Processing refund for order ORD-102
+        13:07:03.511 [main] INFO  i.l.testbed.OrderServiceTest - Refund processed successfully
+```
+
+### Logging Framework Setup
+
+For SLF4J/Logback or Log4j2 logs to appear, ensure you have the appropriate dependencies and configuration:
+
+**Maven (pom.xml):**
+```xml
+<dependencies>
+    <!-- SLF4J with Logback -->
+    <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>1.4.11</version>
+        <scope>test</scope>
+    </dependency>
+    
+    <!-- Or Log4j2 -->
+    <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-api</artifactId>
+        <version>2.20.0</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-core</artifactId>
+        <version>2.20.0</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.apache.logging.log4j</groupId>
+        <artifactId>log4j-slf4j2-impl</artifactId>
+        <version>2.20.0</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+**Test Configuration Files:**
+- `src/test/resources/logback-test.xml` for Logback
+- `src/test/resources/log4j2-test.xml` for Log4j2
+
+### Disabling Test Logs
+
+To disable test log capture:
+
+```bash
+mvn verify -DllmCompactor.showFailedTestLogs=false
+# OR
+./gradlew test -DllmCompactor.showFailedTestLogs=false
+```
 
 ---
 

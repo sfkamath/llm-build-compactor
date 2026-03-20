@@ -101,14 +101,15 @@ public final class SummaryWriter {
     if (!summary.errors().isEmpty()) {
       sb.append("\nErrors:\n");
       for (BuildError error : summary.errors()) {
-        sb.append("  - ").append(error.type());
+        sb.append("  - ");
         if (error.file() != null) {
-          sb.append(" at ").append(error.file());
+          sb.append(error.file());
           if (error.lines() != null && !error.lines().isEmpty()) {
             sb.append(":")
-                .append(
-                    error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+                .append(error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
           }
+        } else {
+          sb.append(error.type());
         }
         if (showTestDuration && error.testDuration() > 0) {
           sb.append(" (").append(String.format("%.2f", error.testDuration())).append("ms)");

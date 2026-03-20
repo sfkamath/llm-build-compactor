@@ -7,8 +7,8 @@ group = 'io.llmcompactor'
 version = '1.0.0-SNAPSHOT'
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
 repositories {
@@ -16,30 +16,22 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'org.projectlombok:lombok:1.18.30'
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
-    implementation 'ch.qos.logback:logback-classic:1.4.11'
+    // SLF4J with Logback
+    testImplementation 'ch.qos.logback:logback-classic:1.4.11'
 
-    testImplementation platform('io.projectreactor:reactor-bom:2023.0.0')
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
-    testImplementation 'io.projectreactor:reactor-core'
-    testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-}
-
-sourceSets {
-    test {
-        java {
-            srcDirs += 'src/it/java'
-        }
-    }
 }
 
 test {
     useJUnitPlatform()
     ignoreFailures = true
+    testLogging {
+        showStandardStreams = true
+    }
 }
 
 llmCompactor {
     enabled = true
+    showFailedTestLogs = true
 }

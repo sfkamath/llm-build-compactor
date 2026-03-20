@@ -61,7 +61,7 @@ class SummaryWriterTest {
         .contains("Status: FAILED")
         .contains("Tests Run: 10")
         .contains("Failures: 2")
-        .contains("- TestFailure at src/Test.java:10")
+        .contains("- src/Test.java:10")
         .contains("Fail message")
         .contains("Stack trace:")
         .contains("at frame")

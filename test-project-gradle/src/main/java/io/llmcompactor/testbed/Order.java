@@ -1,16 +1,13 @@
 package io.llmcompactor.testbed;
 
-import lombok.extern.slf4j.Slf4j;
 import java.math.BigDecimal;
 
-@Slf4j
 public class Order {
 
     private String id;
     private BigDecimal amount;
 
     public Order(String id, BigDecimal amount) {
-        log.debug("Creating order {} with amount {}", id, amount);
         this.id = id;
         this.amount = amount;
     }

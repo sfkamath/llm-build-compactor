@@ -1,10 +1,12 @@
 package io.llmcompactor.core;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 public class BuildError {
+  @JsonIgnore
   private final String type;
   private final String file;
   private final List<Integer> lines;
@@ -61,6 +63,7 @@ public class BuildError {
     this(type, file, Collections.singletonList(line), message, stackTrace, testDuration, testLogs);
   }
 
+  @JsonIgnore
   public String type() {
     return type;
   }
@@ -90,6 +93,7 @@ public class BuildError {
   }
 
   // Jackson getters
+  @JsonIgnore
   public String getType() {
     return type;
   }
