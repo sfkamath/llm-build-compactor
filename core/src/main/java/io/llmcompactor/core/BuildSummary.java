@@ -2,6 +2,7 @@ package io.llmcompactor.core;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -127,6 +128,7 @@ public class BuildSummary {
     }
 
     Map<ErrorGroup, List<Integer>> grouped = new LinkedHashMap<>();
+    Map<ErrorGroup, String> testLogsMap = new HashMap<>();
     for (BuildError e : rawErrors) {
       ErrorGroup group =
           new ErrorGroup(e.type(), e.file(), e.message(), e.stackTrace(), e.testDuration());
@@ -134,6 +136,10 @@ public class BuildSummary {
       if (lines == null) {
         lines = new ArrayList<>();
         grouped.put(group, lines);
+        // Preserve testLogs from the first error in the group
+        if (e.testLogs() != null && !e.testLogs().isEmpty()) {
+          testLogsMap.put(group, e.testLogs());
+        }
       }
       if (e.lines() != null) {
         for (Integer line : e.lines()) {
@@ -149,7 +155,9 @@ public class BuildSummary {
       ErrorGroup g = entry.getKey();
       List<Integer> lines = entry.getValue();
       Collections.sort(lines);
-      result.add(new BuildError(g.type, g.file, lines, g.message, g.stackTrace, g.testDuration));
+      String testLogs = testLogsMap.get(g);
+      result.add(
+          new BuildError(g.type, g.file, lines, g.message, g.stackTrace, g.testDuration, testLogs));
     }
     return Collections.unmodifiableList(result);
   }

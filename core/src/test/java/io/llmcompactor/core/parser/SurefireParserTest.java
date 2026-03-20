@@ -285,7 +285,7 @@ class SurefireParserTest {
 
     String testLogs = "INFO: Starting test\nDEBUG: Creating order\nERROR: Validation failed\n";
     Files.write(
-        reportsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.txt"),
+        reportsDir.resolve("io.llmcompactor.testbed.OrderServiceTest-output.txt"),
         testLogs.getBytes(),
         StandardOpenOption.CREATE);
 
@@ -319,7 +319,7 @@ class SurefireParserTest {
 
     String testLogs = "INFO: Starting test\n";
     Files.write(
-        reportsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.txt"),
+        reportsDir.resolve("io.llmcompactor.testbed.OrderServiceTest-output.txt"),
         testLogs.getBytes(),
         StandardOpenOption.CREATE);
 

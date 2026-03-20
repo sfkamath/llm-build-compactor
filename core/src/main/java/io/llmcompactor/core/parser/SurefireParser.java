@@ -177,8 +177,13 @@ public final class SurefireParser {
         return null;
       }
       String xmlFileName = fileName.toString();
+      // XML files are named TEST-ClassName.xml, output files are ClassName-output.txt
       String baseName = xmlFileName.replace(".xml", "");
-      Path logFile = reportsDir.resolve(baseName + ".txt");
+      if (baseName.startsWith("TEST-")) {
+        baseName = baseName.substring(5);
+      }
+      // Surefire uses ClassName-output.txt for test output
+      Path logFile = reportsDir.resolve(baseName + "-output.txt");
       if (Files.exists(logFile)) {
         return new String(Files.readAllBytes(logFile), StandardCharsets.UTF_8);
       }
