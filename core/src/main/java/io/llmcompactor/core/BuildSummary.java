@@ -1,5 +1,6 @@
 package io.llmcompactor.core;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -106,10 +107,12 @@ public class BuildSummary {
     return Collections.unmodifiableList(errors);
   }
 
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
   public List<FixTarget> getFixTargets() {
     return fixTargets;
   }
 
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
   public List<String> getRecentChanges() {
     return recentChanges;
   }

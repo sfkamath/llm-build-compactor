@@ -8,6 +8,7 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.stream.Collectors;
 
 public final class SummaryWriter {
@@ -15,6 +16,111 @@ public final class SummaryWriter {
       new ObjectMapper()
           .enable(SerializationFeature.INDENT_OUTPUT)
           .setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
+
+  /** Default threshold in ms for showing test duration (100ms) */
+  private static final double DEFAULT_TEST_DURATION_THRESHOLD_MS = 100.0;
+
+  /**
+   * Normalizes a BuildSummary for output by applying all message/stack trace cleaning once.
+   * This ensures consistent output and avoids duplicating normalization logic.
+   */
+  private static BuildSummary normalize(BuildSummary summary, double testDurationThresholdMs) {
+    if (summary == null) {
+      return null;
+    }
+    return new BuildSummary(
+        summary.status(),
+        summary.testsRun(),
+        summary.failures(),
+        summary.errors().stream()
+            .map(e -> new BuildError(
+                e.type(),
+                e.file(),
+                e.lines(),
+                stripExceptionPackage(e.message()),
+                StackTraceCompressor.stripPackagePrefixes(e.stackTrace()),
+                e.testDuration() >= testDurationThresholdMs ? e.testDuration() : 0.0,
+                e.testLogs()))
+            .collect(Collectors.toList()),
+        summary.fixTargets(),
+        summary.recentChanges(),
+        summary.totalBuildDurationMs(),
+        summary.testDurationPercentiles());
+  }
+
+  /**
+   * Normalizes a BuildSummary with default threshold.
+   */
+  private static BuildSummary normalize(BuildSummary summary) {
+    return normalize(summary, DEFAULT_TEST_DURATION_THRESHOLD_MS);
+  }
+
+  /** SLF4J infrastructure noise patterns to filter */
+  private static final java.util.regex.Pattern SLF4J_NOISE_PATTERN =
+      java.util.regex.Pattern.compile("^SLF4J:.*$");
+
+  /** Log timestamp pattern: HH:mm:ss.SSS */
+  private static final java.util.regex.Pattern TIMESTAMP_PATTERN =
+      java.util.regex.Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s*");
+
+  /** Log thread pattern: [thread-name] */
+  private static final java.util.regex.Pattern THREAD_PATTERN =
+      java.util.regex.Pattern.compile("\\s*\\[[^\\]]+\\]\\s*");
+
+  /** Log level pattern: INFO/DEBUG/WARN/ERROR */
+  private static final java.util.regex.Pattern LEVEL_PATTERN =
+      java.util.regex.Pattern.compile("(INFO|DEBUG|WARN|ERROR|TRACE)\\s+");
+
+  /** Logger name pattern: abbreviated or full package.class */
+  private static final java.util.regex.Pattern LOGGER_PATTERN =
+      java.util.regex.Pattern.compile("[a-z][a-zA-Z0-9_.]*\\s*-\\s*");
+
+  /** Cleans up test log lines by removing infrastructure noise and normalizing format. */
+  public static String cleanTestLogLine(String line) {
+    if (line == null || line.isEmpty()) {
+      return line;
+    }
+
+    // Filter SLF4J infrastructure noise
+    if (SLF4J_NOISE_PATTERN.matcher(line).matches()) {
+      return null;
+    }
+
+    String result = line;
+
+    // Strip timestamp
+    result = TIMESTAMP_PATTERN.matcher(result).replaceFirst("");
+
+    // Strip thread info
+    result = THREAD_PATTERN.matcher(result).replaceAll(" ");
+
+    // Strip log level
+    result = LEVEL_PATTERN.matcher(result).replaceAll("");
+
+    // Strip logger name (but keep the message after the dash)
+    result = LOGGER_PATTERN.matcher(result).replaceAll("");
+
+    // Normalize whitespace and trim for consistent alignment
+    result = result.replaceAll("\\s+", " ").trim();
+
+    return result.isEmpty() ? null : result;
+  }
+
+  /** Processes test logs, cleaning up noise and returning as array of lines. */
+  private static java.util.List<String> processTestLogs(String testLogs) {
+    if (testLogs == null || testLogs.isEmpty()) {
+      return java.util.Collections.emptyList();
+    }
+
+    java.util.List<String> result = new java.util.ArrayList<>();
+    for (String line : testLogs.split("\n")) {
+      String cleaned = cleanTestLogLine(line);
+      if (cleaned != null) {
+        result.add(cleaned);
+      }
+    }
+    return result;
+  }
 
   public static void write(BuildSummary summary, Path path) {
     try {
@@ -33,29 +139,42 @@ public final class SummaryWriter {
   }
 
   public static String toJson(BuildSummary summary) {
+    return toJson(summary, DEFAULT_TEST_DURATION_THRESHOLD_MS);
+  }
+
+  public static String toJson(BuildSummary summary, double testDurationThresholdMs) {
     if (summary == null) {
       return "{}";
     }
     try {
+      // Normalize once before serialization (cleans messages, stack traces, applies threshold)
+      BuildSummary normalized = normalize(summary, testDurationThresholdMs);
       // Create a simplified version for JSON if we want to condense snippets or stack traces
       BuildSummary condensed =
           new BuildSummary(
-              summary.status(),
-              summary.testsRun(),
-              summary.failures(),
-              summary.errors().stream()
+              normalized.status(),
+              normalized.testsRun(),
+              normalized.failures(),
+              normalized.errors().stream()
                   .map(
-                      e ->
-                          new BuildError(
-                              e.type(),
-                              e.file(),
-                              e.lines(),
-                              condenseForJson(e.message()),
-                              condenseForJson(e.stackTrace()),
-                              e.testDuration(),
-                              e.testLogs() != null ? condenseForJson(e.testLogs()) : null))
+                      e -> {
+                        // Mutate lines: if single item, clear array so @JsonInclude(NON_EMPTY) omits it
+                        // This reduces JSON size: "lines":[41] becomes no lines field (file:line is in message context)
+                        List<Integer> lines = e.lines();
+                        if (lines != null && lines.size() == 1) {
+                          lines = java.util.Collections.emptyList();
+                        }
+                        return new BuildError(
+                            e.type(),
+                            e.file(),
+                            lines,
+                            condenseForJson(e.message()),
+                            condenseForJson(e.stackTrace()),
+                            e.testDuration(),
+                            e.testLogs() != null ? condenseForJson(e.testLogs()) : null);
+                      })
                   .collect(Collectors.toList()),
-              summary.fixTargets().stream()
+              normalized.fixTargets().stream()
                   .map(
                       t ->
                           new FixTarget(
@@ -70,7 +189,27 @@ public final class SummaryWriter {
     }
   }
 
+  /**
+   * Strips package prefix from exception type in error messages.
+   * Example: "org.opentest4j.AssertionFailedError: message" -> "AssertionFailedError: message"
+   */
+  public static String stripExceptionPackage(String message) {
+    if (message == null || message.isEmpty()) {
+      return message;
+    }
+    // Match pattern: package.ExceptionType: message
+    return message.replaceAll("^([a-z][a-zA-Z0-9_]*\\.)+([A-Z][a-zA-Z0-9_$]*:.*)$", "$2");
+  }
+
   public static String toHumanReadable(BuildSummary summary, boolean showTestDuration) {
+    return toHumanReadable(summary, showTestDuration, DEFAULT_TEST_DURATION_THRESHOLD_MS);
+  }
+
+  public static String toHumanReadable(
+      BuildSummary summary, boolean showTestDuration, double testDurationThresholdMs) {
+    // Normalize once before rendering (cleans messages, stack traces)
+    summary = normalize(summary);
+    
     StringBuilder sb = new StringBuilder();
     sb.append("=== LLM Build Compactor Summary ===\n");
     sb.append("Status: ").append(summary.status()).append("\n");
@@ -106,12 +245,13 @@ public final class SummaryWriter {
           sb.append(error.file());
           if (error.lines() != null && !error.lines().isEmpty()) {
             sb.append(":")
-                .append(error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+                .append(
+                    error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
           }
         } else {
           sb.append(error.type());
         }
-        if (showTestDuration && error.testDuration() > 0) {
+        if (showTestDuration && error.testDuration() >= testDurationThresholdMs) {
           sb.append(" (").append(String.format("%.2f", error.testDuration())).append("ms)");
         }
         sb.append("\n");
@@ -119,14 +259,19 @@ public final class SummaryWriter {
           sb.append("    ").append(error.message().replace("\n", "\n    ")).append("\n");
         }
         if (error.stackTrace() != null) {
-          sb.append("    Stack trace:\n");
           String indent = "        ";
-          sb.append(indent).append(error.stackTrace().replace("\n", "\n" + indent)).append("\n");
+          String compressed = StackTraceCompressor.stripPackagePrefixes(error.stackTrace());
+          sb.append(indent).append(compressed.replace("\n", "\n" + indent)).append("\n");
         }
         if (error.testLogs() != null && !error.testLogs().isEmpty()) {
-          sb.append("    Test logs:\n");
-          String indent = "        ";
-          sb.append(indent).append(error.testLogs().replace("\n", "\n" + indent)).append("\n");
+          java.util.List<String> cleanedLogs = processTestLogs(error.testLogs());
+          if (!cleanedLogs.isEmpty()) {
+            sb.append("    Test logs:\n");
+            String indent = "        ";
+            for (String logLine : cleanedLogs) {
+              sb.append(indent).append(logLine).append("\n");
+            }
+          }
         }
       }
     }

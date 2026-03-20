@@ -29,38 +29,54 @@ import org.apache.maven.plugins.annotations.Parameter;
 public class LlmCompactMojo extends AbstractMojo {
   private static final String EXTENSION_ACTIVE_PROPERTY = "llmCompactor.extension.active";
 
-  @Parameter(property = "llmCompactor.enabled", defaultValue = "true")
+  @Parameter(property = "llmCompactor.enabled", defaultValue = "true")  // CompactorDefaults.ENABLED
   private boolean enabled;
 
-  @Parameter(property = "llmCompactor.outputPath", defaultValue = "target/llm-summary.json")
+  @Parameter(property = "llmCompactor.outputPath", defaultValue = "target/llm-summary.json")  // CompactorDefaults.OUTPUT_PATH
   private String outputPath;
 
-  @Parameter(property = "llmCompactor.outputAsJson", defaultValue = "true")
+  /** Output mode preset. Overrides individual flags when set. */
+  public enum Mode {
+    /** JSON output with fix targets, no logs (optimized for AI agents) */
+    agent,
+    /** JSON output with fix targets and test logs (for debugging) */
+    debug,
+    /** Human-readable output, no logs (default) */
+    human
+  }
+
+  @Parameter(property = "llmCompactor.mode")
+  private Mode mode;
+
+  @Parameter(property = "llmCompactor.outputAsJson", defaultValue = "true")  // CompactorDefaults.OUTPUT_AS_JSON
   private boolean outputAsJson;
 
-  @Parameter(property = "llmCompactor.compressStackFrames", defaultValue = "true")
+  @Parameter(property = "llmCompactor.compressStackFrames", defaultValue = "true")  // CompactorDefaults.COMPRESS_STACK_FRAMES
   private boolean compressStackFrames;
 
-  @Parameter(property = "llmCompactor.showFixTargets", defaultValue = "true")
+  @Parameter(property = "llmCompactor.showFixTargets", defaultValue = "true")  // CompactorDefaults.SHOW_FIX_TARGETS
   private boolean showFixTargets;
 
-  @Parameter(property = "llmCompactor.showRecentChanges", defaultValue = "true")
+  @Parameter(property = "llmCompactor.showRecentChanges", defaultValue = "false")  // CompactorDefaults.SHOW_RECENT_CHANGES
   private boolean showRecentChanges;
 
-  @Parameter(property = "llmCompactor.showDuration", defaultValue = "true")
-  private boolean showDuration;
+  @Parameter(property = "llmCompactor.showSlowTests", defaultValue = "true")  // CompactorDefaults.SHOW_SLOW_TESTS
+  private boolean showSlowTests;
 
-  @Parameter(property = "llmCompactor.showTotalDuration", defaultValue = "false")
+  @Parameter(property = "llmCompactor.showTotalDuration", defaultValue = "false")  // CompactorDefaults.SHOW_TOTAL_DURATION
   private boolean showTotalDuration;
 
-  @Parameter(property = "llmCompactor.showDurationReport", defaultValue = "false")
+  @Parameter(property = "llmCompactor.showDurationReport", defaultValue = "false")  // CompactorDefaults.SHOW_DURATION_REPORT
   private boolean showDurationReport;
 
   @Parameter(property = "llmCompactor.includePackages")
   private String includePackages;
 
-  @Parameter(property = "llmCompactor.showFailedTestLogs", defaultValue = "true")
+  @Parameter(property = "llmCompactor.showFailedTestLogs", defaultValue = "false")  // CompactorDefaults.SHOW_FAILED_TEST_LOGS
   private boolean showFailedTestLogs;
+
+  @Parameter(property = "llmCompactor.testDurationThresholdMs", defaultValue = "100")  // CompactorDefaults.TEST_DURATION_THRESHOLD_MS
+  private double testDurationThresholdMs;
 
   @Parameter(defaultValue = "${session}", readonly = true)
   private MavenSession session;
@@ -75,6 +91,11 @@ public class LlmCompactMojo extends AbstractMojo {
 
     if (!enabled) {
       return;
+    }
+
+    // Apply mode preset if specified (overrides individual flags)
+    if (mode != null) {
+      applyMode(mode);
     }
 
     // If BuildOutputSpy is active, it handles everything automatically via SessionEnded event.
@@ -156,9 +177,32 @@ public class LlmCompactMojo extends AbstractMojo {
     PrintStream out = System.out;
 
     if (outputAsJson) {
-      out.print(SummaryWriter.toJson(summary));
+      out.print(SummaryWriter.toJson(summary, testDurationThresholdMs));
     } else {
-      out.println(SummaryWriter.toHumanReadable(summary, showDuration));
+      out.println(SummaryWriter.toHumanReadable(summary, showSlowTests, testDurationThresholdMs));
+    }
+  }
+
+  private void applyMode(Mode mode) {
+    switch (mode) {
+      case agent:
+        // JSON + fixTargets, no logs (optimized for AI agents)
+        outputAsJson = true;
+        showFixTargets = true;
+        showFailedTestLogs = false;
+        break;
+      case debug:
+        // JSON + fixTargets + logs (for debugging)
+        outputAsJson = true;
+        showFixTargets = true;
+        showFailedTestLogs = true;
+        break;
+      case human:
+        // Human-readable, no logs (default)
+        outputAsJson = false;
+        showFixTargets = true;
+        showFailedTestLogs = false;
+        break;
     }
   }
 }

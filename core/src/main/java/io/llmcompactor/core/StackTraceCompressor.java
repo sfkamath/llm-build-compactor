@@ -107,5 +107,18 @@ public final class StackTraceCompressor {
     return true;
   }
 
+  /**
+   * Strips package prefixes from stack trace lines for more compact output. Example: "at
+   * com.example.MyClass.myMethod(MyClass.java:10)" -> "at MyClass.myMethod(MyClass.java:10)"
+   */
+  public static String stripPackagePrefixes(String stackTrace) {
+    if (stackTrace == null || stackTrace.isEmpty()) {
+      return stackTrace;
+    }
+
+    return stackTrace.replaceAll(
+        "(\\s*at\\s+)(?:[a-z0-9_]+\\.)*([A-Z][a-zA-Z0-9_$]*\\.[a-zA-Z0-9_$]*\\([^)]*\\))", "$1$2");
+  }
+
   private StackTraceCompressor() {}
 }

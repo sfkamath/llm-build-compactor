@@ -63,7 +63,6 @@ class SummaryWriterTest {
         .contains("Failures: 2")
         .contains("- src/Test.java:10")
         .contains("Fail message")
-        .contains("Stack trace:")
         .contains("at frame")
         .contains("Recent Changes:")
         .contains("- README.md");

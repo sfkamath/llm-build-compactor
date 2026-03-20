@@ -204,20 +204,32 @@ public final class SurefireParser {
     String sourceFile = null;
     int line = -1;
 
-    // Try to find the last project frame (the actual test method)
+    // For file detection: use the last project frame (typically the test method)
+    // For line detection: use the first project frame (where exception originated)
     String[] lines = message.split("\n");
+    String firstProjectFrame = null;
     String lastProjectFrame = null;
     for (String l : lines) {
       if (l.contains(".java:") && !isFrameworkFrame(l, includePackages)) {
+        if (firstProjectFrame == null) {
+          firstProjectFrame = l;
+        }
         lastProjectFrame = l;
       }
     }
 
-    // Parse the last project frame to extract file and line
+    // Use first frame for line number (where exception originated)
+    if (firstProjectFrame != null) {
+      Matcher m = LINE_NUMBER_PATTERN.matcher(firstProjectFrame);
+      if (m.find()) {
+        line = Integer.parseInt(m.group(1));
+      }
+    }
+
+    // Use last frame for file detection (typically the test file)
     if (lastProjectFrame != null) {
       Matcher m = LINE_NUMBER_PATTERN.matcher(lastProjectFrame);
       if (m.find()) {
-        line = Integer.parseInt(m.group(1));
         int atIndex = lastProjectFrame.indexOf("at ");
         int parenIndex = lastProjectFrame.indexOf("(");
         int javaIndex = lastProjectFrame.indexOf(".java:");

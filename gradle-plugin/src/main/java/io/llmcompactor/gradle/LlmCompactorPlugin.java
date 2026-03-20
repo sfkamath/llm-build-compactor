@@ -2,6 +2,7 @@ package io.llmcompactor.gradle;
 
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
+import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.FixTarget;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
@@ -88,10 +89,16 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         Property<Boolean> getShowRecentChanges();
 
         /**
-         * Whether to show test duration for each error.
-         * @return property for showing test duration (default: true)
+         * Output mode preset. When set, overrides individual flags.
+         * @return property for mode preset (default: null)
          */
-        Property<Boolean> getShowDuration();
+        Property<String> getMode();
+
+        /**
+         * Whether to show test duration for slow tests (above threshold).
+         * @return property for showing slow test durations (default: true)
+         */
+        Property<Boolean> getShowSlowTests();
 
         /**
          * Whether to show total build duration.
@@ -116,6 +123,13 @@ public class LlmCompactorPlugin implements Plugin<Project> {
          * @return property for showing failed test logs (default: true)
          */
         Property<Boolean> getShowFailedTestLogs();
+
+        /**
+         * Threshold in milliseconds for showing test duration.
+         * Tests with duration below this threshold won't show duration.
+         * @return property for test duration threshold (default: 100)
+         */
+        Property<Double> getTestDurationThresholdMs();
     }
 
     private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
@@ -134,14 +148,16 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 : true;
         project.getLogger().debug("[LLM Compactor] sysProp={} enabledValue={}", sysProp, enabledValue);
         extension.getEnabled().set(enabledValue);
-        extension.getOutputAsJson().convention(false);  // Match Maven default (human-readable)
-        extension.getCompressStackFrames().convention(true);
-        extension.getShowFixTargets().convention(false);  // Match Maven test-project config
-        extension.getShowRecentChanges().convention(false);  // Match Maven test-project config
-        extension.getShowDuration().convention(true);
-        extension.getShowTotalDuration().convention(false);
-        extension.getShowDurationReport().convention(false);
-        extension.getShowFailedTestLogs().convention(true);
+        extension.getOutputAsJson().convention(CompactorDefaults.OUTPUT_AS_JSON);
+        extension.getCompressStackFrames().convention(CompactorDefaults.COMPRESS_STACK_FRAMES);
+        extension.getShowFixTargets().convention(CompactorDefaults.SHOW_FIX_TARGETS);
+        extension.getShowRecentChanges().convention(CompactorDefaults.SHOW_RECENT_CHANGES);
+        extension.getMode().convention(CompactorDefaults.OUTPUT_PATH);  // null default
+        extension.getShowSlowTests().convention(CompactorDefaults.SHOW_SLOW_TESTS);
+        extension.getShowTotalDuration().convention(CompactorDefaults.SHOW_TOTAL_DURATION);
+        extension.getShowDurationReport().convention(CompactorDefaults.SHOW_DURATION_REPORT);
+        extension.getShowFailedTestLogs().convention(CompactorDefaults.SHOW_FAILED_TEST_LOGS);
+        extension.getTestDurationThresholdMs().convention(CompactorDefaults.TEST_DURATION_THRESHOLD_MS);
         extension.getOutputPath().convention((String) null);
 
         // Register the installation task mirroring the Maven install mojo
@@ -361,11 +377,41 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             SummaryWriter.write(summary, java.nio.file.Paths.get(extension.getOutputPath().get()));
         }
 
+        // Apply mode preset if specified (overrides individual flags)
+        String modeValue = extension.getMode().getOrNull();
+        boolean outputAsJson = extension.getOutputAsJson().get();
+        boolean showFixTargets = extension.getShowFixTargets().get();
+        boolean showFailedTestLogs = extension.getShowFailedTestLogs().get();
+        
+        if (modeValue != null && !modeValue.isEmpty()) {
+            switch (modeValue.toLowerCase()) {
+                case "agent":
+                    outputAsJson = true;
+                    showFixTargets = true;
+                    showFailedTestLogs = false;
+                    break;
+                case "debug":
+                    outputAsJson = true;
+                    showFixTargets = true;
+                    showFailedTestLogs = true;
+                    break;
+                case "human":
+                    outputAsJson = false;
+                    showFixTargets = true;
+                    showFailedTestLogs = false;
+                    break;
+            }
+        }
+
         String renderedSummary;
-        if (extension.getOutputAsJson().get()) {
-            renderedSummary = SummaryWriter.toJson(summary);
+        if (outputAsJson) {
+            renderedSummary = SummaryWriter.toJson(summary, extension.getTestDurationThresholdMs().get());
         } else {
-            renderedSummary = SummaryWriter.toHumanReadable(summary, extension.getShowDuration().get());
+            renderedSummary = SummaryWriter.toHumanReadable(
+                summary,
+                extension.getShowSlowTests().get(),
+                extension.getTestDurationThresholdMs().get()
+            );
         }
         project.getLogger().quiet(renderedSummary);
     }

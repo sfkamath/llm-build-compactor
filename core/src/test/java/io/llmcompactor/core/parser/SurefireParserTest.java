@@ -47,9 +47,10 @@ class SurefireParserTest {
     BuildError error = result.errors().get(0);
     assertThat(error.type()).isEqualTo("java.lang.RuntimeException");
     assertThat(error.message()).isEqualTo("java.lang.RuntimeException: Order validation failed");
-    // Should identify the test file (last project frame), not the service file
+    // File should be the test file (last project frame)
+    // Line should be where exception originated (first project frame)
     assertThat(error.file()).contains("OrderServiceTest.java");
-    assertThat(error.lines()).containsExactly(10);
+    assertThat(error.lines()).containsExactly(15);
     assertThat(error.testDuration()).isEqualTo(0.05);
   }
 
@@ -214,9 +215,10 @@ class SurefireParserTest {
     assertThat(result.failures()).isEqualTo(1);
     BuildError error = result.errors().get(0);
 
-    // Should identify the test file (last project frame), not intermediate service classes
+    // File should be the test file (last project frame)
+    // Line should be where exception originated (first project frame)
     assertThat(error.file()).contains("ServiceTest.java");
-    assertThat(error.lines()).containsExactly(50);
+    assertThat(error.lines()).containsExactly(25);
   }
 
   @Test

@@ -1,13 +1,13 @@
 package io.llmcompactor.core;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
 public class BuildError {
-  @JsonIgnore
-  private final String type;
+  @JsonIgnore private final String type;
   private final String file;
   private final List<Integer> lines;
   private final String message;
@@ -102,6 +102,7 @@ public class BuildError {
     return file;
   }
 
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
   public List<Integer> getLines() {
     return lines;
   }
@@ -114,12 +115,33 @@ public class BuildError {
     return stackTrace;
   }
 
+  @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT)
   public double getTestDuration() {
     return testDuration;
   }
 
   public String getTestLogs() {
     return testLogs;
+  }
+
+  /**
+   * Returns test logs as a cleaned array with infrastructure noise filtered. Used for JSON
+   * serialization.
+   */
+  @com.fasterxml.jackson.annotation.JsonProperty("testLogs")
+  @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+  public java.util.List<String> getTestLogsAsArray() {
+    if (testLogs == null || testLogs.isEmpty()) {
+      return java.util.Collections.emptyList();
+    }
+    java.util.List<String> result = new java.util.ArrayList<>();
+    for (String line : testLogs.split("\n")) {
+      String cleaned = SummaryWriter.cleanTestLogLine(line);
+      if (cleaned != null) {
+        result.add(cleaned);
+      }
+    }
+    return result;
   }
 
   @Override

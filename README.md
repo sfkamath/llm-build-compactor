@@ -125,25 +125,68 @@ Settings can be configured in your `pom.xml` (Maven), `build.gradle` (Gradle), o
 
 ### Available Options
 
+**Note:** Defaults are centralized in [`CompactorDefaults.java`](core/src/main/java/io/llmcompactor/core/CompactorDefaults.java) and referenced by all build tools.
+
 | Property | Default | Description |
 |----------|---------|-------------|
 | `llmCompactor.enabled` | `true` | Toggle the entire tool on/off. |
+| `llmCompactor.mode` | (none) | Output mode preset. When set, **completely overrides** `outputAsJson`, `showFixTargets`, and `showFailedTestLogs`. See [Output Modes](#output-modes) below. |
 | `llmCompactor.outputAsJson` | `true` | Emit pretty-printed JSON. If `false`, emits human-readable text. |
-| `llmCompactor.compressStackFrames` | `true` | Filter out framework noise from stack traces. |
-| `llmCompactor.showFixTargets` | `true` | Include suggested files and snippets for fixing errors. |
-| `llmCompactor.showRecentChanges` | `true` | Include the list of files changed in git recently. |
+| `llmCompactor.showFixTargets` | `true` | Include suggested files for fixing errors. |
+| `llmCompactor.showRecentChanges` | `false` | Include the list of files changed in git recently. |
 | `llmCompactor.includePackages` | (empty) | Comma-separated list of packages to *always* include in stack traces. **Note:** The compactor automatically scans your `src/main`, `src/test`, and `src/it` to identify and preserve project-specific packages. |
-| `llmCompactor.showDuration` | `true` | Show duration for individual failing tests. |
+| `llmCompactor.showSlowTests` | `true` | Show test duration only for slow tests (≥ threshold). |
 | `llmCompactor.showTotalDuration` | `false` | Include the total build execution time in the summary. |
 | `llmCompactor.showDurationReport` | `false` | Include a heuristic percentile report of test durations (p50, p90, p95, p99, max). |
 | `llmCompactor.outputPath` | (varies) | Path where the summary is saved (e.g., `target/llm-summary.json`). |
-| `llmCompactor.showFailedTestLogs` | `true` | Capture and display test output logs (System.out, System.err, SLF4J, Log4j2) for failed tests. |
+| `llmCompactor.showFailedTestLogs` | `false` | Capture and display test output logs for failed tests. |
+| `llmCompactor.testDurationThresholdMs` | `100` | Threshold in milliseconds for considering a test "slow" (used by `showSlowTests`). |
+
+### Advanced Options
+
+These options are rarely needed. Use only for specific edge cases.
+
+| Property | Default | Description |
+|----------|---------|-------------|
+| `llmCompactor.compressStackFrames` | `true` | Filter out framework noise from stack traces. **Recommended:** Keep enabled for agent use. Disable only if you need full raw stack traces for debugging the compactor itself. |
+
+---
+
+## Output Modes
+
+For convenience, you can use the `mode` property to set sensible defaults for common use cases:
+
+### Mode: `agent` (Recommended for AI Agents)
+```bash
+mvn test -DllmCompactor.mode=agent
+```
+- JSON output
+- Fix targets included
+- No test logs (reduces noise)
+
+### Mode: `debug` (For Debugging Test Failures)
+```bash
+mvn test -DllmCompactor.mode=debug
+```
+- JSON output
+- Fix targets included
+- Test logs included (helpful for understanding test failures)
+
+### Mode: `human` (Human-Readable Output)
+```bash
+mvn test -DllmCompactor.mode=human
+```
+- Human-readable text output
+- Fix targets included
+- No test logs
+
+**Precedence:** When `mode` is set, it **completely overrides** `outputAsJson`, `showFixTargets`, and `showFailedTestLogs`. Individual flag values are ignored. For example, `-DllmCompactor.mode=agent -DllmCompactor.showFailedTestLogs=true` will **not** include test logs — the `agent` mode wins.
 
 ---
 
 ## Capturing Test Logs
 
-When `showFailedTestLogs` is enabled (default: `true`), the compactor captures and displays test output logs for failed tests:
+When `showFailedTestLogs` is enabled (default: `false`), the compactor captures and displays test output logs for failed tests:
 
 ### What Gets Captured
 
