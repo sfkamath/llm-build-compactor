@@ -9,7 +9,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-JAVA_VERSIONS=("1.8.0.351" "11.0.17" "17.0.8" "21" "25")
+JAVA_VERSIONS=("temurin64-1.8.0.482" "11.0.17" "17.0.8" "21" "25")
 
 echo "=========================================="
 echo "LLM Build Compactor - Quick Test Suite"
@@ -34,7 +34,7 @@ for java_version in "${JAVA_VERSIONS[@]}"; do
     fi
     
     # Gradle plugin tests (Java 17+ only)
-    if [[ "$java_version" != "1.8.0.351" && "$java_version" != "11.0.17" ]]; then
+    if [[ "$java_version" != "temurin64-1.8.0.482" && "$java_version" != "11.0.17" ]]; then
         echo -n "  Gradle plugin tests: "
         cd "$PROJECT_ROOT/gradle-plugin"
         if ../gradlew clean test -q 2>&1 | tail -1 | grep -q "BUILD SUCCESS\|BUILD COMPLETED"; then
@@ -42,23 +42,23 @@ for java_version in "${JAVA_VERSIONS[@]}"; do
         else
             echo "FAIL"
         fi
-        
+
         echo -n "  Test-project-gradle: "
         cd "$PROJECT_ROOT/test-project-gradle"
-        if ../gradlew clean test -q 2>&1 | grep -q "LLM Build Compactor Summary"; then
+        if ../gradlew clean test -q 2>&1 | grep -qE '"status"\s*:\s*"(SUCCESS|FAILED)"|LLM Build Compactor Summary'; then
             echo "PASS (plugin working)"
         else
             echo "FAIL"
         fi
     else
-        echo "  Gradle plugin tests: SKIP (requires Java 17+)"
-        echo "  Test-project-gradle: SKIP (requires Java 17+)"
+        echo "  Gradle plugin tests: SKIP (Java 8/11 use Gradle 8.x, tests run on Java 17+)"
+        echo "  Test-project-gradle: SKIP (Java 8/11 use Gradle 8.x, tests run on Java 17+)"
     fi
-    
+
     # Maven test-project
     echo -n "  Test-project-maven: "
     cd "$PROJECT_ROOT/test-project"
-    if mvn clean verify -q 2>&1 | grep -q "LLM Build Compactor Summary"; then
+    if mvn clean verify -q 2>&1 | grep -qE '"status"\s*:\s*"(SUCCESS|FAILED)"|LLM Build Compactor Summary'; then
         echo "PASS (plugin working)"
     else
         echo "FAIL"

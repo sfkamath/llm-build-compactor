@@ -442,9 +442,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         if (!containsCompilerArg(compilerArgs, "-Xlint:-deprecation")) {
             compilerArgs.add("-Xlint:-deprecation");
         }
-        if (!containsCompilerArg(compilerArgs, "-Xlint:-removal")) {
-            compilerArgs.add("-Xlint:-removal");
-        }
+        // -Xlint:-removal is Java 11+ only, skip for Java 8 compatibility
     }
 
     private boolean containsCompilerArg(List<String> compilerArgs, String value) {

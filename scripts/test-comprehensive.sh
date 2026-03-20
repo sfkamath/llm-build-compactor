@@ -10,7 +10,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-JAVA_VERSIONS=("1.8.0.351" "11.0.17" "17.0.8" "21" "25")
+JAVA_VERSIONS=("temurin64-1.8.0.482" "11.0.17" "17.0.8" "21" "25")
 
 # Results tracking
 declare -A RESULTS
@@ -23,7 +23,7 @@ log() {
 get_gradlew() {
     local java_version="$1"
     case "$java_version" in
-        1.8.0.351)
+        temurin64-1.8.0.482)
             echo "$PROJECT_ROOT/gradlew-java8"
             ;;
         11.0.17)
@@ -39,8 +39,8 @@ get_gradlew() {
 get_gradle_version() {
     local java_version="$1"
     case "$java_version" in
-        1.8.0.351)
-            echo "Gradle 8.0.2"
+        temurin64-1.8.0.482)
+            echo "Gradle 8.14.4"
             ;;
         11.0.17)
             echo "Gradle 8.5"
@@ -98,7 +98,7 @@ test_java_version() {
     cd "$PROJECT_ROOT/test-project"
     local maven_output
     maven_output=$(mvn clean verify 2>&1)
-    if echo "$maven_output" | grep -q "LLM Build Compactor Summary"; then
+    if echo "$maven_output" | grep -qE '"status"\s*:\s*"(SUCCESS|FAILED)"|LLM Build Compactor Summary'; then
         RESULTS["${version_key}_maven_test"]="PASS"
         log "   Maven test-project: PASS (plugin working)"
     else
@@ -106,13 +106,13 @@ test_java_version() {
         log "   Maven test-project: FAIL (no plugin output)"
         return 1
     fi
-    
+
     # 4. Gradle test-project-gradle
     log "4. Test-project Gradle (${gradlew_cmd##*/} clean test)..."
     cd "$PROJECT_ROOT/test-project-gradle"
     local gradle_output
     gradle_output=$("$gradlew_cmd" clean test 2>&1)
-    if echo "$gradle_output" | grep -q "LLM Build Compactor Summary"; then
+    if echo "$gradle_output" | grep -qE '"status"\s*:\s*"(SUCCESS|FAILED)"|LLM Build Compactor Summary'; then
         RESULTS["${version_key}_gradle_test"]="PASS"
         log "   Gradle test-project: PASS (plugin working)"
     else
@@ -149,7 +149,7 @@ print_summary() {
 main() {
     log "Starting comprehensive test suite..."
     log "Java versions: ${JAVA_VERSIONS[*]}"
-    log "Gradle wrappers: Java 8->8.0.2, Java 11->8.5, Java 17+->9.4.0"
+    log "Gradle wrappers: Java 8->8.14.4, Java 11->8.5, Java 17+->9.4.0"
     echo ""
     
     local failed=0
