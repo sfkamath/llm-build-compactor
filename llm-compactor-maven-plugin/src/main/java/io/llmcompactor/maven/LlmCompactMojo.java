@@ -8,10 +8,12 @@ import io.llmcompactor.core.extract.FixTargetGenerator;
 import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResult;
-import java.io.PrintStream;
 import java.io.File;
+import java.io.PrintStream;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -80,17 +82,15 @@ public class LlmCompactMojo extends AbstractMojo {
 
     List<String> includePackagesList =
         includePackages == null || includePackages.isEmpty()
-            ? List.of()
-            : List.of(includePackages.split(","));
+            ? Collections.<String>emptyList()
+            : Arrays.asList(includePackages.split(","));
 
     // Parse test results from existing reports
-    long sessionStartTime = session != null && session.getStartTime() != null
-        ? session.getStartTime().getTime()
-        : 0L;
-    Path targetDir = buildDirectory != null ? buildDirectory.toPath() : Path.of("target");
+    long sessionStartTime =
+        session != null && session.getStartTime() != null ? session.getStartTime().getTime() : 0L;
+    Path targetDir = buildDirectory != null ? buildDirectory.toPath() : Paths.get("target");
     TestResult testResult =
-        SurefireParser.parse(
-            targetDir, compressStackFrames, includePackagesList, sessionStartTime);
+        SurefireParser.parse(targetDir, compressStackFrames, includePackagesList, sessionStartTime);
     List<BuildError> testFailures = testResult.errors();
     List<Double> allDurations = testResult.allDurations();
 
@@ -103,9 +103,13 @@ public class LlmCompactMojo extends AbstractMojo {
 
     allErrors = BuildSummary.aggregateErrors(allErrors);
 
-    List<FixTarget> targets = showFixTargets ? FixTargetGenerator.generate(allErrors) : List.of();
+    List<FixTarget> targets =
+        showFixTargets
+            ? FixTargetGenerator.generate(allErrors)
+            : Collections.<FixTarget>emptyList();
 
-    List<String> recentChanges = showRecentChanges ? GitDiffExtractor.changedFiles() : List.of();
+    List<String> recentChanges =
+        showRecentChanges ? GitDiffExtractor.changedFiles() : Collections.<String>emptyList();
 
     Long totalBuildDurationMs = null;
     if (showTotalDuration) {
@@ -135,7 +139,7 @@ public class LlmCompactMojo extends AbstractMojo {
             totalBuildDurationMs,
             testDurationPercentiles);
 
-    Path resolvedOutputPath = Path.of(outputPath);
+    Path resolvedOutputPath = Paths.get(outputPath);
     if (!resolvedOutputPath.isAbsolute() && basedir != null) {
       resolvedOutputPath = basedir.toPath().resolve(resolvedOutputPath);
     }

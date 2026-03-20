@@ -37,13 +37,16 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.TreeMap;
 import java.util.stream.Stream;
+import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.maven.AbstractMavenLifecycleParticipant;
@@ -51,8 +54,10 @@ import org.apache.maven.MavenExecutionException;
 import org.apache.maven.eventspy.AbstractEventSpy;
 import org.apache.maven.execution.ExecutionEvent;
 import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.Plugin;
 import org.apache.maven.plugin.MojoExecution;
 import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
 
 /** Combined LifecycleParticipant and EventSpy to ensure silence in both modes. */
 @Named("llm-compactor-extension")
@@ -110,9 +115,23 @@ public class BuildOutputSpy extends AbstractEventSpy {
     System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "off");
     resetSlf4j();
 
-    // Suppress all console output
-    System.setOut(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
-    System.setErr(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
+    // Suppress all console output (Java 8 compatible null output stream)
+    OutputStream nullOut =
+        new OutputStream() {
+          @Override
+          public void write(int b) throws IOException {
+            // Discard all bytes
+          }
+        };
+
+    PrintStream nullPrint =
+        new PrintStream(nullOut, true, StandardCharsets.UTF_8) {
+          @Override
+          public void write(byte[] buf, int off, int len) {}
+        };
+
+    System.setOut(nullPrint);
+    System.setErr(nullPrint);
     System.setProperty(EXTENSION_ACTIVE_PROPERTY, "true");
 
     initialized = true;
@@ -120,7 +139,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
   private boolean isInteractiveGoal(MavenSession session) {
     List<String> interactiveGoals =
-        List.of(
+        Arrays.asList(
             "exec:java",
             "exec:exec",
             "spring-boot:run",
@@ -158,30 +177,31 @@ public class BuildOutputSpy extends AbstractEventSpy {
       ensureInitialized();
     }
 
-    if (event instanceof ExecutionEvent ee) {
+    if (event instanceof ExecutionEvent) {
+      ExecutionEvent ee = (ExecutionEvent) event;
       handleExecutionEvent(ee);
     }
   }
 
   private void handleExecutionEvent(ExecutionEvent ee) {
     switch (ee.getType()) {
-      case SessionStarted -> {
+      case SessionStarted:
         this.session = ee.getSession();
         if (isInteractiveGoal(session)) {
           initialized = true; // Mark as initialized to prevent later redirection
           return;
         }
         suppressTestOutput();
-      }
-      case MojoFailed -> {
+        break;
+      case MojoFailed:
         handleMojoFailed(ee);
-      }
-      case SessionEnded -> {
+        break;
+      case SessionEnded:
         emitSummary();
-      }
-      default -> {
+        break;
+      default:
         // Ignore other events
-      }
+        break;
     }
   }
 
@@ -206,9 +226,9 @@ public class BuildOutputSpy extends AbstractEventSpy {
       String output = extractFailureOutput(ee);
       if (output != null) {
         List<BuildError> extracted =
-            CompilationErrorExtractor.extract(List.of(output.split("\n")));
+            CompilationErrorExtractor.extract(Arrays.asList(output.split("\n")));
         if (extracted.isEmpty()) {
-          extracted = List.of(createGenericCompilationError(ee, output));
+          extracted = Collections.singletonList(createGenericCompilationError(ee, output));
         }
         compileErrors.addAll(extracted);
       }
@@ -269,7 +289,9 @@ public class BuildOutputSpy extends AbstractEventSpy {
     String includePackagesProp = getProperty("llmCompactor.includePackages", projectProps, "");
     List<String> includePackages =
         new ArrayList<>(
-            includePackagesProp.isEmpty() ? List.of() : List.of(includePackagesProp.split(",")));
+            includePackagesProp.isEmpty()
+                ? Collections.<String>emptyList()
+                : Arrays.asList(includePackagesProp.split(",")));
 
     List<MavenProject> projects = session.getProjects();
 
@@ -328,14 +350,14 @@ public class BuildOutputSpy extends AbstractEventSpy {
     List<FixTarget> targets =
         "true".equalsIgnoreCase(showFixTargetsProp)
             ? FixTargetGenerator.generate(allErrors)
-            : List.of();
+            : Collections.<FixTarget>emptyList();
 
     String showRecentChangesProp =
         getProperty("llmCompactor.showRecentChanges", projectProps, "true");
     List<String> recentChanges =
         "true".equalsIgnoreCase(showRecentChangesProp)
             ? GitDiffExtractor.changedFiles()
-            : List.of();
+            : Collections.<String>emptyList();
 
     BuildSummary summary =
         new BuildSummary(
@@ -350,7 +372,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
     String outputPath = getProperty("llmCompactor.outputPath", projectProps, null);
     if (outputPath != null) {
-      SummaryWriter.write(summary, Path.of(outputPath));
+      SummaryWriter.write(summary, Paths.get(outputPath));
     }
 
     // Emit to real System.out
@@ -373,7 +395,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
     sourceRoots.addAll(project.getTestCompileSourceRoots());
 
     for (String root : sourceRoots) {
-      Path rootPath = Path.of(root);
+      Path rootPath = Paths.get(root);
       if (Files.exists(rootPath)) {
         try (Stream<Path> walk = Files.walk(rootPath)) {
           walk.filter(Files::isRegularFile)
@@ -410,26 +432,47 @@ public class BuildOutputSpy extends AbstractEventSpy {
     }
 
     // 3. Plugin configuration (<configuration> in pom.xml)
-    if (session != null && session.getTopLevelProject() != null) {
+    // Check current project first (for submodule configs), then top-level project
+    if (session != null) {
+      // Try current project (may be a submodule)
+      MavenProject currentProject = session.getCurrentProject();
+      if (currentProject != null) {
+        String configValue = getPluginConfigValue(currentProject, key);
+        if (configValue != null) {
+          return configValue;
+        }
+      }
+
+      // Fallback to top-level project
       MavenProject topProject = session.getTopLevelProject();
-      org.apache.maven.model.Plugin plugin =
-          topProject.getPlugin("io.llmcompactor:llm-compactor-maven-plugin");
-      if (plugin != null) {
-        Object config = plugin.getConfiguration();
-        if (config instanceof org.codehaus.plexus.util.xml.Xpp3Dom dom) {
-          // Plugin config uses camelCase (e.g., <outputAsJson>),
-          // whereas system properties use dot.notation (e.g., llmCompactor.outputAsJson)
-          String configKey =
-              key.startsWith("llmCompactor.") ? key.substring("llmCompactor.".length()) : key;
-          org.codehaus.plexus.util.xml.Xpp3Dom child = dom.getChild(configKey);
-          if (child != null) {
-            return child.getValue();
-          }
+      if (topProject != null) {
+        String configValue = getPluginConfigValue(topProject, key);
+        if (configValue != null) {
+          return configValue;
         }
       }
     }
 
     return defaultValue;
+  }
+
+  private String getPluginConfigValue(MavenProject project, String key) {
+    Plugin plugin = project.getPlugin("io.llmcompactor:llm-compactor-maven-plugin");
+    if (plugin != null) {
+      Object config = plugin.getConfiguration();
+      if (config instanceof Xpp3Dom) {
+        Xpp3Dom dom = (Xpp3Dom) config;
+        // Plugin config uses camelCase (e.g., <outputAsJson>),
+        // whereas system properties use dot.notation (e.g., llmCompactor.outputAsJson)
+        String configKey =
+            key.startsWith("llmCompactor.") ? key.substring("llmCompactor.".length()) : key;
+        Xpp3Dom child = dom.getChild(configKey);
+        if (child != null) {
+          return child.getValue();
+        }
+      }
+    }
+    return null;
   }
 
   @Override
@@ -479,7 +522,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
   public static class Participant extends AbstractMavenLifecycleParticipant {
     private final BuildOutputSpy spy;
 
-    @javax.inject.Inject
+    @Inject
     public Participant(BuildOutputSpy spy) {
       this.spy = spy;
     }

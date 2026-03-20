@@ -3,7 +3,7 @@ package io.llmcompactor.core.extract;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.FixTarget;
 import io.llmcompactor.core.snippet.CodeSnippetExtractor;
-import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -28,7 +28,7 @@ public final class FixTargetGenerator {
         continue;
       }
 
-      String snippet = CodeSnippetExtractor.extract(Path.of(error.file()), line);
+      String snippet = CodeSnippetExtractor.extract(Paths.get(error.file()), line);
 
       targets.add(new FixTarget(error.file(), line, error.message(), snippet));
     }

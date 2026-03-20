@@ -18,7 +18,7 @@ task="${2:-test}"
   /^> Task / { gt++ }
   /^ *Test .* (PASSED|FAILED|SKIPPED)$/ { tsl++ }
   /^io\.[A-Za-z0-9_.$]+$/ { tql++ }
-  /^=== LLM Build Summary ===$/ { summary_lines++ }
+  /^=== LLM Build Compactor Summary ===$/ { summary_lines++ }
   /^Status: / { summary_lines++ }
   /^Tests Run: / { summary_lines++ }
   /^Failures: / { summary_lines++ }

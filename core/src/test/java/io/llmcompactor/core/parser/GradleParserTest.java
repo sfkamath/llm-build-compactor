@@ -6,6 +6,7 @@ import io.llmcompactor.core.BuildError;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -34,7 +35,10 @@ class GradleParserTest {
             + "  <system-err><![CDATA[]]></system-err>\n"
             + "</testsuite>";
 
-    Files.writeString(resultsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.xml"), xml);
+    Files.write(
+        resultsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.xml"),
+        xml.getBytes(),
+        StandardOpenOption.CREATE);
 
     TestResult result = GradleParser.parse(resultsDir, true, Collections.emptyList(), 0);
 

@@ -1,11 +1,12 @@
 package io.llmcompactor.core;
 
+import java.util.Arrays;
 import java.util.List;
 
 public final class StackTraceCompressor {
 
   private static final List<String> FRAMEWORK_PREFIXES =
-      List.of(
+      Arrays.asList(
           "java.",
           "javax.",
           "sun.",
@@ -19,9 +20,12 @@ public final class StackTraceCompressor {
           "org.hibernate.",
           "io.projectreactor.",
           "reactor.core.",
-          "io.micronaut.");
-  // Note: io.micronaut. is included to filter out framework frames for most projects.
-  // For Micronaut projects, use includePackages to explicitly include your packages.
+          "io.micronaut.",
+          "io.netty.");
+
+  // Note: io.micronaut. and io.netty. are included to filter out framework frames for most
+  // projects.
+  // For Micronaut/Netty projects, use includePackages to explicitly include your packages.
 
   /**
    * Normalizes a stack trace line by removing classloader prefixes like "app//", "bytebuddy.", etc.
@@ -31,8 +35,7 @@ public final class StackTraceCompressor {
       return line;
     }
     // Remove classloader prefixes that Gradle adds
-    String normalized = line.replaceAll("^\\s*at\\s+(?:app|bytebuddy|transformation|[0-9a-f]+)//", "at ");
-    return normalized;
+    return line.replaceAll("^\\s*at\\s+(?:app|bytebuddy|transformation|[0-9a-f]+)//", "at ");
   }
 
   /**
@@ -76,14 +79,14 @@ public final class StackTraceCompressor {
       String trimmedLine, String projectPackage, List<String> includePackages) {
     // Normalize the line to remove classloader prefixes
     String normalized = normalizeLine(trimmedLine);
-    
+
     // 1. If we have a project package, check for it FIRST (before framework exclusions)
     if (projectPackage != null && !projectPackage.isEmpty()) {
       if (normalized.contains(projectPackage)) {
         return true;
       }
     }
-    
+
     // 2. Check explicit inclusions before framework exclusions so user overrides win
     if (includePackages != null) {
       for (String pkg : includePackages) {

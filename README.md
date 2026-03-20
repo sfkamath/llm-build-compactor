@@ -15,13 +15,46 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 
 ## Installation (Maven)
 
-The easiest way to set up the compactor is using the `install` goal:
+### Step 1: Install the Extension (Required for Complete Silence)
+
+The compactor uses a Maven Extension to achieve complete build silence. Install it using:
 
 ```bash
 mvn io.llmcompactor:llm-compactor-maven-plugin:0.1.3:install
 ```
 
-This automatically creates `.mvn/extensions.xml` in your project, enabling the Core Extension for absolute silence.
+This creates `.mvn/extensions.xml` in your project, enabling the Core Extension that suppresses all build output during execution.
+
+### Step 2: Configure the Plugin (Optional)
+
+To customize the output format and features, add the plugin configuration to your `pom.xml`:
+
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>io.llmcompactor</groupId>
+            <artifactId>llm-compactor-maven-plugin</artifactId>
+            <version>0.1.3</version>
+            <configuration>
+                <outputAsJson>false</outputAsJson>
+                <compressStackFrames>true</compressStackFrames>
+                <showFixTargets>false</showFixTargets>
+                <showRecentChanges>false</showRecentChanges>
+            </configuration>
+            <executions>
+                <execution>
+                    <goals>
+                        <goal>compact</goal>
+                    </goals>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
+```
+
+**Note:** Without the extension (Step 1), you will not get complete silence during builds.
 
 ---
 

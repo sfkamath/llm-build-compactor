@@ -2,8 +2,8 @@ import org.gradle.api.logging.LogLevel
 import org.gradle.api.tasks.testing.Test
 
 // This init script handles late build-scoped suppression only.
-// Full Gradle quiet mode must be configured before the session starts,
-// which the plugin now bootstraps via Gradle user-home gradle.properties.
+// Startup-level Gradle logging decisions happen before the plugin can run,
+// so this script focuses on late build-scoped suppression behavior.
 gradle.allprojects {
     logging.captureStandardOutput(LogLevel.DEBUG)
     logging.captureStandardError(LogLevel.DEBUG)

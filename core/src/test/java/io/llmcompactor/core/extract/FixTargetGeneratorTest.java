@@ -7,6 +7,9 @@ import io.llmcompactor.core.FixTarget;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -18,12 +21,12 @@ class FixTargetGeneratorTest {
   @Test
   void shouldGenerateFixTargetsFromErrors() throws IOException {
     Path file1 = tempDir.resolve("AppTest.java");
-    Files.writeString(file1, "line 15 content");
+    Files.write(file1, "line 15 content".getBytes(), StandardOpenOption.CREATE);
     Path file2 = tempDir.resolve("App.java");
-    Files.writeString(file2, "line 20 content");
+    Files.write(file2, "line 20 content".getBytes(), StandardOpenOption.CREATE);
 
     List<BuildError> errors =
-        List.of(
+        Arrays.asList(
             new BuildError("TestFailure", file1.toString(), 1, "Fail", "trace"),
             new BuildError("COMPILATION_ERROR", file2.toString(), 1, "Error", "trace"));
 
@@ -37,7 +40,7 @@ class FixTargetGeneratorTest {
   @Test
   void shouldDeDuplicateTargets() {
     List<BuildError> errors =
-        List.of(
+        Arrays.asList(
             new BuildError("TestFailure", "App.java", 10, "Fail1", "trace"),
             new BuildError("TestFailure", "App.java", 10, "Fail2", "trace"));
 
@@ -49,7 +52,8 @@ class FixTargetGeneratorTest {
 
   @Test
   void shouldSkipInvalidErrors() {
-    List<BuildError> errors = List.of(new BuildError("TestFailure", null, 0, "Fail", "trace"));
+    List<BuildError> errors =
+        Collections.singletonList(new BuildError("TestFailure", null, 0, "Fail", "trace"));
 
     List<FixTarget> targets = FixTargetGenerator.generate(errors);
 

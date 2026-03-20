@@ -5,6 +5,7 @@ import io.llmcompactor.core.StackTraceCompressor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +18,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
@@ -71,7 +73,7 @@ public final class GradleParser {
 
                   NodeList failureNodes = doc.getElementsByTagName("failure");
                   for (int i = 0; i < failureNodes.getLength(); i++) {
-                    var node = failureNodes.item(i);
+                    Node node = failureNodes.item(i);
                     String message = node.getTextContent().trim();
                     String type = ((Element) node).getAttribute("type");
 
@@ -139,7 +141,7 @@ public final class GradleParser {
 
     for (String root : roots) {
       String fullPath = root + relativePath;
-      if (Files.exists(Path.of(fullPath))) {
+      if (Files.exists(Paths.get(fullPath))) {
         return fullPath;
       }
     }

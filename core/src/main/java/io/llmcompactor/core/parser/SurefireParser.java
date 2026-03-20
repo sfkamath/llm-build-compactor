@@ -5,7 +5,9 @@ import io.llmcompactor.core.StackTraceCompressor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -16,6 +18,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
@@ -34,7 +37,7 @@ public final class SurefireParser {
     AtomicInteger testFailures = new AtomicInteger(0);
 
     List<Path> reportDirs =
-        List.of(targetDir.resolve("surefire-reports"), targetDir.resolve("failsafe-reports"));
+        Arrays.asList(targetDir.resolve("surefire-reports"), targetDir.resolve("failsafe-reports"));
 
     for (Path reportsDir : reportDirs) {
       if (Files.exists(reportsDir)) {
@@ -68,141 +71,41 @@ public final class SurefireParser {
                         }
                       }
 
-                      var failureNodes = doc.getElementsByTagName("failure");
+                      NodeList failureNodes = doc.getElementsByTagName("failure");
                       for (int i = 0; i < failureNodes.getLength(); i++) {
-                        var node = failureNodes.item(i);
+                        Node node = failureNodes.item(i);
                         String type = ((Element) node).getAttribute("type");
                         String message = node.getTextContent().trim();
 
-                        // Get duration from parent testcase
-                        double duration = 0.0;
-                        if (node.getParentNode() instanceof Element testCase) {
-                          String timeAttr = testCase.getAttribute("time");
-                          if (timeAttr != null && !timeAttr.isEmpty()) {
-                            try {
-                              duration = Double.parseDouble(timeAttr);
-                            } catch (NumberFormatException e) {
-                              // Ignore
-                            }
-                          }
-                        }
-
-                        // Attempt to find original file/line from stack trace
-                        String sourceFile = null;
-                        int line = -1;
-
-                        // Try to find the first project frame
-                        String[] lines = message.split("\n");
-                        for (String l : lines) {
-                          if (l.contains(".java:") && !isFrameworkFrame(l, includePackages)) {
-                            Matcher m = LINE_NUMBER_PATTERN.matcher(l);
-                            if (m.find()) {
-                              line = Integer.parseInt(m.group(1));
-                              // Find the class/file name from the frame
-                              int atIndex = l.indexOf("at ");
-                              int parenIndex = l.indexOf("(");
-                              if (atIndex >= 0 && parenIndex > atIndex) {
-                                String fullClass = l.substring(atIndex + 3, parenIndex);
-                                int lastDotInClass = fullClass.lastIndexOf(".");
-                                if (lastDotInClass > 0) {
-                                  String packageName = fullClass.substring(0, lastDotInClass);
-                                  String fileName =
-                                      l.substring(parenIndex + 1, l.indexOf(".java:") + 5);
-                                  String className =
-                                      fileName.substring(0, fileName.indexOf(".java"));
-                                  if (packageName.endsWith("." + className)) {
-                                    packageName =
-                                        packageName.substring(
-                                            0, packageName.length() - className.length() - 1);
-                                  }
-                                  sourceFile = resolveSourceFile(packageName, fileName);
-                                }
-                              }
-                              break;
-                            }
-                          }
-                        }
-
-                        String stackTrace =
-                            compressStackFrames
-                                ? StackTraceCompressor.compress(message, null, includePackages)
-                                : message;
-
-                        failures.add(
-                            new BuildError(
+                        double duration = getTestDuration(node);
+                        BuildError error =
+                            parseError(
+                                message,
                                 type,
-                                sourceFile != null ? sourceFile : file.getFileName().toString(),
-                                line,
-                                extractFirstLine(message),
-                                stackTrace,
-                                duration));
+                                file,
+                                includePackages,
+                                compressStackFrames,
+                                duration);
+                        failures.add(error);
                         testFailures.incrementAndGet();
                       }
 
-                      var errorNodes = doc.getElementsByTagName("error");
+                      NodeList errorNodes = doc.getElementsByTagName("error");
                       for (int i = 0; i < errorNodes.getLength(); i++) {
-                        var node = errorNodes.item(i);
+                        Node node = errorNodes.item(i);
                         String type = ((Element) node).getAttribute("type");
                         String message = node.getTextContent().trim();
 
-                        double duration = 0.0;
-                        if (node.getParentNode() instanceof Element testCase) {
-                          String timeAttr = testCase.getAttribute("time");
-                          if (timeAttr != null && !timeAttr.isEmpty()) {
-                            try {
-                              duration = Double.parseDouble(timeAttr);
-                            } catch (NumberFormatException e) {
-                              // Ignore
-                            }
-                          }
-                        }
-
-                        String sourceFile = null;
-                        int line = -1;
-
-                        String[] lines = message.split("\n");
-                        for (String l : lines) {
-                          if (l.contains(".java:") && !isFrameworkFrame(l, includePackages)) {
-                            Matcher m = LINE_NUMBER_PATTERN.matcher(l);
-                            if (m.find()) {
-                              line = Integer.parseInt(m.group(1));
-                              int atIndex = l.indexOf("at ");
-                              int parenIndex = l.indexOf("(");
-                              if (atIndex >= 0 && parenIndex > atIndex) {
-                                String fullClass = l.substring(atIndex + 3, parenIndex);
-                                int lastDotInClass = fullClass.lastIndexOf(".");
-                                if (lastDotInClass > 0) {
-                                  String packageName = fullClass.substring(0, lastDotInClass);
-                                  String fileName =
-                                      l.substring(parenIndex + 1, l.indexOf(".java:") + 5);
-                                  String className =
-                                      fileName.substring(0, fileName.indexOf(".java"));
-                                  if (packageName.endsWith("." + className)) {
-                                    packageName =
-                                        packageName.substring(
-                                            0, packageName.length() - className.length() - 1);
-                                  }
-                                  sourceFile = resolveSourceFile(packageName, fileName);
-                                }
-                              }
-                              break;
-                            }
-                          }
-                        }
-
-                        String stackTrace =
-                            compressStackFrames
-                                ? StackTraceCompressor.compress(message, null, includePackages)
-                                : message;
-
-                        failures.add(
-                            new BuildError(
+                        double duration = getTestDuration(node);
+                        BuildError error =
+                            parseError(
+                                message,
                                 type,
-                                sourceFile != null ? sourceFile : file.getFileName().toString(),
-                                line,
-                                extractFirstLine(message),
-                                stackTrace,
-                                duration));
+                                file,
+                                includePackages,
+                                compressStackFrames,
+                                duration);
+                        failures.add(error);
                         testFailures.incrementAndGet();
                       }
 
@@ -227,7 +130,7 @@ public final class SurefireParser {
 
     for (String root : roots) {
       String fullPath = root + relativePath;
-      if (Files.exists(Path.of(fullPath))) {
+      if (Files.exists(Paths.get(fullPath))) {
         return fullPath;
       }
     }
@@ -240,6 +143,85 @@ public final class SurefireParser {
       return "";
     }
     return message.split("\n")[0].trim();
+  }
+
+  private static double getTestDuration(Node node) {
+    double duration = 0.0;
+    Node parentNode = node.getParentNode();
+    if (parentNode instanceof Element) {
+      Element testCase = (Element) parentNode;
+      String timeAttr = testCase.getAttribute("time");
+      if (timeAttr != null && !timeAttr.isEmpty()) {
+        try {
+          duration = Double.parseDouble(timeAttr);
+        } catch (NumberFormatException e) {
+          // Ignore
+        }
+      }
+    }
+    return duration;
+  }
+
+  private static BuildError parseError(
+      String message,
+      String type,
+      Path file,
+      List<String> includePackages,
+      boolean compressStackFrames,
+      double duration) {
+    String sourceFile = null;
+    int line = -1;
+
+    // Try to find the last project frame (the actual test method)
+    String[] lines = message.split("\n");
+    String lastProjectFrame = null;
+    for (String l : lines) {
+      if (l.contains(".java:") && !isFrameworkFrame(l, includePackages)) {
+        lastProjectFrame = l;
+      }
+    }
+
+    // Parse the last project frame to extract file and line
+    if (lastProjectFrame != null) {
+      Matcher m = LINE_NUMBER_PATTERN.matcher(lastProjectFrame);
+      if (m.find()) {
+        line = Integer.parseInt(m.group(1));
+        int atIndex = lastProjectFrame.indexOf("at ");
+        int parenIndex = lastProjectFrame.indexOf("(");
+        int javaIndex = lastProjectFrame.indexOf(".java:");
+        if (atIndex >= 0 && parenIndex > atIndex && javaIndex > parenIndex) {
+          String fullClass = lastProjectFrame.substring(atIndex + 3, parenIndex);
+          int lastDotInClass = fullClass.lastIndexOf(".");
+          if (lastDotInClass > 0) {
+            String packageName = fullClass.substring(0, lastDotInClass);
+            String fileName = lastProjectFrame.substring(parenIndex + 1, javaIndex + 5);
+            int classNameEnd = fileName.indexOf(".java");
+            if (classNameEnd > 0) {
+              String className = fileName.substring(0, classNameEnd);
+              if (packageName.endsWith("." + className)) {
+                packageName =
+                    packageName.substring(0, packageName.length() - className.length() - 1);
+              }
+              sourceFile = resolveSourceFile(packageName, fileName);
+            }
+          }
+        }
+      }
+    }
+
+    String stackTrace =
+        compressStackFrames
+            ? StackTraceCompressor.compress(message, null, includePackages)
+            : message;
+
+    String resolvedFile = sourceFile;
+    if (resolvedFile == null) {
+      Path fileName = file.getFileName();
+      resolvedFile = fileName != null ? fileName.toString() : "unknown";
+    }
+
+    return new BuildError(
+        type, resolvedFile, line, extractFirstLine(message), stackTrace, duration);
   }
 
   private static boolean isFrameworkFrame(String line, List<String> includePackages) {
@@ -271,7 +253,8 @@ public final class SurefireParser {
       "org.hibernate.",
       "io.projectreactor.",
       "reactor.core.",
-      "io.micronaut."
+      "io.micronaut.",
+      "io.netty."
     };
 
     for (String prefix : frameworkPrefixes) {

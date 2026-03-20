@@ -2,7 +2,7 @@ package io.llmcompactor.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.List;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 class BuildSummaryTest {
@@ -14,7 +14,7 @@ class BuildSummaryTest {
     BuildError error3 = new BuildError("type2", "file2", 20, "msg2", "stack2");
 
     BuildSummary summary =
-        new BuildSummary("FAILED", 10, 2, List.of(error1, error2, error3), null, null);
+        new BuildSummary("FAILED", 10, 2, Arrays.asList(error1, error2, error3), null, null);
 
     assertThat(summary.errors()).hasSize(2);
     assertThat(summary.errors()).containsExactly(error1, error3);

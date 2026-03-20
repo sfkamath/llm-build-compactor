@@ -33,21 +33,18 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 
+/**
+ * Gradle plugin that compacts build output for LLM-assisted development.
+ * Captures test results and compilation errors, then emits a condensed summary.
+ */
 public class LlmCompactorPlugin implements Plugin<Project> {
     private static final String ROOT_LISTENER_REGISTERED = "llmCompactorRootListenerRegistered";
     private static final String INIT_SCRIPT_NAME = "llm-compactor-silence.gradle";
 
-    public interface LlmCompactorExtension {
-        Property<Boolean> getEnabled();
-        Property<Boolean> getOutputAsJson();
-        Property<Boolean> getCompressStackFrames();
-        ListProperty<String> getIncludePackages();
-        Property<Boolean> getShowFixTargets();
-        Property<Boolean> getShowRecentChanges();
-        Property<Boolean> getShowDuration();
-        Property<Boolean> getShowTotalDuration();
-        Property<Boolean> getShowDurationReport();
-        Property<String> getOutputPath();
+    /**
+     * Creates a new instance of the LLM Build Compactor plugin.
+     */
+    public LlmCompactorPlugin() {
     }
 
     private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
@@ -73,7 +70,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         extension.getShowDuration().convention(true);
         extension.getShowTotalDuration().convention(false);
         extension.getShowDurationReport().convention(false);
-        extension.getOutputPath().convention((String) null);
+        // No convention for outputPath - null means use default location
 
         // Register the installation task mirroring the Maven install mojo
         project.getTasks().register("installLlmCompactor", task -> {
@@ -103,9 +100,16 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 rootProject.getGradle().getStartParameter().setLogLevel(org.gradle.api.logging.LogLevel.QUIET);
                 rootProject.getGradle().getStartParameter().setWarningMode(org.gradle.api.logging.configuration.WarningMode.None);
                 rootProject.getGradle().getStartParameter().setShowStacktrace(org.gradle.api.logging.configuration.ShowStacktrace.INTERNAL_EXCEPTIONS);
-                System.setOut(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
-                System.setErr(new PrintStream(OutputStream.nullOutputStream(), false, StandardCharsets.UTF_8));
-                
+                // Java 8 compatible null output stream
+                java.io.OutputStream nullOut = new java.io.OutputStream() {
+                    @Override
+                    public void write(int b) throws java.io.IOException {
+                        // Discard all bytes
+                    }
+                };
+                System.setOut(new PrintStream(nullOut));
+                System.setErr(new PrintStream(nullOut));
+
                 rootProject.allprojects(p -> {
                     p.getLogging().captureStandardOutput(org.gradle.api.logging.LogLevel.DEBUG);
                     p.getLogging().captureStandardError(org.gradle.api.logging.LogLevel.DEBUG);
@@ -148,19 +152,24 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 });
             });
 
-            rootProject.getGradle().buildFinished(result -> {
-                if (isEnabled) {
-                    try {
-                        Thread.sleep(500);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
-                    System.setOut(originalOut);
-                    System.setErr(originalErr);
-                    emitSummary(rootProject, extension, sessionStartTime);
-                }
-            });
+            registerBuildFinishedListener(rootProject, extension, sessionStartTime, isEnabled, originalOut, originalErr);
         }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void registerBuildFinishedListener(Project rootProject, LlmCompactorExtension extension, long sessionStartTime, boolean isEnabled, PrintStream originalOut, PrintStream originalErr) {
+        rootProject.getGradle().buildFinished(result -> {
+            if (isEnabled) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                System.setOut(originalOut);
+                System.setErr(originalErr);
+                emitSummary(rootProject, extension, sessionStartTime);
+            }
+        });
     }
 
     private void installInitScript(Project project) {
@@ -177,11 +186,18 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         java.nio.file.Files.createDirectories(initDir);
         Path initScript = initDir.resolve(INIT_SCRIPT_NAME);
 
-        try (var is = getClass().getResourceAsStream("/llm-compactor-init.gradle")) {
+        try (java.io.InputStream is = getClass().getResourceAsStream("/llm-compactor-init.gradle")) {
             if (is == null) {
                 return;
             }
-            byte[] contentBytes = is.readAllBytes();
+            // Java 8 compatible readAllBytes
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            int nRead;
+            byte[] data = new byte[4096];
+            while ((nRead = is.read(data, 0, data.length)) != -1) {
+                buffer.write(data, 0, nRead);
+            }
+            byte[] contentBytes = buffer.toByteArray();
             boolean needsWrite = true;
             if (java.nio.file.Files.exists(initScript)) {
                 byte[] existingBytes = java.nio.file.Files.readAllBytes(initScript);
@@ -206,10 +222,13 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             includePackages.addAll(scanProjectPackages(p));
         }
 
-        List<String> stringLogLines = logLines.stream()
-                .map(Object::toString)
-                .collect(Collectors.toList());
-        
+        List<String> stringLogLines;
+        synchronized (logLines) {
+            stringLogLines = logLines.stream()
+                    .map(Object::toString)
+                    .collect(Collectors.toList());
+        }
+
         List<BuildError> compilationErrors = CompilationErrorExtractor.extract(stringLogLines);
         allErrors.addAll(compilationErrors);
 
@@ -268,8 +287,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 testDurationPercentiles
         );
 
-        if (extension.getOutputPath().isPresent()) {
-            SummaryWriter.write(summary, Path.of(extension.getOutputPath().get()));
+        if (extension.getOutputPath().getOrNull() != null) {
+            SummaryWriter.write(summary, java.nio.file.Paths.get(extension.getOutputPath().get()));
         }
 
         String renderedSummary;
@@ -290,9 +309,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         task.getOptions().setFork(false);
         task.getOptions().setWarnings(false);
         task.getOptions().setDeprecation(false);
-        @SuppressWarnings("rawtypes")
-        List compilerArgs = task.getOptions().getCompilerArgs();
-        compilerArgs.removeIf(arg -> "-Amicronaut.processing.incremental=true".equals(String.valueOf(arg)));
+        List<String> compilerArgs = task.getOptions().getCompilerArgs();
+        compilerArgs.removeIf(arg -> "-Amicronaut.processing.incremental=true".equals(arg));
         if (!containsCompilerArg(compilerArgs, "-nowarn")) {
             compilerArgs.add("-nowarn");
         }
@@ -313,10 +331,9 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         }
     }
 
-    @SuppressWarnings("rawtypes")
-    private boolean containsCompilerArg(List compilerArgs, String value) {
-        for (Object arg : compilerArgs) {
-            if (value.equals(String.valueOf(arg))) {
+    private boolean containsCompilerArg(List<String> compilerArgs, String value) {
+        for (String arg : compilerArgs) {
+            if (value.equals(arg)) {
                 return true;
             }
         }

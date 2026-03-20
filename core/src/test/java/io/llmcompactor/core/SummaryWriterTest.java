@@ -3,8 +3,8 @@ package io.llmcompactor.core;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -19,7 +19,7 @@ class SummaryWriterTest {
             "FAILED",
             10,
             2,
-            List.of(new BuildError("TestFailure", "src/Test.java", 10, "Fail", "at frame")),
+            Arrays.asList(new BuildError("TestFailure", "src/Test.java", 10, "Fail", "at frame")),
             Collections.emptyList(),
             Collections.emptyList());
     Path path = tempDir.resolve("llm-summary.json");
@@ -49,11 +49,11 @@ class SummaryWriterTest {
             "FAILED",
             10,
             2,
-            List.of(
+            Arrays.asList(
                 new BuildError(
                     "TestFailure", "src/Test.java", 10, "Fail message", "at frame\nCaused by: x")),
             Collections.emptyList(),
-            List.of("README.md"));
+            Arrays.asList("README.md"));
 
     String human = SummaryWriter.toHumanReadable(summary, true);
 

@@ -1,0 +1,26 @@
+#!/bin/sh
+# Smart Gradle wrapper that selects Gradle version based on Java version
+# - Java 8: Gradle 8.0.2
+# - Java 11: Gradle 8.5
+# - Java 17+: Gradle 9.4.0 (default)
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Get Java version
+if [ -n "$JAVA_HOME" ]; then
+    JAVA_VERSION=$("$JAVA_HOME/bin/java" -version 2>&1 | head -1 | cut -d'"' -f2 | cut -d'.' -f1)
+else
+    JAVA_VERSION=$(java -version 2>&1 | head -1 | cut -d'"' -f2 | cut -d'.' -f1)
+fi
+
+case "$JAVA_VERSION" in
+    1|8)
+        exec "$SCRIPT_DIR/gradlew-java8" "$@"
+        ;;
+    11)
+        exec "$SCRIPT_DIR/gradlew-java11" "$@"
+        ;;
+    *)
+        exec "$SCRIPT_DIR/gradlew" "$@"
+        ;;
+esac

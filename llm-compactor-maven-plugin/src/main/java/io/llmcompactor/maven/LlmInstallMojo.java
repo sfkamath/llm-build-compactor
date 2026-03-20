@@ -21,6 +21,7 @@ package io.llmcompactor.maven;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.apache.maven.plugin.AbstractMojo;
@@ -57,7 +58,7 @@ public class LlmInstallMojo extends AbstractMojo {
               + "    </extension>\n"
               + "</extensions>";
 
-      Files.writeString(extensionsXml, content);
+      Files.write(extensionsXml, content.getBytes(StandardCharsets.UTF_8));
       getLog().info("Successfully installed LLM Build Compactor extension to " + extensionsXml);
       getLog().info("Future Maven commands will run in silent mode with JSON summary output.");
 

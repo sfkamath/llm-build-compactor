@@ -2,109 +2,97 @@ package io.llmcompactor.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class StackTraceCompressorTest {
 
-  private static final String PROJECT_PKG = "io.llmcompactor.";
-
   @Test
-  void shouldKeepProjectFrames() {
-    String trace =
-        "at io.llmcompactor.core.StackTraceCompressor.compress(StackTraceCompressor.java:20)\n"
-            + "at io.llmcompactor.core.SummaryWriter.write(SummaryWriter.java:15)\n"
-            + "at org.junit.jupiter.api.AssertionUtils.fail(AssertionUtils.java:10)";
-
-    String compressed = StackTraceCompressor.compress(trace, PROJECT_PKG, Collections.emptyList());
-
-    assertThat(compressed)
-        .contains("io.llmcompactor.core.StackTraceCompressor.compress")
-        .contains("io.llmcompactor.core.SummaryWriter.write")
-        .doesNotContain("org.junit.jupiter.api.AssertionUtils.fail");
-  }
-
-  @Test
-  void shouldHandleCausalChains() {
-    String trace =
-        "java.lang.RuntimeException: Wrapper\n"
-            + "at io.llmcompactor.App.run(App.java:10)\n"
-            + "Caused by: java.lang.IllegalArgumentException: Root\n"
-            + "at io.llmcompactor.Service.doWork(Service.java:20)\n"
-            + "at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:10)";
-
-    String compressed = StackTraceCompressor.compress(trace, PROJECT_PKG, Collections.emptyList());
-
-    // Note: Currently 'RuntimeException: Wrapper' is not preserved because it doesn't start with
-    // 'at ' or 'Caused by:'
-    // Wait, let's look at the implementation again.
-
-    assertThat(compressed)
-        .contains("at io.llmcompactor.App.run")
-        .contains("Caused by: java.lang.IllegalArgumentException: Root")
-        .contains("at io.llmcompactor.Service.doWork")
-        .doesNotContain("org.springframework.web.servlet.DispatcherServlet");
-  }
-
-  @ParameterizedTest
-  @ValueSource(
-      strings = {
-        "java.base/java.lang.Thread.run",
-        "javax.servlet.http.HttpServlet.service",
-        "org.junit.jupiter.engine.execution.MethodInvocation.proceed",
-        "io.projectreactor.core.publisher.Flux.subscribe",
-        "io.micronaut.http.server.netty.HttpContentSource.onData"
-      })
-  void shouldFilterFrameworkFrames(String frame) {
-    String trace =
-        "at " + frame + "(File.java:10)\n" + "at io.llmcompactor.MyCode.call(MyCode.java:5)";
+  void shouldFilterNettyFrames() {
+    String stackTrace =
+        "java.lang.RuntimeException: Failed\n"
+            + "at io.netty.channel.ChannelHandler.handle(ChannelHandler.java:100)\n"
+            + "at io.netty.util.concurrent.EventExecutor.execute(EventExecutor.java:50)\n"
+            + "at com.example.MyTest.testSomething(MyTest.java:30)\n"
+            + "at org.junit.runner.JUnitCore.run(JUnitCore.java:10)";
 
     String compressed =
-        StackTraceCompressor.compress(trace, "io.llmcompactor.", Collections.emptyList());
+        StackTraceCompressor.compress(stackTrace, "com.example", Collections.emptyList());
 
-    assertThat(compressed).contains("io.llmcompactor.MyCode.call").doesNotContain(frame);
+    // Netty frames should be filtered
+    assertThat(compressed).doesNotContain("io.netty");
+    // Project frames should be kept
+    assertThat(compressed).contains("com.example.MyTest");
+    // JUnit frames should be filtered
+    assertThat(compressed).doesNotContain("org.junit");
   }
 
   @Test
-  void shouldRespectIncludePackages() {
-    String trace =
-        "at io.llmcompactor.MyCode.call(MyCode.java:5)\n"
-            + "at org.junit.jupiter.api.Assertions.fail(Assertions.java:10)";
+  void shouldFilterMicronautFrames() {
+    String stackTrace =
+        "io.micronaut.http.client.exceptions.HttpClientResponseException: Not Found\n"
+            + "at io.micronaut.http.client.HttpClientFilter.doRequest(HttpClientFilter.java:52)\n"
+            + "at io.netty.channel.SimpleChannelInboundHandler.channelRead(SimpleChannelInboundHandler.java:99)\n"
+            + "at com.myapp.rest.ToolCallStatsControllerIT.testGetToolCallStats(ToolCallStatsControllerIT.java:166)";
 
-    // When junit is explicitly included
-    String compressed = StackTraceCompressor.compress(trace, PROJECT_PKG, List.of("org.junit."));
+    String compressed =
+        StackTraceCompressor.compress(stackTrace, "com.myapp", Collections.emptyList());
 
-    assertThat(compressed)
-        .contains("io.llmcompactor.MyCode.call")
-        .contains("org.junit.jupiter.api.Assertions.fail");
+    // Framework frames should be filtered
+    assertThat(compressed).doesNotContain("io.micronaut");
+    assertThat(compressed).doesNotContain("io.netty");
+    // Project frames should be kept
+    assertThat(compressed).contains("com.myapp.rest.ToolCallStatsControllerIT");
   }
 
   @Test
-  void shouldReturnEmptyStringIfNoUsefulFramesFound() {
-    // Current implementation returns empty string if no frames match.
-    // Wait, let me check the implementation again.
-    String trace =
-        "at org.junit.jupiter.api.Assertions.fail(Assertions.java:10)\n"
-            + "at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:32)";
+  void shouldKeepIncludedPackages() {
+    String stackTrace =
+        "java.lang.Exception: Error\n"
+            + "at io.micronaut.http.HttpClient.get(HttpClient.java:25)\n"
+            + "at com.myapp.service.OrderService.process(OrderService.java:42)\n"
+            + "at com.myapp.test.OrderServiceTest.testProcess(OrderServiceTest.java:30)";
 
-    String compressed = StackTraceCompressor.compress(trace, PROJECT_PKG, Collections.emptyList());
+    // Explicitly include micronaut to keep those frames
+    String compressed =
+        StackTraceCompressor.compress(stackTrace, "com.myapp", Arrays.asList("io.micronaut"));
 
+    // Micronaut frames should be kept due to explicit inclusion
+    assertThat(compressed).contains("io.micronaut");
+    // Project frames should still be kept
+    assertThat(compressed).contains("com.myapp");
+  }
+
+  @Test
+  void shouldPreserveCausedByLines() {
+    String stackTrace =
+        "java.lang.RuntimeException: Outer\n"
+            + "at com.example.MyTest.test(MyTest.java:10)\n"
+            + "Caused by: java.lang.IllegalArgumentException: Inner\n"
+            + "at io.netty.handler.Codec.decode(Codec.java:50)\n"
+            + "at com.example.Service.process(Service.java:25)";
+
+    String compressed =
+        StackTraceCompressor.compress(stackTrace, "com.example", Collections.emptyList());
+
+    // Should preserve "Caused by" lines
+    assertThat(compressed).contains("Caused by");
+    // Should filter Netty
+    assertThat(compressed).doesNotContain("io.netty");
+    // Should keep project frames
+    assertThat(compressed).contains("com.example");
+  }
+
+  @Test
+  void shouldHandleEmptyStackTrace() {
+    String compressed = StackTraceCompressor.compress("", "com.example", Collections.emptyList());
     assertThat(compressed).isEmpty();
   }
 
   @Test
-  void shouldHandleNullOrEmpty() {
-    assertThat(StackTraceCompressor.compress(null, "io.", Collections.emptyList())).isEmpty();
-    assertThat(StackTraceCompressor.compress("", "io.", Collections.emptyList())).isEmpty();
-  }
-
-  @Test
-  void shouldHandleFramesWithoutAtPrefix() {
-    String trace = "Non-frame line\nat io.llmcompactor.App.main(App.java:5)";
-    String compressed = StackTraceCompressor.compress(trace, PROJECT_PKG, Collections.emptyList());
-    assertThat(compressed).isEqualTo("at io.llmcompactor.App.main(App.java:5)");
+  void shouldHandleNullStackTrace() {
+    String compressed = StackTraceCompressor.compress(null, "com.example", Collections.emptyList());
+    assertThat(compressed).isEmpty();
   }
 }

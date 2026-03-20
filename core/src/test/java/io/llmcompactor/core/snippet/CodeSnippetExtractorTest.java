@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -15,8 +16,7 @@ class CodeSnippetExtractorTest {
   @Test
   void shouldExtractSnippetAroundLine() throws IOException {
     Path sourceFile = tempDir.resolve("App.java");
-    Files.writeString(
-        sourceFile,
+    String content =
         "line 1\n"
             + "line 2\n"
             + "line 3\n"
@@ -26,7 +26,8 @@ class CodeSnippetExtractorTest {
             + "line 7\n"
             + "line 8\n"
             + "line 9\n"
-            + "line 10\n");
+            + "line 10\n";
+    Files.write(sourceFile, content.getBytes(), StandardOpenOption.CREATE);
 
     // Context is +/- 3 lines.
     // Line 5 is index 4. Start = max(0, 5-3) = 2 (line 3). End = min(10, 5+3) = 8 (line 9).
