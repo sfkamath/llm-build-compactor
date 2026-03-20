@@ -52,7 +52,8 @@ public final class SummaryWriter {
                               e.lines(),
                               condenseForJson(e.message()),
                               condenseForJson(e.stackTrace()),
-                              e.testDuration()))
+                              e.testDuration(),
+                              e.testLogs() != null ? condenseForJson(e.testLogs()) : null))
                   .collect(Collectors.toList()),
               summary.fixTargets().stream()
                   .map(
@@ -105,8 +106,7 @@ public final class SummaryWriter {
           sb.append(" at ").append(error.file());
           if (error.lines() != null && !error.lines().isEmpty()) {
             sb.append(":")
-                .append(
-                    error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+                .append(error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
           }
         }
         if (showTestDuration && error.testDuration() > 0) {
@@ -120,6 +120,11 @@ public final class SummaryWriter {
           sb.append("    Stack trace:\n");
           String indent = "        ";
           sb.append(indent).append(error.stackTrace().replace("\n", "\n" + indent)).append("\n");
+        }
+        if (error.testLogs() != null && !error.testLogs().isEmpty()) {
+          sb.append("    Test logs:\n");
+          String indent = "        ";
+          sb.append(indent).append(error.testLogs().replace("\n", "\n" + indent)).append("\n");
         }
       }
     }

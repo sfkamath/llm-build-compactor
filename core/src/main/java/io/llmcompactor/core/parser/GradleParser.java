@@ -31,7 +31,8 @@ public final class GradleParser {
       Path testResultsDir,
       boolean compressStackFrames,
       List<String> includePackages,
-      long sessionStartTime) {
+      long sessionStartTime,
+      boolean showFailedTestLogs) {
     if (!Files.exists(testResultsDir)) {
       return new TestResult(0, 0, Collections.emptyList());
     }
@@ -90,6 +91,11 @@ public final class GradleParser {
                       }
                     }
 
+                    String testLogs = null;
+                    if (showFailedTestLogs) {
+                      testLogs = readTestLogs(testCase);
+                    }
+
                     String sourceFile = null;
                     int line = -1;
 
@@ -118,7 +124,8 @@ public final class GradleParser {
                             line,
                             extractFirstLine(message),
                             stackTrace,
-                            duration));
+                            duration,
+                            testLogs));
                     testFailures.incrementAndGet();
                   }
 
@@ -131,6 +138,49 @@ public final class GradleParser {
     }
 
     return new TestResult(totalTests.get(), testFailures.get(), failures, allDurations);
+  }
+
+  private static String readTestLogs(Element testCase) {
+    StringBuilder logs = new StringBuilder();
+
+    // First check for system-out/system-err as direct children of testcase
+    NodeList children = testCase.getChildNodes();
+    for (int i = 0; i < children.getLength(); i++) {
+      Node child = children.item(i);
+      if ("system-out".equals(child.getNodeName()) || "system-err".equals(child.getNodeName())) {
+        String content = child.getTextContent();
+        if (content != null && !content.trim().isEmpty()) {
+          if (logs.length() > 0) {
+            logs.append("\n");
+          }
+          logs.append("[").append(child.getNodeName()).append("]\n").append(content);
+        }
+      }
+    }
+
+    // If not found in testcase, check parent testsuite
+    if (logs.length() == 0) {
+      Node parent = testCase.getParentNode();
+      if (parent instanceof Element) {
+        Element testsuite = (Element) parent;
+        NodeList suiteChildren = testsuite.getChildNodes();
+        for (int i = 0; i < suiteChildren.getLength(); i++) {
+          Node child = suiteChildren.item(i);
+          if ("system-out".equals(child.getNodeName())
+              || "system-err".equals(child.getNodeName())) {
+            String content = child.getTextContent();
+            if (content != null && !content.trim().isEmpty()) {
+              if (logs.length() > 0) {
+                logs.append("\n");
+              }
+              logs.append("[").append(child.getNodeName()).append("]\n").append(content);
+            }
+          }
+        }
+      }
+    }
+
+    return logs.length() > 0 ? logs.toString() : null;
   }
 
   private static String resolveSourceFile(String className) {

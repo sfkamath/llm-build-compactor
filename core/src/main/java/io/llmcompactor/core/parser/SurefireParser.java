@@ -3,6 +3,7 @@ package io.llmcompactor.core.parser;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.StackTraceCompressor;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -30,7 +31,8 @@ public final class SurefireParser {
       Path targetDir,
       boolean compressStackFrames,
       List<String> includePackages,
-      long sessionStartTime) {
+      long sessionStartTime,
+      boolean showFailedTestLogs) {
     List<BuildError> failures = new ArrayList<>();
     List<Double> allDurations = new ArrayList<>();
     AtomicInteger totalTests = new AtomicInteger(0);
@@ -78,6 +80,8 @@ public final class SurefireParser {
                         String message = node.getTextContent().trim();
 
                         double duration = getTestDuration(node);
+                        String testLogs =
+                            showFailedTestLogs ? readTestLogs(file, reportsDir) : null;
                         BuildError error =
                             parseError(
                                 message,
@@ -85,7 +89,8 @@ public final class SurefireParser {
                                 file,
                                 includePackages,
                                 compressStackFrames,
-                                duration);
+                                duration,
+                                testLogs);
                         failures.add(error);
                         testFailures.incrementAndGet();
                       }
@@ -97,6 +102,8 @@ public final class SurefireParser {
                         String message = node.getTextContent().trim();
 
                         double duration = getTestDuration(node);
+                        String testLogs =
+                            showFailedTestLogs ? readTestLogs(file, reportsDir) : null;
                         BuildError error =
                             parseError(
                                 message,
@@ -104,7 +111,8 @@ public final class SurefireParser {
                                 file,
                                 includePackages,
                                 compressStackFrames,
-                                duration);
+                                duration,
+                                testLogs);
                         failures.add(error);
                         testFailures.incrementAndGet();
                       }
@@ -162,13 +170,32 @@ public final class SurefireParser {
     return duration;
   }
 
+  private static String readTestLogs(Path xmlFile, Path reportsDir) {
+    try {
+      Path fileName = xmlFile.getFileName();
+      if (fileName == null) {
+        return null;
+      }
+      String xmlFileName = fileName.toString();
+      String baseName = xmlFileName.replace(".xml", "");
+      Path logFile = reportsDir.resolve(baseName + ".txt");
+      if (Files.exists(logFile)) {
+        return new String(Files.readAllBytes(logFile), StandardCharsets.UTF_8);
+      }
+    } catch (IOException e) {
+      // Ignore
+    }
+    return null;
+  }
+
   private static BuildError parseError(
       String message,
       String type,
       Path file,
       List<String> includePackages,
       boolean compressStackFrames,
-      double duration) {
+      double duration,
+      String testLogs) {
     String sourceFile = null;
     int line = -1;
 
@@ -221,7 +248,7 @@ public final class SurefireParser {
     }
 
     return new BuildError(
-        type, resolvedFile, line, extractFirstLine(message), stackTrace, duration);
+        type, resolvedFile, line, extractFirstLine(message), stackTrace, duration, testLogs);
   }
 
   private static boolean isFrameworkFrame(String line, List<String> includePackages) {

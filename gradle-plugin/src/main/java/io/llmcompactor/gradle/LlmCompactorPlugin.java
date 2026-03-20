@@ -110,6 +110,12 @@ public class LlmCompactorPlugin implements Plugin<Project> {
          * @return property for custom output path (default: null for default location)
          */
         Property<String> getOutputPath();
+
+        /**
+         * Whether to show logs from failed tests.
+         * @return property for showing failed test logs (default: true)
+         */
+        Property<Boolean> getShowFailedTestLogs();
     }
 
     private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
@@ -135,6 +141,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         extension.getShowDuration().convention(true);
         extension.getShowTotalDuration().convention(false);
         extension.getShowDurationReport().convention(false);
+        extension.getShowFailedTestLogs().convention(true);
         extension.getOutputPath().convention((String) null);
 
         // Register the installation task mirroring the Maven install mojo
@@ -302,7 +309,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                             testResultsDir,
                             extension.getCompressStackFrames().get(),
                             includePackages,
-                            sessionStartTime
+                            sessionStartTime,
+                            extension.getShowFailedTestLogs().get()
                     );
                     totalTestsRun += result.testsRun();
                     totalTestFailures += result.failures();

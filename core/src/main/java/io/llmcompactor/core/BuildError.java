@@ -11,6 +11,7 @@ public class BuildError {
   private final String message;
   private final String stackTrace;
   private final double testDuration;
+  private final String testLogs;
 
   public BuildError(
       String type,
@@ -19,6 +20,17 @@ public class BuildError {
       String message,
       String stackTrace,
       double testDuration) {
+    this(type, file, lines, message, stackTrace, testDuration, null);
+  }
+
+  public BuildError(
+      String type,
+      String file,
+      List<Integer> lines,
+      String message,
+      String stackTrace,
+      double testDuration,
+      String testLogs) {
     this.type = type;
     this.file = file;
     this.lines =
@@ -26,15 +38,27 @@ public class BuildError {
     this.message = message;
     this.stackTrace = stackTrace;
     this.testDuration = testDuration;
+    this.testLogs = testLogs;
   }
 
   public BuildError(String type, String file, int line, String message, String stackTrace) {
-    this(type, file, Collections.singletonList(line), message, stackTrace, 0.0);
+    this(type, file, Collections.singletonList(line), message, stackTrace, 0.0, null);
   }
 
   public BuildError(
       String type, String file, int line, String message, String stackTrace, double testDuration) {
-    this(type, file, Collections.singletonList(line), message, stackTrace, testDuration);
+    this(type, file, Collections.singletonList(line), message, stackTrace, testDuration, null);
+  }
+
+  public BuildError(
+      String type,
+      String file,
+      int line,
+      String message,
+      String stackTrace,
+      double testDuration,
+      String testLogs) {
+    this(type, file, Collections.singletonList(line), message, stackTrace, testDuration, testLogs);
   }
 
   public String type() {
@@ -59,6 +83,10 @@ public class BuildError {
 
   public double testDuration() {
     return testDuration;
+  }
+
+  public String testLogs() {
+    return testLogs;
   }
 
   // Jackson getters
@@ -86,6 +114,10 @@ public class BuildError {
     return testDuration;
   }
 
+  public String getTestLogs() {
+    return testLogs;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -100,12 +132,13 @@ public class BuildError {
         && Objects.equals(file, that.file)
         && Objects.equals(lines, that.lines)
         && Objects.equals(message, that.message)
-        && Objects.equals(stackTrace, that.stackTrace);
+        && Objects.equals(stackTrace, that.stackTrace)
+        && Objects.equals(testLogs, that.testLogs);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(type, file, lines, message, stackTrace, testDuration);
+    return Objects.hash(type, file, lines, message, stackTrace, testDuration, testLogs);
   }
 
   @Override
@@ -120,6 +153,8 @@ public class BuildError {
         + message
         + "', testDuration="
         + testDuration
+        + ", testLogs="
+        + (testLogs != null ? "present" : "none")
         + "}";
   }
 }

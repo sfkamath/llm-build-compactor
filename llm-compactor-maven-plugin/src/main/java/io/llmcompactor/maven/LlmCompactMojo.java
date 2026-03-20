@@ -59,6 +59,9 @@ public class LlmCompactMojo extends AbstractMojo {
   @Parameter(property = "llmCompactor.includePackages")
   private String includePackages;
 
+  @Parameter(property = "llmCompactor.showFailedTestLogs", defaultValue = "true")
+  private boolean showFailedTestLogs;
+
   @Parameter(defaultValue = "${session}", readonly = true)
   private MavenSession session;
 
@@ -90,7 +93,12 @@ public class LlmCompactMojo extends AbstractMojo {
         session != null && session.getStartTime() != null ? session.getStartTime().getTime() : 0L;
     Path targetDir = buildDirectory != null ? buildDirectory.toPath() : Paths.get("target");
     TestResult testResult =
-        SurefireParser.parse(targetDir, compressStackFrames, includePackagesList, sessionStartTime);
+        SurefireParser.parse(
+            targetDir,
+            compressStackFrames,
+            includePackagesList,
+            sessionStartTime,
+            showFailedTestLogs);
     List<BuildError> testFailures = testResult.errors();
     List<Double> allDurations = testResult.allDurations();
 

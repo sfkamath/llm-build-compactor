@@ -37,7 +37,7 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0);
+    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
 
     assertThat(result.testsRun()).isEqualTo(1);
     assertThat(result.failures()).isEqualTo(1);
@@ -71,7 +71,7 @@ class SurefireParserTest {
 
     Files.write(reportsDir.resolve("TEST-error.xml"), xml.getBytes(), StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0);
+    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
 
     assertThat(result.errors()).hasSize(1);
     assertThat(result.errors().get(0).type()).isEqualTo("java.lang.NullPointerException");
@@ -101,7 +101,7 @@ class SurefireParserTest {
         surefireDir.resolve("TEST-unit.xml"), unitXml.getBytes(), StandardOpenOption.CREATE);
     Files.write(failsafeDir.resolve("TEST-it.xml"), itXml.getBytes(), StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0);
+    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
 
     // Should count all tests from both directories (1 + 2 = 3)
     assertThat(result.testsRun()).isEqualTo(3);
@@ -133,7 +133,8 @@ class SurefireParserTest {
     Files.write(newFile, newXml.getBytes(), StandardOpenOption.CREATE);
 
     long sessionStart = System.currentTimeMillis() - 10_000;
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), sessionStart);
+    TestResult result =
+        SurefireParser.parse(tempDir, true, Collections.emptyList(), sessionStart, true);
 
     // Should only count the 1 test from the new file, ignoring the 10 from the old file
     assertThat(result.testsRun()).isEqualTo(1);
@@ -167,7 +168,7 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0);
+    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
 
     assertThat(result.failures()).isEqualTo(1);
     assertThat(result.errors()).hasSize(1);
@@ -208,7 +209,7 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0);
+    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
 
     assertThat(result.failures()).isEqualTo(1);
     BuildError error = result.errors().get(0);
@@ -243,7 +244,8 @@ class SurefireParserTest {
         StandardOpenOption.CREATE);
 
     // With compression enabled
-    TestResult compressedResult = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0);
+    TestResult compressedResult =
+        SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
     BuildError compressedError = compressedResult.errors().get(0);
 
     // Netty frames should be filtered out
@@ -252,10 +254,79 @@ class SurefireParserTest {
 
     // Without compression
     TestResult uncompressedResult =
-        SurefireParser.parse(tempDir, false, Collections.emptyList(), 0);
+        SurefireParser.parse(tempDir, false, Collections.emptyList(), 0, true);
     BuildError uncompressedError = uncompressedResult.errors().get(0);
 
     // All frames should be present
     assertThat(uncompressedError.stackTrace()).contains("io.netty");
+  }
+
+  @Test
+  void shouldParseTestLogsFromTxtFile() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"io.llmcompactor.testbed.OrderServiceTest\" tests=\"1\" failures=\"1\" errors=\"0\" skipped=\"0\" time=\"0.05\">\n"
+            + "  <testcase name=\"testOrderProcessing\" classname=\"io.llmcompactor.testbed.OrderServiceTest\" time=\"0.05\">\n"
+            + "    <failure message=\"Order validation failed\" type=\"java.lang.RuntimeException\">\n"
+            + "java.lang.RuntimeException: Order validation failed\n"
+            + "at io.llmcompactor.testbed.OrderService.process(OrderService.java:15)\n"
+            + "at io.llmcompactor.testbed.OrderServiceTest.testOrderProcessing(OrderServiceTest.java:10)\n"
+            + "    </failure>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.xml"),
+        xml.getBytes(),
+        StandardOpenOption.CREATE);
+
+    String testLogs = "INFO: Starting test\nDEBUG: Creating order\nERROR: Validation failed\n";
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.txt"),
+        testLogs.getBytes(),
+        StandardOpenOption.CREATE);
+
+    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
+
+    assertThat(result.errors()).hasSize(1);
+    BuildError error = result.errors().get(0);
+    assertThat(error.testLogs()).contains("INFO: Starting test");
+    assertThat(error.testLogs()).contains("ERROR: Validation failed");
+  }
+
+  @Test
+  void shouldNotParseTestLogsWhenDisabled() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"io.llmcompactor.testbed.OrderServiceTest\" tests=\"1\" failures=\"1\" errors=\"0\" skipped=\"0\" time=\"0.05\">\n"
+            + "  <testcase name=\"testOrderProcessing\" classname=\"io.llmcompactor.testbed.OrderServiceTest\" time=\"0.05\">\n"
+            + "    <failure message=\"Order validation failed\" type=\"java.lang.RuntimeException\">\n"
+            + "java.lang.RuntimeException: Order validation failed\n"
+            + "    </failure>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.xml"),
+        xml.getBytes(),
+        StandardOpenOption.CREATE);
+
+    String testLogs = "INFO: Starting test\n";
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.txt"),
+        testLogs.getBytes(),
+        StandardOpenOption.CREATE);
+
+    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, false);
+
+    assertThat(result.errors()).hasSize(1);
+    BuildError error = result.errors().get(0);
+    assertThat(error.testLogs()).isNull();
   }
 }
