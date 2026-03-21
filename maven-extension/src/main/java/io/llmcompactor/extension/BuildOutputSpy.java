@@ -27,7 +27,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.TreeMap;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -171,6 +170,9 @@ public class BuildOutputSpy extends AbstractEventSpy {
   }
 
   private void suppressTestOutput() {
+    // Set as both user property (for @Parameter injection) and system property (for direct
+    // System.getProperty lookups) so surefire picks it up regardless of how it resolves the flag.
+    System.setProperty(PROP_REDIRECT_TEST_OUTPUT, "true");
     if (session != null && session.getUserProperties() != null) {
       session.getUserProperties().setProperty(PROP_REDIRECT_TEST_OUTPUT, "true");
     }
@@ -238,30 +240,48 @@ public class BuildOutputSpy extends AbstractEventSpy {
     MavenProject topProject = session.getTopLevelProject();
     Properties projectProps = topProject != null ? topProject.getProperties() : new Properties();
 
-    boolean compress = boolProp("llmCompactor.compressStackFrames", projectProps, CompactorDefaults.COMPRESS_STACK_FRAMES);
+    boolean compress =
+        boolProp(
+            "llmCompactor.compressStackFrames",
+            projectProps,
+            CompactorDefaults.COMPRESS_STACK_FRAMES);
+
+    String mode = getProperty("llmCompactor.mode", projectProps, null);
+    boolean showFailedTestLogs =
+        boolProp(
+            "llmCompactor.showFailedTestLogs",
+            projectProps,
+            CompactorDefaults.SHOW_FAILED_TEST_LOGS);
+    boolean showFixTargets =
+        boolProp("llmCompactor.showFixTargets", projectProps, CompactorDefaults.SHOW_FIX_TARGETS);
+    boolean outputAsJson =
+        boolProp("llmCompactor.outputAsJson", projectProps, CompactorDefaults.OUTPUT_AS_JSON);
+    boolean showSlowTests =
+        boolProp("llmCompactor.showSlowTests", projectProps, CompactorDefaults.SHOW_SLOW_TESTS);
 
     // Apply mode preset if specified (overrides individual flags)
-    String mode = getProperty("llmCompactor.mode", projectProps, null);
-    boolean showFailedTestLogs = boolProp("llmCompactor.showFailedTestLogs", projectProps, CompactorDefaults.SHOW_FAILED_TEST_LOGS);
-    boolean showFixTargets = boolProp("llmCompactor.showFixTargets", projectProps, CompactorDefaults.SHOW_FIX_TARGETS);
-    
     if (mode != null && !mode.isEmpty()) {
       switch (mode.toLowerCase()) {
         case "agent":
+          outputAsJson = true;
           showFixTargets = true;
           showFailedTestLogs = false;
           break;
         case "debug":
+          outputAsJson = true;
           showFixTargets = true;
           showFailedTestLogs = true;
           break;
         case "human":
+          outputAsJson = false;
           showFixTargets = true;
           showFailedTestLogs = false;
           break;
+        default:
+          break;
       }
     }
-    
+
     List<String> includePackages = buildIncludePackages(projectProps);
 
     List<BuildError> allErrors = new ArrayList<>(compileErrors);
@@ -288,14 +308,16 @@ public class BuildOutputSpy extends AbstractEventSpy {
     }
 
     Long totalBuildDurationMs = null;
-    if (boolProp("llmCompactor.showTotalDuration", projectProps, CompactorDefaults.SHOW_TOTAL_DURATION)) {
+    if (boolProp(
+        "llmCompactor.showTotalDuration", projectProps, CompactorDefaults.SHOW_TOTAL_DURATION)) {
       totalBuildDurationMs = System.currentTimeMillis() - sessionStartTime;
     }
 
     Map<String, Double> testDurationPercentiles = null;
-    if (boolProp("llmCompactor.showDurationReport", projectProps, CompactorDefaults.SHOW_DURATION_REPORT)
+    if (boolProp(
+            "llmCompactor.showDurationReport", projectProps, CompactorDefaults.SHOW_DURATION_REPORT)
         && !allDurations.isEmpty()) {
-      testDurationPercentiles = computePercentiles(allDurations);
+      testDurationPercentiles = BuildSummary.computePercentiles(allDurations);
     }
 
     allErrors = BuildSummary.aggregateErrors(allErrors);
@@ -306,7 +328,10 @@ public class BuildOutputSpy extends AbstractEventSpy {
             : Collections.<FixTarget>emptyList();
 
     List<String> recentChanges =
-        boolProp("llmCompactor.showRecentChanges", projectProps, CompactorDefaults.SHOW_RECENT_CHANGES)
+        boolProp(
+                "llmCompactor.showRecentChanges",
+                projectProps,
+                CompactorDefaults.SHOW_RECENT_CHANGES)
             ? GitDiffExtractor.changedFiles()
             : Collections.<String>emptyList();
 
@@ -326,28 +351,12 @@ public class BuildOutputSpy extends AbstractEventSpy {
       SummaryWriter.write(summary, Paths.get(outputPath));
     }
 
-    // Mode preset already applied earlier for showFixTargets/showFailedTestLogs
-    // Now apply for output format
-    boolean outputAsJson = boolProp("llmCompactor.outputAsJson", projectProps, CompactorDefaults.OUTPUT_AS_JSON);
-    boolean showSlowTests = boolProp("llmCompactor.showSlowTests", projectProps, CompactorDefaults.SHOW_SLOW_TESTS);
-
-    if (mode != null && !mode.isEmpty()) {
-      switch (mode.toLowerCase()) {
-        case "agent":
-          outputAsJson = true;
-          break;
-        case "debug":
-          outputAsJson = true;
-          break;
-        case "human":
-          outputAsJson = false;
-          break;
-      }
-    }
-
     double testDurationThresholdMs =
-        getDoubleProp("llmCompactor.testDurationThresholdMs", projectProps, CompactorDefaults.TEST_DURATION_THRESHOLD_MS);
-    
+        getDoubleProp(
+            "llmCompactor.testDurationThresholdMs",
+            projectProps,
+            CompactorDefaults.TEST_DURATION_THRESHOLD_MS);
+
     if (outputAsJson) {
       REAL_OUT.print(SummaryWriter.toJson(summary, testDurationThresholdMs));
     } else {
@@ -368,17 +377,6 @@ public class BuildOutputSpy extends AbstractEventSpy {
       }
     }
     return packages;
-  }
-
-  private Map<String, Double> computePercentiles(List<Double> durations) {
-    Collections.sort(durations);
-    Map<String, Double> percentiles = new TreeMap<>();
-    percentiles.put("p50", durations.get((int) (durations.size() * 0.50)));
-    percentiles.put("p90", durations.get((int) (durations.size() * 0.90)));
-    percentiles.put("p95", durations.get((int) (durations.size() * 0.95)));
-    percentiles.put("p99", durations.get((int) (durations.size() * 0.99)));
-    percentiles.put("max", durations.get(durations.size() - 1));
-    return percentiles;
   }
 
   private List<String> scanProjectPackages(MavenProject project) {
@@ -429,6 +427,15 @@ public class BuildOutputSpy extends AbstractEventSpy {
     String sysProp = System.getProperty(key);
     if (sysProp != null) {
       return sysProp;
+    }
+    // Maven -D flags are user properties; they may or may not be propagated to JVM system
+    // properties depending on the Maven version and launcher. Check user properties explicitly
+    // so that command-line flags always take precedence over plugin XML configuration.
+    if (session != null && session.getUserProperties() != null) {
+      String userProp = session.getUserProperties().getProperty(key);
+      if (userProp != null) {
+        return userProp;
+      }
     }
     String projProp = projectProps.getProperty(key);
     if (projProp != null) {

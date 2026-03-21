@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -16,8 +15,13 @@ class BuildErrorTest {
   void shouldCreateWithAllFields() {
     BuildError error =
         new BuildError(
-            "TestFailure", "src/Test.java", Arrays.asList(10, 11), "Fail message", "stack trace",
-            150.0, "test logs");
+            "TestFailure",
+            "src/Test.java",
+            Arrays.asList(10, 11),
+            "Fail message",
+            "stack trace",
+            150.0,
+            "test logs");
 
     assertThat(error.type()).isEqualTo("TestFailure");
     assertThat(error.file()).isEqualTo("src/Test.java");
@@ -39,7 +43,7 @@ class BuildErrorTest {
 
   @Test
   void shouldCreateWithTestDuration() {
-    BuildError error = new BuildError("Type", "File.java", 5, "Msg", "Stack", 100.0);
+    BuildError error = new BuildError("Type", "File.java", 5, "Msg", "Stack", 100.0, null);
 
     assertThat(error.testDuration()).isEqualTo(100.0);
     assertThat(error.testLogs()).isNull();
@@ -55,8 +59,7 @@ class BuildErrorTest {
 
   @Test
   void shouldReturnEmptyListForNullLines() {
-    BuildError error =
-        new BuildError("Type", "File.java", null, "Msg", "Stack", 0.0, null);
+    BuildError error = new BuildError("Type", "File.java", null, "Msg", "Stack", 0.0, null);
 
     assertThat(error.lines()).isEmpty();
   }
@@ -100,12 +103,9 @@ class BuildErrorTest {
 
   @Test
   void shouldEqualAndHashCode() {
-    BuildError error1 =
-        new BuildError("Type", "File.java", 5, "Msg", "Stack", 100.0, "logs");
-    BuildError error2 =
-        new BuildError("Type", "File.java", 5, "Msg", "Stack", 100.0, "logs");
-    BuildError error3 =
-        new BuildError("Type", "File.java", 5, "Different", "Stack", 100.0, "logs");
+    BuildError error1 = new BuildError("Type", "File.java", 5, "Msg", "Stack", 100.0, "logs");
+    BuildError error2 = new BuildError("Type", "File.java", 5, "Msg", "Stack", 100.0, "logs");
+    BuildError error3 = new BuildError("Type", "File.java", 5, "Different", "Stack", 100.0, "logs");
 
     assertThat(error1).isEqualTo(error2);
     assertThat(error1.hashCode()).isEqualTo(error2.hashCode());
@@ -149,7 +149,7 @@ class BuildErrorTest {
 
   @Test
   void shouldOmitZeroTestDurationFromJson() throws Exception {
-    BuildError error = new BuildError("Type", "File.java", 1, "Msg", "Stack", 0.0);
+    BuildError error = new BuildError("Type", "File.java", 1, "Msg", "Stack", 0.0, null);
 
     String json = mapper.writeValueAsString(error);
 

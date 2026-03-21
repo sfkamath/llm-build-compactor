@@ -12,14 +12,14 @@
     <packaging>pom</packaging>
 
     <properties>
-        <revision>0.1.3</revision>
+        <revision>0.0.1-SNAPSHOT</revision>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <junit-jupiter.version>5.14.3</junit-jupiter.version>
         <assertj.version>3.27.7</assertj.version>
-        <jackson.version>2.21.1</jackson.version>
+        <jackson.version>2.21.2</jackson.version>
 
         <spotbugs.version>4.9.8.2</spotbugs.version>
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
@@ -31,8 +31,8 @@
         <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
         <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
-        <maven-core.version>3.9.4</maven-core.version>
-        <maven-plugin-api.version>3.9.4</maven-plugin-api.version>
+        <maven-core.version>3.9.14</maven-core.version>
+        <maven-plugin-api.version>3.9.14</maven-plugin-api.version>
         <maven-plugin-annotations.version>3.15.2</maven-plugin-annotations.version>
         <maven-plugin-plugin.version>3.15.2</maven-plugin-plugin.version>
         <javax.inject.version>1</javax.inject.version>
@@ -46,7 +46,6 @@
         <module>llm-compactor-maven-plugin</module>
         <module>maven-extension</module>
         <module>gradle-plugin</module>
-        <module>integration-tests</module>
     </modules>
 
     <dependencyManagement>
@@ -205,7 +204,7 @@
                             </activeRecipes>
                             <exclusions>
                                 <exclusion>**/target/generated-sources/**</exclusion>
-                                <exclusion>**/*.gradle.kts</exclusion>
+                                <exclusion>**/*.gradle</exclusion>
                                 <exclusion>**/gradle-plugin/**</exclusion>
                             </exclusions>
                         </configuration>
@@ -243,10 +242,10 @@
                         </configuration>
                         <executions>
                             <execution>
-                                <id>spotless-apply</id>
+                                <id>spotless-check</id>
                                 <phase>verify</phase>
                                 <goals>
-                                    <goal>apply</goal>
+                                    <goal>check</goal>
                                 </goals>
                             </execution>
                         </executions>
@@ -300,6 +299,7 @@
                         <configuration>
                             <failBuildOnCVSS>7.0</failBuildOnCVSS>
                             <dataDirectory>${user.home}/.m2/dependency-check-data</dataDirectory>
+                            <nvdApiKey>${nvd.api.key}</nvdApiKey>
                             <skip>${dependency-check.skip}</skip>
                         </configuration>
                     </plugin>
@@ -366,6 +366,21 @@
             </build>
         </profile>
         <profile>
+            <id>integration-tests</id>
+            <modules>
+                <module>integration-tests</module>
+            </modules>
+        </profile>
+        <profile>
+            <id>github</id>
+            <distributionManagement>
+                <repository>
+                    <id>github</id>
+                    <url>https://maven.pkg.github.com/sfkamath/llm-build-compactor</url>
+                </repository>
+            </distributionManagement>
+        </profile>
+        <profile>
             <id>ossrh</id>
             <build>
                 <plugins>
@@ -428,6 +443,23 @@
                     </plugin>
                 </plugins>
             </build>
+        </profile>
+        <!-- Enforce Java 8 API compatibility when compiling on Java 9+.
+             source/target=1.8 only restricts syntax; the compiler still resolves symbols
+             against the current JDK's classes, so Java 11+ APIs like Files.readString and
+             String.repeat compile fine on Java 17 but fail on the Java 8 CI job.
+             Setting maven.compiler.release=8 adds the "release" flag which locks the
+             visible API surface to what Java 8 actually ships - catching incompatible API
+             calls as local compile errors instead of CI surprises.
+             Java 8 does not support the release flag, so this profile activates on JDK 9+. -->
+        <profile>
+            <id>java8-api-check</id>
+            <activation>
+                <jdk>[9,)</jdk>
+            </activation>
+            <properties>
+                <maven.compiler.release>8</maven.compiler.release>
+            </properties>
         </profile>
     </profiles>
 

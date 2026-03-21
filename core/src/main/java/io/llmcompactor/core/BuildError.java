@@ -2,6 +2,8 @@ package io.llmcompactor.core;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -14,16 +16,6 @@ public class BuildError {
   private final String stackTrace;
   private final double testDuration;
   private final String testLogs;
-
-  public BuildError(
-      String type,
-      String file,
-      List<Integer> lines,
-      String message,
-      String stackTrace,
-      double testDuration) {
-    this(type, file, lines, message, stackTrace, testDuration, null);
-  }
 
   public BuildError(
       String type,
@@ -45,11 +37,6 @@ public class BuildError {
 
   public BuildError(String type, String file, int line, String message, String stackTrace) {
     this(type, file, Collections.singletonList(line), message, stackTrace, 0.0, null);
-  }
-
-  public BuildError(
-      String type, String file, int line, String message, String stackTrace, double testDuration) {
-    this(type, file, Collections.singletonList(line), message, stackTrace, testDuration, null);
   }
 
   public BuildError(
@@ -115,12 +102,12 @@ public class BuildError {
     return stackTrace;
   }
 
-  @com.fasterxml.jackson.annotation.JsonInclude(
-      com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT)
+  @JsonInclude(JsonInclude.Include.NON_DEFAULT)
   public double getTestDuration() {
     return testDuration;
   }
 
+  @JsonIgnore
   public String getTestLogs() {
     return testLogs;
   }
@@ -129,14 +116,13 @@ public class BuildError {
    * Returns test logs as a cleaned array with infrastructure noise filtered. Used for JSON
    * serialization.
    */
-  @com.fasterxml.jackson.annotation.JsonProperty("testLogs")
-  @com.fasterxml.jackson.annotation.JsonInclude(
-      com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
-  public java.util.List<String> getTestLogsAsArray() {
+  @JsonProperty("testLogs")
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
+  public List<String> getTestLogsAsArray() {
     if (testLogs == null || testLogs.isEmpty()) {
-      return java.util.Collections.emptyList();
+      return Collections.emptyList();
     }
-    java.util.List<String> result = new java.util.ArrayList<>();
+    List<String> result = new ArrayList<>();
     for (String line : testLogs.split("\n")) {
       String cleaned = SummaryWriter.cleanTestLogLine(line);
       if (cleaned != null) {

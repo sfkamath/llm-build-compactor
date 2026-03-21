@@ -59,5 +59,13 @@ publishing {
         maven {
             url = uri('file://' + System.getProperty('user.home') + '/.m2/repository')
         }
+        maven {
+            name = 'github'
+            url = uri('https://maven.pkg.github.com/sfkamath/llm-build-compactor')
+            credentials {
+                username = System.getenv('GITHUB_ACTOR') ?: findProperty('gpr.user')
+                password = System.getenv('GITHUB_TOKEN') ?: findProperty('gpr.key')
+            }
+        }
     }
 }

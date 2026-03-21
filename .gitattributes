@@ -1,0 +1,7 @@
+# Enforce LF line endings for shell scripts on all platforms
+*.sh text eol=lf
+gradlew text eol=lf
+gradlew-smart text eol=lf
+gradlew-java8 text eol=lf
+gradlew-java11 text eol=lf
+mvnw text eol=lf

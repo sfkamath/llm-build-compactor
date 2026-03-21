@@ -125,6 +125,22 @@ public class BuildSummary {
     return testDurationPercentiles;
   }
 
+  /** Computes test duration percentiles (p50, p90, p95, p99, max) from a list of durations. */
+  public static Map<String, Double> computePercentiles(List<Double> durations) {
+    if (durations == null || durations.isEmpty()) {
+      return null;
+    }
+    List<Double> sorted = new ArrayList<>(durations);
+    Collections.sort(sorted);
+    Map<String, Double> percentiles = new TreeMap<>();
+    percentiles.put("p50", sorted.get((int) (sorted.size() * 0.50)));
+    percentiles.put("p90", sorted.get((int) (sorted.size() * 0.90)));
+    percentiles.put("p95", sorted.get((int) (sorted.size() * 0.95)));
+    percentiles.put("p99", sorted.get((int) (sorted.size() * 0.99)));
+    percentiles.put("max", sorted.get(sorted.size() - 1));
+    return percentiles;
+  }
+
   public static List<BuildError> aggregateErrors(List<BuildError> rawErrors) {
     if (rawErrors == null || rawErrors.isEmpty()) {
       return Collections.emptyList();

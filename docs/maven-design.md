@@ -98,6 +98,8 @@ On `SessionStarted`, the extension captures the `MavenSession` and enables:
 
 That pushes test stdout/stderr out of the console path and into files, which is much more compatible with the compactor model.
 
+This property is set in **both** `session.getUserProperties()` and `System.setProperty()`. Surefire resolves its `@Parameter(property="maven.test.redirectTestOutputToFile")` via Maven's expression evaluator, which checks user properties. But some surefire configurations or Maven versions may also check system properties. Setting both ensures the redirect is picked up reliably across environments.
+
 ### 4. Compilation Error Capture
 
 When the compiler mojo fails, the extension listens for the Maven execution event and extracts compilation diagnostics.
@@ -131,6 +133,20 @@ At `SessionEnded`, the extension:
 - emits one final human-readable or JSON summary
 
 The summary is written to the real captured output stream, not to the suppressed console stream.
+
+## Property Resolution Order
+
+The extension resolves configuration values through `getProperty()` in this order:
+
+1. `System.getProperty(key)` — JVM system properties
+2. `session.getUserProperties().getProperty(key)` — Maven user properties (set by `-D` on the command line)
+3. `MavenProject.getProperties().getProperty(key)` — POM `<properties>` block
+4. Plugin XML configuration (`<configuration><key>value</key></configuration>`)
+5. The hardcoded default from `CompactorDefaults`
+
+**Why step 2 is explicit:** Maven `-D` flags (e.g. `-DllmCompactor.outputAsJson=false`) are user properties stored in `session.getUserProperties()`. Whether Maven also propagates them to JVM system properties depends on the Maven version and launcher. Checking user properties explicitly at step 2 ensures command-line flags always take precedence over plugin XML config regardless of how the Maven launcher is invoked.
+
+**The consequence of missing step 2:** Without the explicit user-property check, a plugin XML value like `<outputAsJson>true</outputAsJson>` can override a command-line `-DllmCompactor.outputAsJson=false` flag, because the XML config is checked before the default but after the (potentially absent) system property.
 
 ## Fallback Plugin Path
 

@@ -17,7 +17,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -29,10 +28,12 @@ import org.apache.maven.plugins.annotations.Parameter;
 public class LlmCompactMojo extends AbstractMojo {
   private static final String EXTENSION_ACTIVE_PROPERTY = "llmCompactor.extension.active";
 
-  @Parameter(property = "llmCompactor.enabled", defaultValue = "true")  // CompactorDefaults.ENABLED
+  @Parameter(property = "llmCompactor.enabled", defaultValue = "true") // CompactorDefaults.ENABLED
   private boolean enabled;
 
-  @Parameter(property = "llmCompactor.outputPath", defaultValue = "target/llm-summary.json")  // CompactorDefaults.OUTPUT_PATH
+  @Parameter(
+      property = "llmCompactor.outputPath",
+      defaultValue = "target/llm-summary.json") // CompactorDefaults.OUTPUT_PATH
   private String outputPath;
 
   /** Output mode preset. Overrides individual flags when set. */
@@ -48,34 +49,52 @@ public class LlmCompactMojo extends AbstractMojo {
   @Parameter(property = "llmCompactor.mode")
   private Mode mode;
 
-  @Parameter(property = "llmCompactor.outputAsJson", defaultValue = "true")  // CompactorDefaults.OUTPUT_AS_JSON
+  @Parameter(
+      property = "llmCompactor.outputAsJson",
+      defaultValue = "true") // CompactorDefaults.OUTPUT_AS_JSON
   private boolean outputAsJson;
 
-  @Parameter(property = "llmCompactor.compressStackFrames", defaultValue = "true")  // CompactorDefaults.COMPRESS_STACK_FRAMES
+  @Parameter(
+      property = "llmCompactor.compressStackFrames",
+      defaultValue = "true") // CompactorDefaults.COMPRESS_STACK_FRAMES
   private boolean compressStackFrames;
 
-  @Parameter(property = "llmCompactor.showFixTargets", defaultValue = "true")  // CompactorDefaults.SHOW_FIX_TARGETS
+  @Parameter(
+      property = "llmCompactor.showFixTargets",
+      defaultValue = "true") // CompactorDefaults.SHOW_FIX_TARGETS
   private boolean showFixTargets;
 
-  @Parameter(property = "llmCompactor.showRecentChanges", defaultValue = "false")  // CompactorDefaults.SHOW_RECENT_CHANGES
+  @Parameter(
+      property = "llmCompactor.showRecentChanges",
+      defaultValue = "false") // CompactorDefaults.SHOW_RECENT_CHANGES
   private boolean showRecentChanges;
 
-  @Parameter(property = "llmCompactor.showSlowTests", defaultValue = "true")  // CompactorDefaults.SHOW_SLOW_TESTS
+  @Parameter(
+      property = "llmCompactor.showSlowTests",
+      defaultValue = "true") // CompactorDefaults.SHOW_SLOW_TESTS
   private boolean showSlowTests;
 
-  @Parameter(property = "llmCompactor.showTotalDuration", defaultValue = "false")  // CompactorDefaults.SHOW_TOTAL_DURATION
+  @Parameter(
+      property = "llmCompactor.showTotalDuration",
+      defaultValue = "false") // CompactorDefaults.SHOW_TOTAL_DURATION
   private boolean showTotalDuration;
 
-  @Parameter(property = "llmCompactor.showDurationReport", defaultValue = "false")  // CompactorDefaults.SHOW_DURATION_REPORT
+  @Parameter(
+      property = "llmCompactor.showDurationReport",
+      defaultValue = "false") // CompactorDefaults.SHOW_DURATION_REPORT
   private boolean showDurationReport;
 
   @Parameter(property = "llmCompactor.includePackages")
   private String includePackages;
 
-  @Parameter(property = "llmCompactor.showFailedTestLogs", defaultValue = "false")  // CompactorDefaults.SHOW_FAILED_TEST_LOGS
+  @Parameter(
+      property = "llmCompactor.showFailedTestLogs",
+      defaultValue = "false") // CompactorDefaults.SHOW_FAILED_TEST_LOGS
   private boolean showFailedTestLogs;
 
-  @Parameter(property = "llmCompactor.testDurationThresholdMs", defaultValue = "100")  // CompactorDefaults.TEST_DURATION_THRESHOLD_MS
+  @Parameter(
+      property = "llmCompactor.testDurationThresholdMs",
+      defaultValue = "100") // CompactorDefaults.TEST_DURATION_THRESHOLD_MS
   private double testDurationThresholdMs;
 
   @Parameter(defaultValue = "${session}", readonly = true)
@@ -148,13 +167,7 @@ public class LlmCompactMojo extends AbstractMojo {
 
     Map<String, Double> testDurationPercentiles = null;
     if (showDurationReport && !allDurations.isEmpty()) {
-      Collections.sort(allDurations);
-      testDurationPercentiles = new TreeMap<>();
-      testDurationPercentiles.put("p50", allDurations.get((int) (allDurations.size() * 0.50)));
-      testDurationPercentiles.put("p90", allDurations.get((int) (allDurations.size() * 0.90)));
-      testDurationPercentiles.put("p95", allDurations.get((int) (allDurations.size() * 0.95)));
-      testDurationPercentiles.put("p99", allDurations.get((int) (allDurations.size() * 0.99)));
-      testDurationPercentiles.put("max", allDurations.get(allDurations.size() - 1));
+      testDurationPercentiles = BuildSummary.computePercentiles(allDurations);
     }
 
     BuildSummary summary =

@@ -146,13 +146,6 @@ public final class SurefireParser {
     return "src/test/java/" + relativePath;
   }
 
-  private static String extractFirstLine(String message) {
-    if (message == null || message.isEmpty()) {
-      return "";
-    }
-    return message.split("\n")[0].trim();
-  }
-
   private static double getTestDuration(Node node) {
     double duration = 0.0;
     Node parentNode = node.getParentNode();
@@ -182,10 +175,12 @@ public final class SurefireParser {
       if (baseName.startsWith("TEST-")) {
         baseName = baseName.substring(5);
       }
-      // Surefire uses ClassName-output.txt for test output
+      // Surefire writes ClassName-output.txt for the entire test class (not per-test).
+      // This output may contain logs from all tests in the class, not only the failing one.
       Path logFile = reportsDir.resolve(baseName + "-output.txt");
       if (Files.exists(logFile)) {
-        return new String(Files.readAllBytes(logFile), StandardCharsets.UTF_8);
+        String content = new String(Files.readAllBytes(logFile), StandardCharsets.UTF_8);
+        return "[class-level output for: " + baseName + "]\n" + content;
       }
     } catch (IOException e) {
       // Ignore
@@ -265,7 +260,13 @@ public final class SurefireParser {
     }
 
     return new BuildError(
-        type, resolvedFile, line, extractFirstLine(message), stackTrace, duration, testLogs);
+        type,
+        resolvedFile,
+        line,
+        ParserUtils.extractFirstLine(message),
+        stackTrace,
+        duration,
+        testLogs);
   }
 
   private static boolean isFrameworkFrame(String line, List<String> includePackages) {

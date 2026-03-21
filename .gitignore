@@ -22,8 +22,14 @@ integration-tests/src/test/resources/test-projects/gradle-test-project/gradlew.b
 integration-tests/src/test/resources/test-projects/maven-test-project/mvnw
 integration-tests/src/test/resources/test-projects/maven-test-project/mvnw.cmd
 integration-tests/src/test/resources/test-projects/maven-test-project/.mvn/wrapper/
+# Windows wrapper scripts (Linux-only project)
+gradlew.bat
+mvnw.cmd
+
 !.mvn/wrapper/maven-wrapper.jar
 !gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper-gradle8/gradle-wrapper.jar
+!gradle/wrapper-gradle8.5/gradle-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 !**/src/main/**/build/
