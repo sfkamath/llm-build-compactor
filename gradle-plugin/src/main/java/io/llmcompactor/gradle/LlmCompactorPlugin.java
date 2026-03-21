@@ -436,6 +436,33 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
   private void emitSummary(
       Project project, LlmCompactorExtension extension, long sessionStartTime) {
+    // Apply mode preset if specified (overrides individual flags)
+    String modeValue = extension.getMode().getOrNull();
+    boolean outputAsJson = extension.getOutputAsJson().get();
+    boolean showFixTargets = extension.getShowFixTargets().get();
+    boolean showFailedTestLogs = extension.getShowFailedTestLogs().get();
+    boolean showRecentChanges = extension.getShowRecentChanges().get();
+
+    if (modeValue != null && !modeValue.isEmpty()) {
+      switch (modeValue.toLowerCase()) {
+        case "agent":
+          outputAsJson = true;
+          showFixTargets = true;
+          showFailedTestLogs = false;
+          break;
+        case "debug":
+          outputAsJson = true;
+          showFixTargets = true;
+          showFailedTestLogs = true;
+          break;
+        case "human":
+          outputAsJson = false;
+          showFixTargets = true;
+          showFailedTestLogs = false;
+          break;
+      }
+    }
+
     List<BuildError> allErrors = new ArrayList<>();
     List<Double> allDurations = new ArrayList<>();
     int totalTestsRun = 0;
@@ -464,7 +491,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                   extension.getCompressStackFrames().get(),
                   includePackages,
                   sessionStartTime,
-                  extension.getShowFailedTestLogs().get());
+                  showFailedTestLogs);
           totalTestsRun += result.testsRun();
           totalTestFailures += result.failures();
           allErrors.addAll(result.errors());
@@ -486,33 +513,6 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     }
 
     allErrors = BuildSummary.aggregateErrors(allErrors);
-
-    // Apply mode preset if specified (overrides individual flags)
-    String modeValue = extension.getMode().getOrNull();
-    boolean outputAsJson = extension.getOutputAsJson().get();
-    boolean showFixTargets = extension.getShowFixTargets().get();
-    boolean showFailedTestLogs = extension.getShowFailedTestLogs().get();
-    boolean showRecentChanges = extension.getShowRecentChanges().get();
-
-    if (modeValue != null && !modeValue.isEmpty()) {
-      switch (modeValue.toLowerCase()) {
-        case "agent":
-          outputAsJson = true;
-          showFixTargets = true;
-          showFailedTestLogs = false;
-          break;
-        case "debug":
-          outputAsJson = true;
-          showFixTargets = true;
-          showFailedTestLogs = true;
-          break;
-        case "human":
-          outputAsJson = false;
-          showFixTargets = true;
-          showFailedTestLogs = false;
-          break;
-      }
-    }
 
     List<FixTarget> targets =
         showFixTargets ? FixTargetGenerator.generate(allErrors) : Collections.emptyList();

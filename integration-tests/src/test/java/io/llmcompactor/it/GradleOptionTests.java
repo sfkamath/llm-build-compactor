@@ -122,7 +122,13 @@ class GradleOptionTests {
 
       JsonNode tree = result.summaryTree();
       assertThat(tree).isNotNull();
-      assertThat(tree.has("testLogs")).isFalse();
+      // Agent mode doesn't include testLogs by default inside errors
+      if (tree.has("errors")) {
+        JsonNode errors = tree.get("errors");
+        for (JsonNode error : errors) {
+          assertThat(error.has("testLogs")).as("Agent mode should suppress testLogs").isFalse();
+        }
+      }
     }
   }
 
@@ -170,9 +176,21 @@ class GradleOptionTests {
       JsonNode tree = result.summaryTree();
       assertThat(tree).isNotNull();
       // The test project has intentionally failing tests, so testLogs must be present
-      assertThat(tree.has("testLogs")).isTrue();
-      assertThat(tree.get("testLogs").isArray()).isTrue();
-      assertThat(tree.get("testLogs").size()).isGreaterThan(0);
+      // inside the errors array for tests that produce output (like OrderServiceTest)
+      assertThat(tree.has("errors")).isTrue();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors.isArray()).isTrue();
+
+      boolean foundLogs = false;
+      for (JsonNode error : errors) {
+        if (error.has("testLogs")) {
+          foundLogs = true;
+          assertThat(error.get("testLogs").isArray()).isTrue();
+          assertThat(error.get("testLogs").size()).isGreaterThan(0);
+          break;
+        }
+      }
+      assertThat(foundLogs).as("Expected at least one error to contain testLogs").isTrue();
     }
 
     @Test
@@ -335,8 +353,7 @@ class GradleOptionTests {
   }
 
   // Helper for JSON validation - parses JSON and returns it for further assertions
-  private static JsonNode parseJson(String json)
-      throws IOException {
+  private static JsonNode parseJson(String json) throws IOException {
     return new ObjectMapper().readTree(json);
   }
 }

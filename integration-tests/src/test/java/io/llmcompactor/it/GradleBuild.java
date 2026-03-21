@@ -80,8 +80,7 @@ public final class GradleBuild {
 
     Path gradlew = projectDir.resolve("gradlew");
     if (!Files.exists(gradlew)) {
-      Files.copy(
-          root.resolve("gradlew"), gradlew, StandardCopyOption.REPLACE_EXISTING);
+      Files.copy(root.resolve("gradlew"), gradlew, StandardCopyOption.REPLACE_EXISTING);
     }
     gradlew.toFile().setExecutable(true);
 
@@ -163,6 +162,10 @@ public final class GradleBuild {
     cmd.addAll(tasks);
 
     ProcessBuilder pb = new ProcessBuilder(cmd);
+    String javaHome = System.getenv("JAVA_HOME");
+    if (javaHome != null) {
+      pb.environment().put("JAVA_HOME", javaHome);
+    }
     pb.directory(projectDir.toFile());
     pb.redirectErrorStream(true);
     pb.environment().put("GRADLE_USER_HOME", gradleUserHome);
