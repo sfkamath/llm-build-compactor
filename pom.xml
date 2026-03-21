@@ -26,7 +26,7 @@
         <spotless-maven-plugin.version>3.2.1</spotless-maven-plugin.version>
         <modernizer-maven-plugin.version>3.2.0</modernizer-maven-plugin.version>
         <jacoco.version>0.8.14</jacoco.version>
-        <jacoco.coverage.minimum>0.80</jacoco.coverage.minimum>
+        <jacoco.coverage.minimum>0.85</jacoco.coverage.minimum>
 
         <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
         <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
@@ -45,6 +45,8 @@
         <module>core</module>
         <module>llm-compactor-maven-plugin</module>
         <module>maven-extension</module>
+        <module>gradle-plugin</module>
+        <module>integration-tests</module>
     </modules>
 
     <dependencyManagement>

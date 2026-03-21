@@ -53,3 +53,11 @@ def generatePluginProperties = tasks.register('generatePluginProperties') {
 }
 
 sourceSets.main.resources.srcDir(generatePluginProperties)
+
+publishing {
+    repositories {
+        maven {
+            url = uri('file://' + System.getProperty('user.home') + '/.m2/repository')
+        }
+    }
+}

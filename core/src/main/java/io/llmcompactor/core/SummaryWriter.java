@@ -21,8 +21,8 @@ public final class SummaryWriter {
   private static final double DEFAULT_TEST_DURATION_THRESHOLD_MS = 100.0;
 
   /**
-   * Normalizes a BuildSummary for output by applying all message/stack trace cleaning once.
-   * This ensures consistent output and avoids duplicating normalization logic.
+   * Normalizes a BuildSummary for output by applying all message/stack trace cleaning once. This
+   * ensures consistent output and avoids duplicating normalization logic.
    */
   private static BuildSummary normalize(BuildSummary summary, double testDurationThresholdMs) {
     if (summary == null) {
@@ -33,14 +33,16 @@ public final class SummaryWriter {
         summary.testsRun(),
         summary.failures(),
         summary.errors().stream()
-            .map(e -> new BuildError(
-                e.type(),
-                e.file(),
-                e.lines(),
-                stripExceptionPackage(e.message()),
-                StackTraceCompressor.stripPackagePrefixes(e.stackTrace()),
-                e.testDuration() >= testDurationThresholdMs ? e.testDuration() : 0.0,
-                e.testLogs()))
+            .map(
+                e ->
+                    new BuildError(
+                        e.type(),
+                        e.file(),
+                        e.lines(),
+                        stripExceptionPackage(e.message()),
+                        StackTraceCompressor.stripPackagePrefixes(e.stackTrace()),
+                        e.testDuration() >= testDurationThresholdMs ? e.testDuration() : 0.0,
+                        e.testLogs()))
             .collect(Collectors.toList()),
         summary.fixTargets(),
         summary.recentChanges(),
@@ -48,9 +50,7 @@ public final class SummaryWriter {
         summary.testDurationPercentiles());
   }
 
-  /**
-   * Normalizes a BuildSummary with default threshold.
-   */
+  /** Normalizes a BuildSummary with default threshold. */
   private static BuildSummary normalize(BuildSummary summary) {
     return normalize(summary, DEFAULT_TEST_DURATION_THRESHOLD_MS);
   }
@@ -158,8 +158,10 @@ public final class SummaryWriter {
               normalized.errors().stream()
                   .map(
                       e -> {
-                        // Mutate lines: if single item, clear array so @JsonInclude(NON_EMPTY) omits it
-                        // This reduces JSON size: "lines":[41] becomes no lines field (file:line is in message context)
+                        // Mutate lines: if single item, clear array so @JsonInclude(NON_EMPTY)
+                        // omits it
+                        // This reduces JSON size: "lines":[41] becomes no lines field (file:line is
+                        // in message context)
                         List<Integer> lines = e.lines();
                         if (lines != null && lines.size() == 1) {
                           lines = java.util.Collections.emptyList();
@@ -190,8 +192,8 @@ public final class SummaryWriter {
   }
 
   /**
-   * Strips package prefix from exception type in error messages.
-   * Example: "org.opentest4j.AssertionFailedError: message" -> "AssertionFailedError: message"
+   * Strips package prefix from exception type in error messages. Example:
+   * "org.opentest4j.AssertionFailedError: message" -> "AssertionFailedError: message"
    */
   public static String stripExceptionPackage(String message) {
     if (message == null || message.isEmpty()) {
@@ -209,7 +211,7 @@ public final class SummaryWriter {
       BuildSummary summary, boolean showTestDuration, double testDurationThresholdMs) {
     // Normalize once before rendering (cleans messages, stack traces)
     summary = normalize(summary);
-    
+
     StringBuilder sb = new StringBuilder();
     sb.append("=== LLM Build Compactor Summary ===\n");
     sb.append("Status: ").append(summary.status()).append("\n");

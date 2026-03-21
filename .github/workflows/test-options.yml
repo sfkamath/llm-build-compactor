@@ -1,0 +1,43 @@
+name: Option Coverage Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-options:
+    name: Option Coverage (Java ${{ matrix.java }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        java: [17, 21]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java }}
+          distribution: temurin
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ github.ref_name }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: Build all modules
+        run: ./mvnw clean install -DskipTests -q
+
+      - name: Run option coverage tests
+        run: ./mvnw verify -pl integration-tests -Pintegration-tests
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-java-${{ matrix.java }}
+          path: integration-tests/target/surefire-reports/

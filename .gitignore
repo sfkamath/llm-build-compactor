@@ -14,6 +14,14 @@ release.properties
 workspace/
 .gradle/
 build/
+.gradle-test-home*/
+integration-tests/src/test/resources/test-projects/gradle-test-project/gradle/wrapper-gradle*/
+integration-tests/src/test/resources/test-projects/gradle-test-project/gradle/wrapper/*.jar
+integration-tests/src/test/resources/test-projects/gradle-test-project/gradlew
+integration-tests/src/test/resources/test-projects/gradle-test-project/gradlew.bat
+integration-tests/src/test/resources/test-projects/maven-test-project/mvnw
+integration-tests/src/test/resources/test-projects/maven-test-project/mvnw.cmd
+integration-tests/src/test/resources/test-projects/maven-test-project/.mvn/wrapper/
 !.mvn/wrapper/maven-wrapper.jar
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/target/

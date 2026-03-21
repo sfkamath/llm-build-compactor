@@ -140,6 +140,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         installInitScript(project);
 
         LlmCompactorExtension extension = project.getExtensions().create("llmCompactor", LlmCompactorExtension.class);
+        
+        // Read enabled from system property or gradle property
         String sysProp = System.getProperty("llmCompactor.enabled");
         Boolean enabledValue = sysProp != null
             ? Boolean.parseBoolean(sysProp)
@@ -148,17 +150,66 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 : true;
         project.getLogger().debug("[LLM Compactor] sysProp={} enabledValue={}", sysProp, enabledValue);
         extension.getEnabled().set(enabledValue);
-        extension.getOutputAsJson().convention(CompactorDefaults.OUTPUT_AS_JSON);
-        extension.getCompressStackFrames().convention(CompactorDefaults.COMPRESS_STACK_FRAMES);
-        extension.getShowFixTargets().convention(CompactorDefaults.SHOW_FIX_TARGETS);
-        extension.getShowRecentChanges().convention(CompactorDefaults.SHOW_RECENT_CHANGES);
-        extension.getMode().convention(CompactorDefaults.OUTPUT_PATH);  // null default
-        extension.getShowSlowTests().convention(CompactorDefaults.SHOW_SLOW_TESTS);
-        extension.getShowTotalDuration().convention(CompactorDefaults.SHOW_TOTAL_DURATION);
-        extension.getShowDurationReport().convention(CompactorDefaults.SHOW_DURATION_REPORT);
-        extension.getShowFailedTestLogs().convention(CompactorDefaults.SHOW_FAILED_TEST_LOGS);
-        extension.getTestDurationThresholdMs().convention(CompactorDefaults.TEST_DURATION_THRESHOLD_MS);
-        extension.getOutputPath().convention((String) null);
+        
+        // Bind extension properties to gradle properties with defaults
+        extension.getOutputAsJson().convention(
+            project.getProviders().gradleProperty("llmCompactor.outputAsJson")
+                .map(Boolean::parseBoolean)
+                .orElse(CompactorDefaults.OUTPUT_AS_JSON)
+        );
+        extension.getCompressStackFrames().convention(
+            project.getProviders().gradleProperty("llmCompactor.compressStackFrames")
+                .map(Boolean::parseBoolean)
+                .orElse(CompactorDefaults.COMPRESS_STACK_FRAMES)
+        );
+        extension.getShowFixTargets().convention(
+            project.getProviders().gradleProperty("llmCompactor.showFixTargets")
+                .map(Boolean::parseBoolean)
+                .orElse(CompactorDefaults.SHOW_FIX_TARGETS)
+        );
+        extension.getShowRecentChanges().convention(
+            project.getProviders().gradleProperty("llmCompactor.showRecentChanges")
+                .map(Boolean::parseBoolean)
+                .orElse(CompactorDefaults.SHOW_RECENT_CHANGES)
+        );
+        
+        // mode - only set if gradle property is provided
+        org.gradle.api.provider.Provider<String> modeProp = project.getProviders().gradleProperty("llmCompactor.mode");
+        if (modeProp.isPresent()) {
+            extension.getMode().set(modeProp.get());
+        }
+        
+        extension.getShowSlowTests().convention(
+            project.getProviders().gradleProperty("llmCompactor.showSlowTests")
+                .map(Boolean::parseBoolean)
+                .orElse(CompactorDefaults.SHOW_SLOW_TESTS)
+        );
+        extension.getShowTotalDuration().convention(
+            project.getProviders().gradleProperty("llmCompactor.showTotalDuration")
+                .map(Boolean::parseBoolean)
+                .orElse(CompactorDefaults.SHOW_TOTAL_DURATION)
+        );
+        extension.getShowDurationReport().convention(
+            project.getProviders().gradleProperty("llmCompactor.showDurationReport")
+                .map(Boolean::parseBoolean)
+                .orElse(CompactorDefaults.SHOW_DURATION_REPORT)
+        );
+        extension.getShowFailedTestLogs().convention(
+            project.getProviders().gradleProperty("llmCompactor.showFailedTestLogs")
+                .map(Boolean::parseBoolean)
+                .orElse(CompactorDefaults.SHOW_FAILED_TEST_LOGS)
+        );
+        extension.getTestDurationThresholdMs().convention(
+            project.getProviders().gradleProperty("llmCompactor.testDurationThresholdMs")
+                .map(Double::parseDouble)
+                .orElse(CompactorDefaults.TEST_DURATION_THRESHOLD_MS)
+        );
+        
+        // outputPath - only set if gradle property is provided
+        org.gradle.api.provider.Provider<String> outputPathProp = project.getProviders().gradleProperty("llmCompactor.outputPath");
+        if (outputPathProp.isPresent()) {
+            extension.getOutputPath().set(outputPathProp.get());
+        }
 
         // Register the installation task mirroring the Maven install mojo
         project.getTasks().register("installLlmCompactor", task -> {
@@ -356,33 +407,13 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
         allErrors = BuildSummary.aggregateErrors(allErrors);
 
-        List<FixTarget> targets = extension.getShowFixTargets().get() ?
-                FixTargetGenerator.generate(allErrors) : Collections.emptyList();
-
-        List<String> recentChanges = extension.getShowRecentChanges().get() ?
-                GitDiffExtractor.changedFiles() : Collections.emptyList();
-
-        BuildSummary summary = new BuildSummary(
-                allErrors.isEmpty() ? "SUCCESS" : "FAILED",
-                totalTestsRun,
-                totalTestFailures,
-                allErrors,
-                targets,
-                recentChanges,
-                totalBuildDurationMs,
-                testDurationPercentiles
-        );
-
-        if (extension.getOutputPath().isPresent()) {
-            SummaryWriter.write(summary, java.nio.file.Paths.get(extension.getOutputPath().get()));
-        }
-
         // Apply mode preset if specified (overrides individual flags)
         String modeValue = extension.getMode().getOrNull();
         boolean outputAsJson = extension.getOutputAsJson().get();
         boolean showFixTargets = extension.getShowFixTargets().get();
         boolean showFailedTestLogs = extension.getShowFailedTestLogs().get();
-        
+        boolean showRecentChanges = extension.getShowRecentChanges().get();
+
         if (modeValue != null && !modeValue.isEmpty()) {
             switch (modeValue.toLowerCase()) {
                 case "agent":
@@ -401,6 +432,27 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                     showFailedTestLogs = false;
                     break;
             }
+        }
+
+        List<FixTarget> targets = showFixTargets ?
+                FixTargetGenerator.generate(allErrors) : Collections.emptyList();
+
+        List<String> recentChanges = showRecentChanges ?
+                GitDiffExtractor.changedFiles() : Collections.emptyList();
+
+        BuildSummary summary = new BuildSummary(
+                allErrors.isEmpty() ? "SUCCESS" : "FAILED",
+                totalTestsRun,
+                totalTestFailures,
+                allErrors,
+                targets,
+                recentChanges,
+                totalBuildDurationMs,
+                testDurationPercentiles
+        );
+
+        if (extension.getOutputPath().isPresent()) {
+            SummaryWriter.write(summary, java.nio.file.Paths.get(extension.getOutputPath().get()));
         }
 
         String renderedSummary;

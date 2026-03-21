@@ -3,13 +3,12 @@ package io.llmcompactor.core;
 /**
  * Centralized default values for LLM Build Compactor configuration.
  *
- * <p>These constants serve as the single source of truth for defaults.
- * Each build tool (Maven, Gradle, Maven Extension) declares its own
- * default values, but should reference these constants where possible.
+ * <p>These constants serve as the single source of truth for defaults. Each build tool (Maven,
+ * Gradle, Maven Extension) declares its own default values, but should reference these constants
+ * where possible.
  *
- * <p>Note: Maven Mojo annotations cannot reference Java constants directly
- * (annotation values must be compile-time constants), so Maven uses
- * hardcoded strings that should match these values.
+ * <p>Note: Maven Mojo annotations cannot reference Java constants directly (annotation values must
+ * be compile-time constants), so Maven uses hardcoded strings that should match these values.
  */
 public final class CompactorDefaults {
 

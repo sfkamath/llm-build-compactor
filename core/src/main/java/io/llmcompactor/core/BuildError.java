@@ -115,7 +115,8 @@ public class BuildError {
     return stackTrace;
   }
 
-  @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT)
+  @com.fasterxml.jackson.annotation.JsonInclude(
+      com.fasterxml.jackson.annotation.JsonInclude.Include.NON_DEFAULT)
   public double getTestDuration() {
     return testDuration;
   }
@@ -129,7 +130,8 @@ public class BuildError {
    * serialization.
    */
   @com.fasterxml.jackson.annotation.JsonProperty("testLogs")
-  @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
+  @com.fasterxml.jackson.annotation.JsonInclude(
+      com.fasterxml.jackson.annotation.JsonInclude.Include.NON_EMPTY)
   public java.util.List<String> getTestLogsAsArray() {
     if (testLogs == null || testLogs.isEmpty()) {
       return java.util.Collections.emptyList();
