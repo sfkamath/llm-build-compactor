@@ -170,6 +170,9 @@ public class BuildOutputSpy extends AbstractEventSpy {
   }
 
   private void suppressTestOutput() {
+    // Set as both user property (for @Parameter injection) and system property (for direct
+    // System.getProperty lookups) so surefire picks it up regardless of how it resolves the flag.
+    System.setProperty(PROP_REDIRECT_TEST_OUTPUT, "true");
     if (session != null && session.getUserProperties() != null) {
       session.getUserProperties().setProperty(PROP_REDIRECT_TEST_OUTPUT, "true");
     }
@@ -424,6 +427,15 @@ public class BuildOutputSpy extends AbstractEventSpy {
     String sysProp = System.getProperty(key);
     if (sysProp != null) {
       return sysProp;
+    }
+    // Maven -D flags are user properties; they may or may not be propagated to JVM system
+    // properties depending on the Maven version and launcher. Check user properties explicitly
+    // so that command-line flags always take precedence over plugin XML configuration.
+    if (session != null && session.getUserProperties() != null) {
+      String userProp = session.getUserProperties().getProperty(key);
+      if (userProp != null) {
+        return userProp;
+      }
     }
     String projProp = projectProps.getProperty(key);
     if (projProp != null) {
