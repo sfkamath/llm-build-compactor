@@ -162,7 +162,6 @@
                 <artifactId>llm-compactor-maven-plugin</artifactId>
                 <version>@project.version@</version>
                 <configuration>
-                    <outputAsJson>true</outputAsJson>
                     <compressStackFrames>true</compressStackFrames>
                 </configuration>
                 <executions>
