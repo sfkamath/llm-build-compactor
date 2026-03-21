@@ -3,18 +3,10 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Use JAVA_HOME if set, otherwise try to find Java 11
 if [ -n "$JAVA_HOME" ]; then
     JAVACMD="$JAVA_HOME/bin/java"
 else
-    # Try to find Java 11 via jenv or common locations
-    if [ -d "$HOME/.jenv/versions/11.0.17" ]; then
-        JAVACMD="$HOME/.jenv/versions/11.0.17/bin/java"
-    elif [ -d "/Library/Java/JavaVirtualMachines/jdk-11.jdk/Contents/Home" ]; then
-        JAVACMD="/Library/Java/JavaVirtualMachines/jdk-11.jdk/Contents/Home/bin/java"
-    else
-        JAVACMD="java"
-    fi
+    JAVACMD="java"
 fi
 
 GRADLE_WRAPPER_JAR="$SCRIPT_DIR/gradle/wrapper-gradle8.5/gradle-wrapper.jar"

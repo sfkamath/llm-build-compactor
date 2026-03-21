@@ -1,5 +1,6 @@
 package io.llmcompactor.core;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -8,17 +9,20 @@ import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public final class SummaryWriter {
   private static final ObjectMapper mapper =
       new ObjectMapper()
           .enable(SerializationFeature.INDENT_OUTPUT)
-          .setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
+          .setSerializationInclusion(JsonInclude.Include.NON_NULL);
 
-  /** Default threshold in ms for showing test duration (100ms) */
-  private static final double DEFAULT_TEST_DURATION_THRESHOLD_MS = 100.0;
+  private static final double DEFAULT_TEST_DURATION_THRESHOLD_MS =
+      CompactorDefaults.TEST_DURATION_THRESHOLD_MS;
 
   /**
    * Normalizes a BuildSummary for output by applying all message/stack trace cleaning once. This
@@ -56,28 +60,29 @@ public final class SummaryWriter {
   }
 
   /** SLF4J infrastructure noise patterns to filter */
-  private static final java.util.regex.Pattern SLF4J_NOISE_PATTERN =
-      java.util.regex.Pattern.compile("^SLF4J:.*$");
+  private static final Pattern SLF4J_NOISE_PATTERN = Pattern.compile("^SLF4J:.*$");
 
   /** Log timestamp pattern: HH:mm:ss.SSS */
-  private static final java.util.regex.Pattern TIMESTAMP_PATTERN =
-      java.util.regex.Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s*");
+  private static final Pattern TIMESTAMP_PATTERN =
+      Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s*");
 
   /** Log thread pattern: [thread-name] */
-  private static final java.util.regex.Pattern THREAD_PATTERN =
-      java.util.regex.Pattern.compile("\\s*\\[[^\\]]+\\]\\s*");
+  private static final Pattern THREAD_PATTERN = Pattern.compile("\\s*\\[[^\\]]+\\]\\s*");
 
   /** Log level pattern: INFO/DEBUG/WARN/ERROR */
-  private static final java.util.regex.Pattern LEVEL_PATTERN =
-      java.util.regex.Pattern.compile("(INFO|DEBUG|WARN|ERROR|TRACE)\\s+");
+  private static final Pattern LEVEL_PATTERN = Pattern.compile("(INFO|DEBUG|WARN|ERROR|TRACE)\\s+");
 
   /** Logger name pattern: abbreviated or full package.class */
-  private static final java.util.regex.Pattern LOGGER_PATTERN =
-      java.util.regex.Pattern.compile("[a-z][a-zA-Z0-9_.]*\\s*-\\s*");
+  private static final Pattern LOGGER_PATTERN = Pattern.compile("[a-z][a-zA-Z0-9_.]*\\s*-\\s*");
 
   /** Cleans up test log lines by removing infrastructure noise and normalizing format. */
   public static String cleanTestLogLine(String line) {
     if (line == null || line.isEmpty()) {
+      return line;
+    }
+
+    // Preserve GradleParser section headers ([system-out], [system-err]) unchanged
+    if (line.startsWith("[system-out]") || line.startsWith("[system-err]")) {
       return line;
     }
 
@@ -107,12 +112,12 @@ public final class SummaryWriter {
   }
 
   /** Processes test logs, cleaning up noise and returning as array of lines. */
-  private static java.util.List<String> processTestLogs(String testLogs) {
+  private static List<String> processTestLogs(String testLogs) {
     if (testLogs == null || testLogs.isEmpty()) {
-      return java.util.Collections.emptyList();
+      return Collections.emptyList();
     }
 
-    java.util.List<String> result = new java.util.ArrayList<>();
+    List<String> result = new ArrayList<>();
     for (String line : testLogs.split("\n")) {
       String cleaned = cleanTestLogLine(line);
       if (cleaned != null) {
@@ -164,7 +169,7 @@ public final class SummaryWriter {
                         // in message context)
                         List<Integer> lines = e.lines();
                         if (lines != null && lines.size() == 1) {
-                          lines = java.util.Collections.emptyList();
+                          lines = Collections.emptyList();
                         }
                         return new BuildError(
                             e.type(),
@@ -247,8 +252,7 @@ public final class SummaryWriter {
           sb.append(error.file());
           if (error.lines() != null && !error.lines().isEmpty()) {
             sb.append(":")
-                .append(
-                    error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+                .append(error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
           }
         } else {
           sb.append(error.type());
@@ -266,7 +270,7 @@ public final class SummaryWriter {
           sb.append(indent).append(compressed.replace("\n", "\n" + indent)).append("\n");
         }
         if (error.testLogs() != null && !error.testLogs().isEmpty()) {
-          java.util.List<String> cleanedLogs = processTestLogs(error.testLogs());
+          List<String> cleanedLogs = processTestLogs(error.testLogs());
           if (!cleanedLogs.isEmpty()) {
             sb.append("    Test logs:\n");
             String indent = "        ";

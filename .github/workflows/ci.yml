@@ -22,14 +22,23 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           java-version: ${{ matrix.java }}
-          distribution: corretto
+          distribution: temurin
 
       - uses: actions/cache@v4
         with:
           path: ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ github.ref_name }}
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             maven-${{ runner.os }}-
+
+      - name: Check version sync
+        run: |
+          pom_version=$(grep -m1 '<revision>' pom.xml | sed 's/.*<revision>\(.*\)<\/revision>.*/\1/')
+          gradle_version=$(grep '^pluginVersion=' gradle.properties | cut -d= -f2)
+          if [ "$pom_version" != "$gradle_version" ]; then
+            echo "Version mismatch: pom.xml revision=$pom_version, gradle.properties pluginVersion=$gradle_version"
+            exit 1
+          fi
 
       - name: Build with Maven
         run: |
@@ -39,7 +48,48 @@ jobs:
             mvn clean install
           fi
 
-  # publish:
+  publish:
+    name: Publish to GitHub Packages
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: Setup Maven settings.xml
+        uses: whelk-io/maven-settings-xml-action@v22
+        with:
+          servers: '[{ "id": "github", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}" }]'
+
+      - name: Publish Maven modules to GitHub Packages
+        run: ./mvnw deploy -Pgithub -DskipTests --quiet
+
+      - name: Install core for Gradle plugin build
+        run: ./mvnw install -pl core -am -DskipTests --quiet
+
+      - name: Publish Gradle plugin to GitHub Packages
+        run: cd gradle-plugin && ../gradlew-smart publishAllPublicationsToGithubRepository --no-daemon
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # publish-maven-central:
   #   name: Publish to Maven Central
   #   needs: build
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -53,12 +103,12 @@ jobs:
   #     - uses: actions/setup-java@v4
   #       with:
   #         java-version: '21'
-  #         distribution: corretto
+  #         distribution: temurin
 
   #     - uses: actions/cache@v4
   #       with:
   #         path: ~/.m2/repository
-  #         key: maven-${{ runner.os }}-${{ github.ref_name }}
+  #         key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
   #         restore-keys: |
   #           maven-${{ runner.os }}-
 
@@ -82,7 +132,7 @@ jobs:
 
   #     - name: Deploy to Maven Central
   #       run: |
-  #         mvn deploy -Drevision=${{ steps.tag_version.outputs.new_tag }} -Possrh -P!it -DskipTests -Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }}
+  #         mvn deploy -Drevision=${{ steps.tag_version.outputs.new_tag }} -Possrh -DskipTests -Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }}
   #       env:
   #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -91,7 +141,7 @@ jobs:
 
   # publish-gradle-plugin:
   #   name: Publish to Gradle Plugin Portal
-  #   needs: publish
+  #   needs: publish-maven-central
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
   #   runs-on: ubuntu-latest
 
@@ -101,17 +151,17 @@ jobs:
   #     - uses: actions/setup-java@v4
   #       with:
   #         java-version: '21'
-  #         distribution: corretto
+  #         distribution: temurin
 
   #     - uses: actions/cache@v4
   #       with:
   #         path: ~/.m2/repository
-  #         key: maven-${{ runner.os }}-${{ github.ref_name }}
+  #         key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
   #         restore-keys: |
   #           maven-${{ runner.os }}-
 
   #     - name: Install core to local Maven repo
-  #       run: mvn install -pl core -am -Drevision=${{ needs.publish.outputs.version }} -DskipTests --quiet
+  #       run: ./mvnw install -pl core -am -Drevision=${{ needs.publish-maven-central.outputs.version }} -DskipTests --quiet
 
   #     - name: Setup Gradle
   #       uses: gradle/actions/setup-gradle@v4
@@ -120,7 +170,7 @@ jobs:
 
   #     - name: Publish to Gradle Plugin Portal
   #       run: |
-  #         cd gradle-plugin && ../gradlew publishPlugins -PpluginVersion=${{ needs.publish.outputs.version }} --no-daemon
+  #         cd gradle-plugin && ../gradlew-smart publishPlugins -PpluginVersion=${{ needs.publish-maven-central.outputs.version }} --no-daemon
   #       env:
   #         GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
   #         GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}

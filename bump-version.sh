@@ -3,7 +3,7 @@ set -euo pipefail
 
 if [ $# -ne 2 ]; then
   echo "Usage: $0 <old-version> <new-version>"
-  echo "Example: $0 0.1.2 0.1.3"
+  echo "Example: $0 0.1.3 0.1.4"
   exit 1
 fi
 
@@ -21,7 +21,7 @@ FILES=(
 
 for f in "${FILES[@]}"; do
   if [ -f "$f" ]; then
-    sed -i '' "s/${OLD_ESC}/${NEW}/g" "$f"
+    sed -i "s/${OLD_ESC}/${NEW}/g" "$f"
     echo "Updated $f"
   else
     echo "SKIP: $f not found"

@@ -29,7 +29,6 @@ public class GradleBuild {
     static {
         try {
             GRADLE_TEST_HOME = Paths.get(System.getProperty("java.io.tmpdir"), "llm-compactor-gradle-test-home");
-            cleanupTestHome();
             Files.createDirectories(GRADLE_TEST_HOME);
             
             // Seed wrapper dists from real Gradle home to avoid downloading Gradle distribution
@@ -49,6 +48,7 @@ public class GradleBuild {
 
     /**
      * Creates a new GradleBuild for a test project in src/test/resources/test-projects.
+     * Copies gradlew and gradle-wrapper.jar from the root project if not already present.
      */
     public static GradleBuild inProject(String projectName) {
         try {
@@ -58,13 +58,55 @@ public class GradleBuild {
                 throw new RuntimeException("Test project not found: " + projectName);
             }
             Path projectDir = Paths.get(resource.toURI());
-            // Ensure gradlew is executable
-            Path gradlew = projectDir.resolve("gradlew");
-            gradlew.toFile().setExecutable(true);
+            ensureGradleWrapper(projectDir);
             return new GradleBuild(projectDir);
-        } catch (URISyntaxException e) {
+        } catch (URISyntaxException | IOException e) {
             throw new RuntimeException("Failed to locate test project: " + projectName, e);
         }
+    }
+
+    /**
+     * Copies gradlew and gradle-wrapper.jar from the root project into the test project
+     * directory if they are not already present. The root project is located by walking
+     * up the directory tree until a directory containing gradlew is found.
+     */
+    private static void ensureGradleWrapper(Path projectDir) throws IOException {
+        Path root = findRootWithFile(projectDir, "gradlew");
+        if (root == null) {
+            return; // nothing to copy; execute() will fail with a clear message
+        }
+
+        Path gradlew = projectDir.resolve("gradlew");
+        if (!Files.exists(gradlew)) {
+            Files.copy(root.resolve("gradlew"), gradlew,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        gradlew.toFile().setExecutable(true);
+
+        Path wrapperJar = projectDir.resolve("gradle/wrapper/gradle-wrapper.jar");
+        if (!Files.exists(wrapperJar)) {
+            Path rootJar = root.resolve("gradle/wrapper/gradle-wrapper.jar");
+            if (Files.exists(rootJar)) {
+                Files.createDirectories(wrapperJar.getParent());
+                Files.copy(rootJar, wrapperJar,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+    }
+
+    /**
+     * Walks up the directory tree from dir to find an ancestor that contains the given
+     * relative path. Returns null if no such ancestor is found.
+     */
+    static Path findRootWithFile(Path dir, String relativePath) {
+        Path current = dir.getParent();
+        while (current != null) {
+            if (Files.exists(current.resolve(relativePath))) {
+                return current;
+            }
+            current = current.getParent();
+        }
+        return null;
     }
 
     /**
@@ -121,7 +163,7 @@ public class GradleBuild {
 
         List<String> cmd = new ArrayList<>();
         cmd.add(gradlew);
-        cmd.add("--daemon"); // Use daemon for faster subsequent builds
+        cmd.add("--daemon"); // Daemon is scoped to GRADLE_USER_HOME so safe to reuse across tests
 
         // Add project properties
         for (Map.Entry<String, String> prop : properties.entrySet()) {
@@ -156,8 +198,7 @@ public class GradleBuild {
         int exitCode = process.exitValue();
         String outputStr = output.toString();
 
-        // Extract JSON from console output (look for { to end of JSON)
-        String summaryJson = extractJsonFromOutput(outputStr);
+        String summaryJson = BuildResult.extractJsonFromOutput(outputStr);
 
         return new BuildResult(outputStr, summaryJson, exitCode, projectDir.resolve("build"), projectDir);
     }
@@ -178,18 +219,6 @@ public class GradleBuild {
                     });
             }
         }
-    }
-
-    /**
-     * Extracts JSON from build output by finding the first { and last }.
-     */
-    private static String extractJsonFromOutput(String output) {
-        int start = output.indexOf('{');
-        int end = output.lastIndexOf('}');
-        if (start >= 0 && end > start) {
-            return output.substring(start, end + 1);
-        }
-        return null;
     }
 
     /**

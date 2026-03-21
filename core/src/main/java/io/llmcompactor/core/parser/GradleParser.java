@@ -122,7 +122,7 @@ public final class GradleParser {
                             type,
                             sourceFile != null ? sourceFile : className,
                             line,
-                            extractFirstLine(message),
+                            ParserUtils.extractFirstLine(message),
                             stackTrace,
                             duration,
                             testLogs));
@@ -158,7 +158,8 @@ public final class GradleParser {
       }
     }
 
-    // If not found in testcase, check parent testsuite
+    // Fallback: if no testcase-level output, use parent testsuite output.
+    // Note: suite-level output contains logs from ALL tests in the class, not only the failing one.
     if (logs.length() == 0) {
       Node parent = testCase.getParentNode();
       if (parent instanceof Element) {
@@ -173,7 +174,10 @@ public final class GradleParser {
               if (logs.length() > 0) {
                 logs.append("\n");
               }
-              logs.append("[").append(child.getNodeName()).append("]\n").append(content);
+              logs.append("[class-level ")
+                  .append(child.getNodeName())
+                  .append("]\n")
+                  .append(content);
             }
           }
         }
@@ -201,13 +205,6 @@ public final class GradleParser {
 
   private static boolean isProjectFrame(String line, String className) {
     return line.contains(className);
-  }
-
-  private static String extractFirstLine(String message) {
-    if (message == null || message.isEmpty()) {
-      return "";
-    }
-    return message.split("\n")[0].trim();
   }
 
   private GradleParser() {}

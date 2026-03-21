@@ -29,6 +29,7 @@ public class MavenBuild {
 
     /**
      * Creates a new MavenBuild for a test project in src/test/resources/test-projects.
+     * Copies mvnw and maven-wrapper.properties from the root project if not already present.
      */
     public static MavenBuild inProject(String projectName) {
         try {
@@ -38,13 +39,55 @@ public class MavenBuild {
                 throw new RuntimeException("Test project not found: " + projectName);
             }
             Path projectDir = Paths.get(resource.toURI());
-            // Ensure mvnw is executable
-            Path mvnw = projectDir.resolve("mvnw");
-            mvnw.toFile().setExecutable(true);
+            ensureMavenWrapper(projectDir);
             return new MavenBuild(projectDir);
-        } catch (URISyntaxException e) {
+        } catch (URISyntaxException | IOException e) {
             throw new RuntimeException("Failed to locate test project: " + projectName, e);
         }
+    }
+
+    /**
+     * Copies mvnw and .mvn/wrapper/maven-wrapper.properties from the root project into
+     * the test project directory if they are not already present. The root project is
+     * located by walking up the directory tree until a directory containing mvnw is found.
+     */
+    private static void ensureMavenWrapper(Path projectDir) throws IOException {
+        Path root = findRootWithFile(projectDir, "mvnw");
+        if (root == null) {
+            return; // nothing to copy; execute() will fail with a clear message
+        }
+
+        Path mvnw = projectDir.resolve("mvnw");
+        if (!Files.exists(mvnw)) {
+            Files.copy(root.resolve("mvnw"), mvnw,
+                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        mvnw.toFile().setExecutable(true);
+
+        Path wrapperProps = projectDir.resolve(".mvn/wrapper/maven-wrapper.properties");
+        if (!Files.exists(wrapperProps)) {
+            Path rootProps = root.resolve(".mvn/wrapper/maven-wrapper.properties");
+            if (Files.exists(rootProps)) {
+                Files.createDirectories(wrapperProps.getParent());
+                Files.copy(rootProps, wrapperProps,
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+        }
+    }
+
+    /**
+     * Walks up the directory tree from dir to find an ancestor that contains the given
+     * relative path. Returns null if no such ancestor is found.
+     */
+    private static Path findRootWithFile(Path dir, String relativePath) {
+        Path current = dir.getParent();
+        while (current != null) {
+            if (Files.exists(current.resolve(relativePath))) {
+                return current;
+            }
+            current = current.getParent();
+        }
+        return null;
     }
 
     /**
@@ -130,22 +173,9 @@ public class MavenBuild {
         int exitCode = process.exitValue();
         String outputStr = output.toString();
 
-        // Extract JSON from console output (look for { to end of JSON)
-        String summaryJson = extractJsonFromOutput(outputStr);
+        String summaryJson = BuildResult.extractJsonFromOutput(outputStr);
 
         return new BuildResult(outputStr, summaryJson, exitCode, projectDir.resolve("target"));
-    }
-
-    /**
-     * Extracts JSON from build output by finding the first { and last }.
-     */
-    private static String extractJsonFromOutput(String output) {
-        int start = output.indexOf('{');
-        int end = output.lastIndexOf('}');
-        if (start >= 0 && end > start) {
-            return output.substring(start, end + 1);
-        }
-        return null;
     }
 
     /**

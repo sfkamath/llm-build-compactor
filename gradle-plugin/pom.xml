@@ -37,9 +37,9 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
-                <version>3.5.0</version>
+                <version>3.6.3</version>
                 <executions>
-                    <!-- Ensure gradlew is executable -->
+                    <!-- Ensure all wrapper scripts are executable -->
                     <execution>
                         <id>chmod-gradlew</id>
                         <phase>validate</phase>
@@ -52,6 +52,9 @@
                             <arguments>
                                 <argument>+x</argument>
                                 <argument>./gradlew</argument>
+                                <argument>./gradlew-smart</argument>
+                                <argument>./gradlew-java8</argument>
+                                <argument>./gradlew-java11</argument>
                             </arguments>
                         </configuration>
                     </execution>
@@ -63,7 +66,7 @@
                             <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <executable>../gradlew</executable>
+                            <executable>../gradlew-smart</executable>
                             <workingDirectory>${project.basedir}</workingDirectory>
                             <arguments>
                                 <argument>build</argument>
@@ -79,7 +82,7 @@
                             <goal>exec</goal>
                         </goals>
                         <configuration>
-                            <executable>../gradlew</executable>
+                            <executable>../gradlew-smart</executable>
                             <workingDirectory>${project.basedir}</workingDirectory>
                             <arguments>
                                 <argument>publishToMavenLocal</argument>

@@ -117,6 +117,18 @@ public class BuildResult {
     }
 
     /**
+     * Extracts JSON from build output by finding the first { and last }.
+     */
+    public static String extractJsonFromOutput(String output) {
+        int start = output.indexOf('{');
+        int end = output.lastIndexOf('}');
+        if (start >= 0 && end > start) {
+            return output.substring(start, end + 1);
+        }
+        return null;
+    }
+
+    /**
      * Returns true if the build succeeded (exit code 0).
      */
     public boolean isSuccess() {
