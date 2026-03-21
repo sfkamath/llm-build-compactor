@@ -444,6 +444,23 @@
                 </plugins>
             </build>
         </profile>
+        <!-- Enforce Java 8 API compatibility when compiling on Java 9+.
+             source/target=1.8 only restricts syntax; the compiler still resolves symbols
+             against the current JDK's classes, so Java 11+ APIs like Files.readString and
+             String.repeat compile fine on Java 17 but fail on the Java 8 CI job.
+             Setting maven.compiler.release=8 adds the "release" flag which locks the
+             visible API surface to what Java 8 actually ships - catching incompatible API
+             calls as local compile errors instead of CI surprises.
+             Java 8 does not support the release flag, so this profile activates on JDK 9+. -->
+        <profile>
+            <id>java8-api-check</id>
+            <activation>
+                <jdk>[9,)</jdk>
+            </activation>
+            <properties>
+                <maven.compiler.release>8</maven.compiler.release>
+            </properties>
+        </profile>
     </profiles>
 
 </project>
