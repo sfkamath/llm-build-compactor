@@ -71,11 +71,11 @@ jobs:
 
   publish:
     name: Publish to GitHub Packages
-    needs: build
+    needs: [build, integration-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -93,24 +93,33 @@ jobs:
           restore-keys: |
             maven-${{ runner.os }}-
 
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: ''
+
       - name: Setup Maven settings.xml
         uses: whelk-io/maven-settings-xml-action@v22
         with:
           servers: '[{ "id": "github", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}" }]'
 
       - name: Publish Maven modules to GitHub Packages
-        run: ./mvnw deploy -Pgithub -DskipTests -ntp --quiet
+        run: ./mvnw deploy -Pgithub -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet
 
       - name: Install core for Gradle plugin build
-        run: ./mvnw install -pl core -am -DskipTests -ntp --quiet
+        run: ./mvnw install -pl core -am -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet
 
       - name: Publish Gradle plugin to GitHub Packages
         run: |
-          VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout -ntp)
-          cd gradle-plugin && ../gradlew-smart publishAllPublicationsToGithubRepository -PpluginVersion=$VERSION --no-daemon -q --console=plain
+          cd gradle-plugin && ../gradlew-smart publishAllPublicationsToGithubRepository -PpluginVersion=${{ steps.tag_version.outputs.new_tag }} --no-daemon -q --console=plain
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    outputs:
+      version: ${{ steps.tag_version.outputs.new_tag }}
 
   # publish-maven-central:
   #   name: Publish to Maven Central
