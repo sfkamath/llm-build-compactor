@@ -299,6 +299,7 @@
                         <configuration>
                             <failBuildOnCVSS>7.0</failBuildOnCVSS>
                             <dataDirectory>${user.home}/.m2/dependency-check-data</dataDirectory>
+                            <nvdApiKey>${nvd.api.key}</nvdApiKey>
                             <skip>${dependency-check.skip}</skip>
                         </configuration>
                     </plugin>
