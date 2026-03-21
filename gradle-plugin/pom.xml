@@ -69,6 +69,7 @@
                             <executable>../gradlew-smart</executable>
                             <workingDirectory>${project.basedir}</workingDirectory>
                             <arguments>
+                                <argument>-PpluginVersion=${project.version}</argument>
                                 <argument>build</argument>
                                 <argument>-Dorg.gradle.daemon=false</argument>
                             </arguments>
@@ -85,10 +86,51 @@
                             <executable>../gradlew-smart</executable>
                             <workingDirectory>${project.basedir}</workingDirectory>
                             <arguments>
+                                <argument>-PpluginVersion=${project.version}</argument>
                                 <argument>publishToMavenLocal</argument>
                                 <argument>-Dorg.gradle.daemon=false</argument>
                                 <argument>-q</argument>
                             </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Install core to local Maven repo so the Gradle subprocess can resolve it.
+                 Gradle runs as an external process and cannot see the Maven reactor. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+                <version>3.1.4</version>
+                <executions>
+                    <!-- Parent POM must be installed first; core's flattened POM still
+                         declares it as <parent>, so Gradle needs to resolve it too -->
+                    <execution>
+                        <id>install-parent-for-gradle</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>install-file</goal>
+                        </goals>
+                        <configuration>
+                            <file>${project.basedir}/../.flattened-pom.xml</file>
+                            <groupId>io.llmcompactor</groupId>
+                            <artifactId>llm-build-compactor</artifactId>
+                            <version>${project.version}</version>
+                            <packaging>pom</packaging>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>install-core-for-gradle</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>install-file</goal>
+                        </goals>
+                        <configuration>
+                            <file>${project.basedir}/../core/target/core-${project.version}.jar</file>
+                            <pomFile>${project.basedir}/../core/.flattened-pom.xml</pomFile>
+                            <groupId>io.llmcompactor</groupId>
+                            <artifactId>core</artifactId>
+                            <version>${project.version}</version>
+                            <packaging>jar</packaging>
                         </configuration>
                     </execution>
                 </executions>

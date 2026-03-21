@@ -24,21 +24,48 @@ Maven works across all Java versions with a single wrapper: `./mvnw`
 
 ---
 
+## Version Management
+
+The project uses a single version defined in `pom.xml`:
+
+```xml
+<revision>0.1.3-SNAPSHOT</revision>
+```
+
+- All Maven modules inherit this via `${revision}` / `${project.version}`
+- The flatten plugin (`resolveCiFriendliesOnly`) resolves `${revision}` into `.flattened-pom.xml` at build time
+- The Gradle plugin receives the version from Maven via `-PpluginVersion=${project.version}` — `gradle.properties` does **not** carry a version
+- At CI release time, the version is overridden: `mvn deploy -Drevision=<new_tag>`
+- The `pom.xml` revision value is a **local dev default only**; CI bumps the actual version at deploy time
+
+### Why Gradle needs install-file
+
+`gradle-plugin` wraps a Gradle build via `exec-maven-plugin`. Gradle runs as an **external subprocess** and cannot see the Maven reactor — it must resolve `core:${version}` from a repository (`mavenCentral()` or `mavenLocal()`). The `gradle-plugin/pom.xml` therefore runs two `install-file` executions at `process-resources` before Gradle builds:
+
+1. The root POM — because `core`'s flattened POM still has `<parent>`, so Gradle fetches it too
+2. The `core` JAR + its flattened POM
+
+### Standalone test-project versioning
+
+`test-project/.mvn/extensions.xml` uses a **hardcoded** version (e.g. `0.1.3`) because that file is loaded by Maven before the build lifecycle — property resolution and resource filtering don't apply. Update it manually when bumping the version for local testing. CI uses the published release version.
+
+---
+
 ## Building the Project
 
-### Quick Build (Your Current Java Version)
+### Standard Build
 
 ```bash
-# Maven (all modules)
-./mvnw clean install
-
-# Gradle plugin only (Java 17+)
-cd gradle-plugin && ../gradlew clean build
+./mvnw clean verify
 ```
+
+Works on a clean machine with an empty local repo. The `gradle-plugin` module
+installs `core` and the root POM to local repo before invoking Gradle, so no
+prior `mvn install` is required.
 
 ### Build with Quality Checks
 
-Runs SpotBugs and other quality gates (Java 21+ recommended):
+Runs SpotBugs, Spotless, Modernizer, and JaCoCo coverage gates (Java 21+ recommended):
 
 ```bash
 ./mvnw clean verify -Pquality
@@ -47,62 +74,88 @@ Runs SpotBugs and other quality gates (Java 21+ recommended):
 ### Build for Specific Java Version
 
 ```bash
-# Using jenv or similar tool
 export JAVA_HOME=~/.jenv/versions/1.8.0.351
-./mvnw clean install
-
-# Or use the test script (see below)
-./scripts/test-all-java-versions.sh
+./mvnw clean verify
 ```
 
 ---
 
 ## Testing
 
-### Test Projects
+### Unit Tests
 
-Two test projects verify plugin behavior:
+Run as part of the standard build:
+
+```bash
+./mvnw clean verify
+```
+
+### Integration Tests
+
+Integration tests live in `integration-tests/` and are **not** part of the default
+reactor. They are activated via the `integration-tests` profile:
+
+```bash
+# Build all modules first (JARs must exist in target/ before integration tests run)
+./mvnw install -DskipTests
+./mvnw verify -Pintegration-tests
+```
+
+The `integration-tests` module is **self-contained**: its `pom.xml` runs `install-file`
+executions at `process-test-resources` to install the root POM, `core`,
+`llm-compactor-maven-plugin`, and `maven-extension` into `~/.m2` before any test
+subprocess launches.
+
+Resource filtering substitutes `@project.version@` into the test projects at
+`process-test-resources` time, ensuring tests always run against the locally-built version.
+Only `@...@` delimiters are used — **never `${...}`** — to avoid Maven expanding expressions
+with the integration-tests module's own properties (see Troubleshooting below).
+
+### Test Projects
 
 | Project | Build Tool | Purpose |
 |---------|------------|---------|
-| `test-project/` | Maven | Tests Surefire/Failsafe parsing, stack traces, Lombok |
-| `test-project-gradle/` | Gradle | Tests Gradle plugin integration |
+| `test-project/` | Maven | Standalone; tests Surefire/Failsafe parsing, stack traces, Lombok |
+| `integration-tests/src/test/resources/test-projects/maven-test-project/` | Maven | Filtered copy used by integration tests |
+| `integration-tests/src/test/resources/test-projects/gradle-test-project/` | Gradle | Filtered copy used by integration tests |
 
-**Important:** These projects contain **intentional test failures** to verify the compactor correctly parses errors:
+**Important:** These projects contain **intentional test failures** to verify the compactor
+correctly parses errors:
 
-- `OrderServiceTest.java` - AssertionError (wrong expected value)
-- `StackTraceTest.java` - NullPointerException, IllegalStateException, etc.
-- `PaymentIT.java` - AssertionError (wrong refund amount)
-- `OrderProcessorIT.java` - AssertionError (wrong total)
-
-### Running Test Projects
+- `OrderServiceTest.java` — AssertionError (wrong expected value)
+- `StackTraceTest.java` — NullPointerException, IllegalStateException, etc.
+- `PaymentIT.java` — AssertionError (wrong refund amount)
+- `OrderProcessorIT.java` — AssertionError (wrong total)
 
 ```bash
-# Maven test project
-cd test-project
-mvn clean verify
-
-# View output
+cd test-project && mvn clean verify
 cat target/llm-summary.json
-
-# Gradle test project (Java 17+)
-cd test-project-gradle
-../gradlew-smart clean test
 ```
 
-### Test Scripts
+---
 
-| Script | Purpose | Duration |
-|--------|---------|----------|
-| `scripts/test-quick.sh` | Runs all tests on Java 8, 11, 17, 21, 25 | ~10 min |
-| `scripts/test-comprehensive.sh` | Full matrix + test projects | ~20 min |
-| `scripts/test-all-java-versions.sh` | Legacy comprehensive test | ~20 min |
+## Module Structure
 
-**Recommended:** Use `test-quick.sh` for local development.
-
-```bash
-./scripts/test-quick.sh
 ```
+llm-build-compactor/
+├── pom.xml                        # Parent POM; version=${revision}
+├── gradle.properties              # Gradle wrapper config only (no version)
+├── core/                          # Core parsing/compaction logic (Java 8+)
+├── maven-extension/               # Maven extension for build silence (Java 8+)
+├── llm-compactor-maven-plugin/    # Maven Mojo (Java 8+)
+├── gradle-plugin/                 # Gradle plugin (Java 17+); wraps Gradle build via Maven
+├── integration-tests/             # Integration tests (not in default reactor; -Pintegration-tests)
+└── test-project/                  # Standalone Maven test project with intentional failures
+```
+
+### Key Design Decisions
+
+1. **Core is Java 8:** Maximum compatibility for parsing logic
+2. **Gradle plugin is Java 17+:** Modern Gradle API requires it
+3. **Maven components are Java 8:** Maven 3.8+ supports Java 8
+4. **Test projects have failing tests:** Intentional — verifies error parsing
+5. **Gradle gets version from Maven:** `gradle-plugin/pom.xml` passes `-PpluginVersion=${project.version}`; `gradle.properties` no longer carries a version to avoid drift
+6. **Integration test resources use `@...@` tokens only:** Prevents Maven resource filtering from expanding `${project.build.directory}` and similar properties with the parent module's values
 
 ---
 
@@ -111,8 +164,9 @@ cd test-project-gradle
 GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR:
 
 - **Build matrix:** Java 8, 11, 17, 21, 25
-- **Quality checks:** SpotBugs on Java 21
-- **Publish:** Automatic to Maven Central + Gradle Plugin Portal (on main branch merge)
+- **Quality checks:** SpotBugs, Spotless, Modernizer, JaCoCo on Java 21
+- **Integration tests:** Java 17 job after the build matrix
+- **Publish:** Automatic to GitHub Packages on main branch merge
 
 ### Version Bumping
 
@@ -124,29 +178,8 @@ Versions follow [Conventional Commits](https://www.conventionalcommits.org/):
 | `feat:` | Minor | 0.1.1 → 0.2.0 |
 | `BREAKING CHANGE` in body | Major | 0.1.1 → 1.0.0 |
 
-CI automatically bumps versions on merge to main. See [`RELEASE-GUIDE.md`](RELEASE-GUIDE.md) for details.
-
----
-
-## Module Structure
-
-```
-llm-build-compactor/
-├── core/                          # Core parsing/compaction logic (Java 8+)
-├── maven-extension/               # Maven extension for build silence (Java 8+)
-├── llm-compactor-maven-plugin/    # Maven Mojo (Java 8+)
-├── gradle-plugin/                 # Gradle plugin (Java 17+ for Gradle API)
-├── test-project/                  # Maven test project with intentional failures
-├── test-project-gradle/           # Gradle test project
-└── scripts/                       # Test automation scripts
-```
-
-### Key Design Decisions
-
-1. **Core is Java 8:** Maximum compatibility for parsing logic
-2. **Gradle plugin is Java 17+:** Modern Gradle API requires it
-3. **Maven components are Java 8:** Maven 3.8+ supports Java 8
-4. **Test projects have failing tests:** Intentional - verifies error parsing
+CI bumps the version via `mathieudutour/github-tag-action` and passes it to Maven
+as `-Drevision=<new_tag>`. The `pom.xml` revision value is a local dev default only.
 
 ---
 
@@ -159,31 +192,20 @@ llm-build-compactor/
 3. Add property to Gradle Extension
 4. Add to Maven Extension (`boolProp` calls)
 5. Update README table
-6. Update this guide if Java version requirements change
 
 ### Debug Plugin Behavior
 
 ```bash
-# Enable debug logging
-mvn clean verify -X | tee build.log
+# Maven verbose
+./mvnw clean verify -X 2>&1 | tee build.log
 
-# Or for Gradle
-gradlew clean test --debug
+# Gradle verbose
+cd gradle-plugin && ../gradlew-smart clean build --info -PpluginVersion=0.1.3-SNAPSHOT
 ```
-
-### Test Java 8 Compatibility
-
-```bash
-export JAVA_HOME=~/.jenv/versions/1.8.0.351
-./mvnw clean install
-```
-
-Ensure no Java 11+ APIs are used (e.g., `List.of()`, `var`, text blocks).
 
 ### Run SpotBugs Locally
 
 ```bash
-# Java 21+
 ./mvnw spotbugs:check -Pquality
 ```
 
@@ -191,22 +213,22 @@ Ensure no Java 11+ APIs are used (e.g., `List.of()`, `var`, text blocks).
 
 ## Troubleshooting
 
+### gradle-plugin fails with "Could not find io.llmcompactor:core"
+
+This should not happen with the current setup — `gradle-plugin/pom.xml` installs
+`core` and the root POM to `~/.m2` before invoking Gradle. If it does occur:
+
+1. Confirm you are running `./mvnw` from the project root (not inside `gradle-plugin/`)
+2. Run with `-pl core,gradle-plugin -am` to isolate the two modules
+
 ### "Unsupported class file major version"
 
 You're running Gradle with an incompatible Java version. Use the correct wrapper:
 
 ```bash
-# Java 8
-./gradlew-java8 clean build
-
-# Java 11
-./gradlew-java11 clean build
-
-# Java 17+
-./gradlew clean build
-
-# Or let it auto-detect
-./gradlew-smart clean build
+./gradlew-java8 clean build    # Java 8
+./gradlew-java11 clean build   # Java 11
+./gradlew-smart clean build    # auto-detect
 ```
 
 ### Test Project Shows 0 Failures
@@ -214,28 +236,21 @@ You're running Gradle with an incompatible Java version. Use the correct wrapper
 The compactor might be disabled. Check:
 
 ```bash
-mvn clean verify -DllmCompactor.enabled=false  # Should show raw Maven output
-mvn clean verify                               # Should show compactor summary
+mvn clean verify -DllmCompactor.enabled=false  # raw Maven output
+mvn clean verify                               # compactor summary
 ```
 
-### Gradle Plugin Not Appearing
+### Integration tests show testsRun=0
 
-Ensure you're running from the `gradle-plugin` directory or have applied it correctly:
+This usually means the surefire/failsafe XML reports weren't written to the expected
+location. The most common cause: a `${project.build.directory}` expression in a
+test-project `pom.xml` was expanded by Maven's resource filter (running in the context
+of `integration-tests`) to `integration-tests/target` rather than the subprocess
+project's own `target/`. Always use literal relative paths like `target/surefire-reports`
+in test-project pom.xml files — never `${project.build.directory}`.
 
-```kotlin
-// build.gradle.kts
-plugins {
-    id("io.llmcompactor.gradle") version "0.1.3"
-}
-```
+### "Could not find io.llmcompactor:gradle-plugin:@project.version@"
 
----
-
-## Contributing
-
-1. Create a feature branch
-2. Make changes (follow existing code style)
-3. Run `./scripts/test-quick.sh` to verify all Java versions
-4. Submit PR
-
-CI will run full validation on PR creation.
+The `build.gradle` token was not substituted. Confirm that `**/build.gradle` is listed
+in the filtered includes in `integration-tests/pom.xml`, and re-run
+`./mvnw -pl integration-tests process-test-resources` to regenerate filtered resources.

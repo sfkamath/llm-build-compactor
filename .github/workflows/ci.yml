@@ -31,15 +31,6 @@ jobs:
           restore-keys: |
             maven-${{ runner.os }}-
 
-      - name: Check version sync
-        run: |
-          pom_version=$(grep -m1 '<revision>' pom.xml | sed 's/.*<revision>\(.*\)<\/revision>.*/\1/')
-          gradle_version=$(grep '^pluginVersion=' gradle.properties | cut -d= -f2)
-          if [ "$pom_version" != "$gradle_version" ]; then
-            echo "Version mismatch: pom.xml revision=$pom_version, gradle.properties pluginVersion=$gradle_version"
-            exit 1
-          fi
-
       - name: Build with Maven
         run: |
           if [ "${{ matrix.java }}" = "21" ]; then
@@ -114,7 +105,9 @@ jobs:
         run: ./mvnw install -pl core -am -DskipTests -ntp --quiet
 
       - name: Publish Gradle plugin to GitHub Packages
-        run: cd gradle-plugin && ../gradlew-smart publishAllPublicationsToGithubRepository --no-daemon -q --console=plain
+        run: |
+          VERSION=$(./mvnw help:evaluate -Dexpression=project.version -q -DforceStdout -ntp)
+          cd gradle-plugin && ../gradlew-smart publishAllPublicationsToGithubRepository -PpluginVersion=$VERSION --no-daemon -q --console=plain
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
