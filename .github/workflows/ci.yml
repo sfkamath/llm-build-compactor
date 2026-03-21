@@ -43,7 +43,7 @@ jobs:
       - name: Build with Maven
         run: |
           if [ "${{ matrix.java }}" = "21" ]; then
-            mvn clean install -Pquality
+            mvn clean install -Pquality -Dnvd.api.key=${{ secrets.NVD_API_KEY }}
           else
             mvn clean install
           fi
