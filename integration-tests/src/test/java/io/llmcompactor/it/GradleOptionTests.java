@@ -16,6 +16,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GradleOptionTests {
 
     @Nested
+    @DisplayName("Enabled Toggle")
+    class EnabledToggleTests {
+
+        @Test
+        @DisplayName("enabled=false produces no compactor summary")
+        void testDisabled() throws Exception {
+            BuildResult result = GradleBuild.inProject("gradle-test-project")
+                .withTask("test")
+                .withProperty("llmCompactor.enabled", "false")
+                .execute();
+
+            assertThat(result.summaryJson()).isNull();
+            assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
+        }
+    }
+
+    @Nested
     @DisplayName("Output Format")
     class OutputFormatTests {
 
@@ -138,6 +155,22 @@ class GradleOptionTests {
             BuildResult result = GradleBuild.inProject("gradle-test-project")
                 .withTask("test")
                 .withProperty("llmCompactor.showFailedTestLogs", "true")
+                .execute();
+
+            JsonNode tree = result.summaryTree();
+            assertThat(tree).isNotNull();
+            // The test project has intentionally failing tests, so testLogs must be present
+            assertThat(tree.has("testLogs")).isTrue();
+            assertThat(tree.get("testLogs").isArray()).isTrue();
+            assertThat(tree.get("testLogs").size()).isGreaterThan(0);
+        }
+
+        @Test
+        @DisplayName("showSlowTests=false omits duration from output")
+        void testNoSlowTests() throws Exception {
+            BuildResult result = GradleBuild.inProject("gradle-test-project")
+                .withTask("test")
+                .withProperty("llmCompactor.showSlowTests", "false")
                 .execute();
 
             assertThat(result.summaryJson()).isNotNull();
