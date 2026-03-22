@@ -192,9 +192,9 @@ GitHub Actions runs on every push/PR to main:
 - **Quality checks:** SpotBugs, Spotless, Modernizer, JaCoCo on Java 21
 - **Integration tests** (`ci.yml`): Java 17 job after the build matrix
 - **Smoke tests** (`ci.yml`): Java 17 job after the build matrix; runs `./mvnw install -Psmoke-tests`
-- **Publish to GitHub Packages** (`publish-github-packages.yml`): fires on CI success; currently active
-- **Publish to Maven Central** (`publish-maven-central.yml`): disabled (`if: false`); flip to enable
-- **Publish to Gradle Plugin Portal** (`publish-gradle-portal.yml`): disabled (`if: false`); chains off Maven Central publish
+- **Publish to Maven Central** (`publish-maven-central.yml`): fires on CI success
+- **Publish to Gradle Plugin Portal** (`publish-gradle-portal.yml`): fires on Maven Central publish success
+- **Publish to GitHub Packages** (`publish-github-packages.yml`): disabled (`if: false`)
 
 ### Version Bumping
 
