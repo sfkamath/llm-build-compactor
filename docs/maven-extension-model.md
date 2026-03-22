@@ -18,7 +18,7 @@ Initially, we attempted to package the extension inside the Maven Plugin and ena
 <plugin>
     <groupId>io.github.sfkamath</groupId>
     <artifactId>llm-build-compactor-maven-plugin</artifactId>
-    <version>0.0.2</version>
+    <version>0.1.0</version>
     <extensions>true</extensions>
 </plugin>
 ```
@@ -48,7 +48,7 @@ Build Extensions are loaded into a classloader that is a child of the project cl
 Since manually creating `.mvn/extensions.xml` is tedious and error-prone, we implemented the `install` goal:
 
 ```bash
-mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.0.2:install
+mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.1.0:install
 ```
 
 ### How it works:
