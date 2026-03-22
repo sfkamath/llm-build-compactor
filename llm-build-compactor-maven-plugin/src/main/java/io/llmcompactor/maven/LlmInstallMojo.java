@@ -21,9 +21,11 @@ package io.llmcompactor.maven;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Properties;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
@@ -40,13 +42,11 @@ public class LlmInstallMojo extends AbstractMojo {
   @Parameter(defaultValue = "${project}", readonly = true)
   private MavenProject project;
 
-  @Parameter(property = "llmCompactor.version", defaultValue = "${project.version}")
-  private String version;
-
   public void execute() throws MojoExecutionException {
     if (!project.isExecutionRoot()) {
       return;
     }
+    String version = loadPluginVersion();
     Path mvnDir = basedir.toPath().resolve(".mvn");
     Path extensionsXml = mvnDir.resolve("extensions.xml");
 
@@ -71,6 +71,27 @@ public class LlmInstallMojo extends AbstractMojo {
 
     } catch (IOException e) {
       throw new MojoExecutionException("Failed to install extension: " + e.getMessage(), e);
+    }
+  }
+
+  private String loadPluginVersion() throws MojoExecutionException {
+    try (InputStream is =
+        getClass().getResourceAsStream("/llm-compactor-plugin.properties")) {
+      if (is == null) {
+        throw new MojoExecutionException(
+            "Cannot determine plugin version: llm-compactor-plugin.properties not found in JAR");
+      }
+      Properties props = new Properties();
+      props.load(is);
+      String v = props.getProperty("version");
+      if (v == null || v.isEmpty()) {
+        throw new MojoExecutionException(
+            "Cannot determine plugin version: 'version' key missing in llm-compactor-plugin.properties");
+      }
+      return v;
+    } catch (IOException e) {
+      throw new MojoExecutionException(
+          "Failed to read plugin version: " + e.getMessage(), e);
     }
   }
 }
