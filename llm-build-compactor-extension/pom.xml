@@ -11,6 +11,7 @@
     </parent>
 
     <artifactId>llm-build-compactor-extension</artifactId>
+    <name>LLM Build Compactor :: Maven Extension</name>
     <packaging>jar</packaging>
 
     <dependencies>
