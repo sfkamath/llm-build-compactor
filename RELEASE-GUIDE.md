@@ -17,8 +17,15 @@
 
 ### 1. Update versions in docs
 
-Version references in docs must be updated manually after each release to match the published version:
+Determine the version this PR will produce from the commit prefix, then update all doc examples to that version before raising the PR:
 
+| Commit prefix | Version bump | Example (current 0.2.0) |
+|---------------|-------------|------------------------|
+| `fix:` | patch | → 0.2.1 |
+| `feat:` | minor | → 0.3.0 |
+| `BREAKING CHANGE` in body | major | → 1.0.0 |
+
+Files to update:
 - `README.md` — all hardcoded version examples (Quick Start, plugin declaration snippets)
 - `docs/maven-extension-model.md` — version references
 
