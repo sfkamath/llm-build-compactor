@@ -55,11 +55,6 @@ def generatePluginProperties = tasks.register('generatePluginProperties') {
 sourceSets.main.resources.srcDir(generatePluginProperties)
 
 publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifactId = 'llm-build-compactor-gradle-plugin'
-        }
-    }
     repositories {
         maven {
             url = uri('file://' + System.getProperty('user.home') + '/.m2/repository')
