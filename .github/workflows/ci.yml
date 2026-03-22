@@ -112,7 +112,7 @@ jobs:
 
       - name: Deploy to Maven Central
         run: |
-          ./mvnw deploy -Possrh -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }} -ntp
+          ./mvnw deploy -Possrh -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
