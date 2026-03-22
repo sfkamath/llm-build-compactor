@@ -11,6 +11,7 @@
     </parent>
 
     <artifactId>llm-build-compactor-maven-plugin</artifactId>
+    <name>LLM Build Compactor :: Maven Plugin</name>
     <packaging>maven-plugin</packaging>
 
     <dependencies>
