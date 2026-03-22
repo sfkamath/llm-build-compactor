@@ -11,6 +11,32 @@
     <version>${revision}</version>
     <packaging>pom</packaging>
 
+    <name>LLM Build Compactor</name>
+    <description>Compact Maven and Gradle build output into structured diagnostics for LLM-assisted repair.</description>
+    <url>https://github.com/sfkamath/llm-build-compactor</url>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>http://www.opensource.org/licenses/mit-license.php</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Suneet Kamath</name>
+            <email>suneetkamath@hotmail.com</email>
+            <organization>sfkamath</organization>
+            <organizationUrl>https://github.com/sfkamath</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/sfkamath/llm-build-compactor.git</connection>
+        <developerConnection>scm:git:ssh://github.com:sfkamath/llm-build-compactor.git</developerConnection>
+        <url>https://github.com/sfkamath/llm-build-compactor/tree/main</url>
+    </scm>
+
     <properties>
         <revision>0.0.1-SNAPSHOT</revision>
         <maven.compiler.source>1.8</maven.compiler.source>
