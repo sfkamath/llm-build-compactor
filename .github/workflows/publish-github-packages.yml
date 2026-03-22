@@ -9,7 +9,7 @@ on:
 jobs:
   publish:
     name: Publish to GitHub Packages
-    if: github.event.workflow_run.conclusion == 'success'
+    if: false  # disabled: superseded by Maven Central and Gradle Plugin Portal
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -15,17 +15,21 @@
 
 ## Pre-Release Checklist (on the release branch)
 
-### 1. Update versions in docs and build files
+### 1. Update versions in docs
 
-Versions in docs and build files are set manually to match the upcoming release:
+Determine the version this PR will produce from the commit prefix, then update all doc examples to that version before raising the PR:
 
-- `README.md` — all version references in Quick Start and Workflow examples
+| Commit prefix | Version bump | Example (current 0.2.0) |
+|---------------|-------------|------------------------|
+| `fix:` | patch | → 0.2.1 |
+| `feat:` | minor | → 0.3.0 |
+| `BREAKING CHANGE` in body | major | → 1.0.0 |
+
+Files to update:
+- `README.md` — all hardcoded version examples (Quick Start, plugin declaration snippets)
 - `docs/maven-extension-model.md` — version references
-- `docs/development-guide.md` — version examples
-- `gradle.properties` — `pluginVersion` value
-- `pom.xml` — `<version>` default value
 
-> **Note:** Version references in docs can drift out of sync between releases. Always check the Maven Central and Gradle Plugin Portal badges in the README for the true latest published version.
+> **Note:** `pom.xml` `<revision>` and `gradle.properties` `pluginVersion` are **local dev defaults only** — do not update these for a release. CI manages the actual version via tag.
 
 ### 2. Verify builds
 
@@ -78,52 +82,30 @@ After merge, CI will:
 
 ## Checklist: Flip Publishing from GitHub Packages → Maven Central + Gradle Portal
 
-> Currently publishing to GitHub Packages for validation. Complete every item below before flipping.
+> **Status:** Flip PR raised (`feature/flip-to-maven-central`). Publishing now targets Maven Central and Gradle Plugin Portal.
 
-### Prerequisites
+### Prerequisites (all complete ✓)
 
-- [ ] `feature/validate-publish` merged to main and CI green
-- [ ] GitHub Packages publish fired and a new version landed (check Actions tab)
-- [ ] Install mojo end-to-end test passed:
-  ```bash
-  cd test-project-maven
-  mvn llm-compactor:install        # extensions.xml must contain the plugin version, not 1.0.0-SNAPSHOT
-  cat .mvn/extensions.xml          # verify version matches published version
-  mvn test                         # must run without resolution errors
-  ```
-- [ ] Gradle plugin end-to-end test passed:
-  ```bash
-  cd test-project-gradle
-  GITHUB_ACTOR=$(gh api user --jq .login) GITHUB_TOKEN=$(gh auth token) \
-    ../gradlew-smart test -PusePublished -PpluginVersion=<published_version>
-  ```
-- [ ] Smoke tests CI job green: `./mvnw install -Psmoke-tests`
+- [x] `feature/validate-publish` merged to main and CI green
+- [x] GitHub Packages publish fired and version `0.2.0` landed
+- [x] Install mojo end-to-end test passed — `extensions.xml` correctly written with plugin version (not consuming project version)
+- [x] Gradle plugin end-to-end test passed at `0.2.0` from GitHub Packages
+- [x] Smoke tests CI job green: `./mvnw install -Psmoke-tests`
 
-### Secrets (verify all are set in GitHub repo settings)
+### Secrets (all set ✓)
 
-- [ ] `GPG_PRIVATE_KEY` — re-export if in doubt: `gpg --armor --export-secret-keys <KEY_ID> | gh secret set GPG_PRIVATE_KEY`
-- [ ] `GPG_PASSPHRASE` — must be empty string `""` if key has no passphrase (not absent — set to empty)
-- [ ] `CENTRAL_USERNAME` — Sonatype Central portal token username
-- [ ] `CENTRAL_PASSWORD` — Sonatype Central portal token password
-- [ ] `GRADLE_PUBLISH_KEY` — from plugins.gradle.org
-- [ ] `GRADLE_PUBLISH_SECRET` — from plugins.gradle.org
+- [x] `GPG_PRIVATE_KEY`
+- [x] `GPG_PASSPHRASE` — empty string (key has no passphrase)
+- [x] `CENTRAL_USERNAME`
+- [x] `CENTRAL_PASSWORD`
+- [x] `GRADLE_PUBLISH_KEY`
+- [x] `GRADLE_PUBLISH_SECRET`
 
-### The flip (one PR, three one-line changes)
+### The flip (done in `feature/flip-to-maven-central`)
 
-In `publish-maven-central.yml`:
-```yaml
-if: github.event.workflow_run.conclusion == 'success'   # was: if: false
-```
-
-In `publish-gradle-portal.yml`:
-```yaml
-if: github.event.workflow_run.conclusion == 'success'   # was: if: false
-```
-
-In `publish-github-packages.yml`:
-```yaml
-if: false   # was: if: github.event.workflow_run.conclusion == 'success'
-```
+- `publish-maven-central.yml`: `if: false` → `if: github.event.workflow_run.conclusion == 'success'`
+- `publish-gradle-portal.yml`: `if: false` → `if: github.event.workflow_run.conclusion == 'success'`
+- `publish-github-packages.yml`: `if: github.event.workflow_run.conclusion == 'success'` → `if: false`
 
 ### After merge
 
