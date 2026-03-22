@@ -1,3 +1,26 @@
+pluginManagement {
+    def publishedVersion = providers.gradleProperty('pluginVersion').getOrElse('unspecified')
+    plugins {
+        id 'io.github.sfkamath.llm-build-compactor' version "${publishedVersion}"
+    }
+    repositories {
+        mavenLocal()
+        maven {
+            url = uri('https://maven.pkg.github.com/sfkamath/llm-build-compactor')
+            credentials {
+                username = System.getenv('GITHUB_ACTOR') ?: providers.gradleProperty('gpr.user').getOrNull()
+                password = System.getenv('GITHUB_TOKEN') ?: providers.gradleProperty('gpr.key').getOrNull()
+            }
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
 rootProject.name = 'test-project-gradle'
 
-includeBuild('../gradle-plugin')
+// Default: use local composite build (CI and local dev after mvn install).
+// Pass -PusePublished -PpluginVersion=<version> to resolve from published repos instead.
+if (!providers.gradleProperty('usePublished').isPresent()) {
+    includeBuild('../llm-build-compactor-gradle-plugin')
+}

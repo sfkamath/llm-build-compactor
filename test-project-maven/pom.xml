@@ -13,6 +13,7 @@
     <packaging>jar</packaging>
 
     <properties>
+        <llmCompactor.pluginVersion>0.0.1-SNAPSHOT</llmCompactor.pluginVersion>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -158,7 +159,7 @@
             <plugin>
                 <groupId>io.github.sfkamath</groupId>
                 <artifactId>llm-build-compactor-maven-plugin</artifactId>
-                <version>0.0.1-SNAPSHOT</version>
+                <version>${llmCompactor.pluginVersion}</version>
                 <configuration>
                     <outputAsJson>false</outputAsJson>
                     <compressStackFrames>true</compressStackFrames>

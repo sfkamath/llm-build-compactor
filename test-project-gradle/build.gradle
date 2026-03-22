@@ -1,6 +1,6 @@
 plugins {
     id 'java'
-    id 'io.llmcompactor.gradle'
+    id 'io.github.sfkamath.llm-build-compactor'
 }
 
 group = 'io.llmcompactor'
@@ -16,8 +16,6 @@ repositories {
 }
 
 dependencies {
-    compileOnly 'org.projectlombok:lombok:1.18.30'
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
     implementation 'ch.qos.logback:logback-classic:1.3.16'
 
     testImplementation platform('io.projectreactor:reactor-bom:2023.0.0')
