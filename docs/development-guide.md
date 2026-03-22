@@ -145,7 +145,8 @@ llm-build-compactor/
 ├── llm-build-compactor-maven-plugin/    # Maven Mojo (Java 8+)
 ├── llm-build-compactor-gradle-plugin/   # Gradle plugin (Java 17+); wraps Gradle build via Maven
 ├── integration-tests/                   # Integration tests (not in default reactor; -Pintegration-tests)
-└── test-project-maven/                  # Standalone Maven test project with intentional failures
+├── test-project-maven/                  # Standalone Maven test project with intentional failures
+└── test-project-gradle/                 # Standalone Gradle test project with intentional failures
 ```
 
 ### Key Design Decisions

@@ -222,14 +222,12 @@ llmCompactor {
 
 ```text
 Errors:
-  - OrderServiceTest.java:35
+  - OrderServiceTest.java:41
     Discount calculation failed
-        at OrderServiceTest.testOrderWithDiscount(OrderServiceTest.java:35)
+        at OrderServiceTest.testOrderWithDiscount(OrderServiceTest.java:41)
     Test logs:
-        SLF4J: Testing refund processing
+        SLF4J/Logback: Testing discount calculation
         System.out: Applying 10% discount to order ORD-101
-        System.err: Processing refund for order ORD-102
-        Refund processed successfully
 ```
 
 ### Logging Framework Setup
