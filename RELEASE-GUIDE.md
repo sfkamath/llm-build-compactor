@@ -15,17 +15,14 @@
 
 ## Pre-Release Checklist (on the release branch)
 
-### 1. Update versions in docs and build files
+### 1. Update versions in docs
 
-Versions in docs and build files are set manually to match the upcoming release:
+Version references in docs must be updated manually after each release to match the published version:
 
-- `README.md` — all version references in Quick Start and Workflow examples
+- `README.md` — all hardcoded version examples (Quick Start, plugin declaration snippets)
 - `docs/maven-extension-model.md` — version references
-- `docs/development-guide.md` — version examples
-- `gradle.properties` — `pluginVersion` value
-- `pom.xml` — `<version>` default value
 
-> **Note:** Version references in docs can drift out of sync between releases. Always check the Maven Central and Gradle Plugin Portal badges in the README for the true latest published version.
+> **Note:** `pom.xml` `<revision>` and `gradle.properties` `pluginVersion` are **local dev defaults only** — do not update these for a release. CI manages the actual version via tag.
 
 ### 2. Verify builds
 
