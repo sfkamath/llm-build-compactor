@@ -5,17 +5,24 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class GitDiffExtractor {
 
   public static List<String> changedFiles() {
 
-    List<String> files = new ArrayList<>();
+    // Use a set to deduplicate files touched across recent commits
+    Set<String> seen = new LinkedHashSet<>();
 
     try {
 
-      Process p = new ProcessBuilder("git", "diff", "--name-only", "HEAD").start();
+      // --pretty=format: emits no commit header lines; --name-only lists the files.
+      // -n 10 caps the look-back to the last 10 commits so the list stays concise.
+      Process p =
+          new ProcessBuilder("git", "log", "--name-only", "--pretty=format:", "-n", "10", "HEAD")
+              .start();
 
       try (BufferedReader reader =
           new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
@@ -23,7 +30,10 @@ public final class GitDiffExtractor {
         String line;
 
         while ((line = reader.readLine()) != null) {
-          files.add(line.trim());
+          String trimmed = line.trim();
+          if (!trimmed.isEmpty()) {
+            seen.add(trimmed);
+          }
         }
       }
 
@@ -36,7 +46,7 @@ public final class GitDiffExtractor {
       }
     }
 
-    return files;
+    return new ArrayList<>(seen);
   }
 
   private GitDiffExtractor() {}

@@ -1,0 +1,3 @@
+rootProject.name = 'llm-build-compactor-gradle-plugin'
+include ':core'
+project(':core').projectDir = new File(settingsDir, '../core')

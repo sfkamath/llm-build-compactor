@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="
+         http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.sfkamath</groupId>
+        <artifactId>llm-build-compactor</artifactId>
+        <version>${revision}</version>
+    </parent>
+
+    <artifactId>llm-build-compactor-gradle-plugin</artifactId>
+    <packaging>pom</packaging>
+
+    <dependencies>
+        <!-- Declare dependencies for Maven resolution (actual artifacts published by Gradle) -->
+        <dependency>
+            <groupId>io.github.sfkamath</groupId>
+            <artifactId>core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
+    <repositories>
+        <repository>
+            <id>gradle</id>
+            <url>https://repo.gradle.org/gradle/libs-releases</url>
+        </repository>
+    </repositories>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.6.3</version>
+                <executions>
+                    <!-- Ensure all wrapper scripts are executable -->
+                    <execution>
+                        <id>chmod-gradlew</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>chmod</executable>
+                            <workingDirectory>${project.basedir}/..</workingDirectory>
+                            <arguments>
+                                <argument>+x</argument>
+                                <argument>./gradlew</argument>
+                                <argument>./gradlew-smart</argument>
+                                <argument>./gradlew-java8</argument>
+                                <argument>./gradlew-java11</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!-- Build Gradle plugin during compile phase -->
+                    <execution>
+                        <id>gradle-build</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>../gradlew-smart</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <arguments>
+                                <argument>-PpluginVersion=${project.version}</argument>
+                                <argument>build</argument>
+                                <argument>-Dorg.gradle.daemon=false</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!-- Publish to Maven local before integration tests run -->
+                    <execution>
+                        <id>gradle-publish</id>
+                        <phase>generate-test-resources</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>../gradlew-smart</executable>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <arguments>
+                                <argument>-PpluginVersion=${project.version}</argument>
+                                <argument>publishToMavenLocal</argument>
+                                <argument>-Dorg.gradle.daemon=false</argument>
+                                <argument>-q</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Install core to local Maven repo so the Gradle subprocess can resolve it.
+                 Gradle runs as an external process and cannot see the Maven reactor. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+                <version>3.1.4</version>
+                <executions>
+                    <!-- Parent POM must be installed first; core's flattened POM still
+                         declares it as <parent>, so Gradle needs to resolve it too -->
+                    <execution>
+                        <id>install-parent-for-gradle</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>install-file</goal>
+                        </goals>
+                        <configuration>
+                            <file>${project.basedir}/../.flattened-pom.xml</file>
+                            <groupId>io.github.sfkamath</groupId>
+                            <artifactId>llm-build-compactor</artifactId>
+                            <version>${project.version}</version>
+                            <packaging>pom</packaging>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>install-core-for-gradle</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>install-file</goal>
+                        </goals>
+                        <configuration>
+                            <file>${project.basedir}/../core/target/core-${project.version}.jar</file>
+                            <pomFile>${project.basedir}/../core/.flattened-pom.xml</pomFile>
+                            <groupId>io.github.sfkamath</groupId>
+                            <artifactId>core</artifactId>
+                            <version>${project.version}</version>
+                            <packaging>jar</packaging>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

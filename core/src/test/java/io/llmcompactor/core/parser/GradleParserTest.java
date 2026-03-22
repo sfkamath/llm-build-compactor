@@ -83,9 +83,9 @@ class GradleParserTest {
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);
-    assertThat(error.testLogs()).contains("[system-out]");
+    assertThat(error.testLogs()).contains("[class-level system-out]");
     assertThat(error.testLogs()).contains("INFO: Starting test");
-    assertThat(error.testLogs()).contains("[system-err]");
+    assertThat(error.testLogs()).contains("[class-level system-err]");
     assertThat(error.testLogs()).contains("ERROR: Validation failed");
   }
 

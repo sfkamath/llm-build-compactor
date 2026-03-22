@@ -1,5 +1,6 @@
 package io.llmcompactor.core;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.Objects;
 
 public class FixTarget {
@@ -44,8 +45,7 @@ public class FixTarget {
     return reason;
   }
 
-  @com.fasterxml.jackson.annotation.JsonInclude(
-      com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+  @JsonInclude(JsonInclude.Include.NON_NULL)
   public String getSnippet() {
     return snippet;
   }

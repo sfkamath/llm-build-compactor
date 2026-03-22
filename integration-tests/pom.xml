@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.llmcompactor</groupId>
+        <groupId>io.github.sfkamath</groupId>
         <artifactId>llm-build-compactor</artifactId>
         <version>${revision}</version>
     </parent>
@@ -38,11 +38,93 @@
     </dependencies>
 
     <build>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>**/pom.xml</include>
+                    <include>**/extensions.xml</include>
+                    <include>**/build.gradle</include>
+                </includes>
+            </testResource>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>**/pom.xml</exclude>
+                    <exclude>**/extensions.xml</exclude>
+                    <exclude>**/build.gradle</exclude>
+                </excludes>
+            </testResource>
+        </testResources>
         <plugins>
+            <!-- Install built artifacts to local Maven repo so the test-project subprocesses
+                 can resolve them. These modules are built before integration-tests in the
+                 reactor (their JARs exist in target/) but are not yet installed (verify phase
+                 comes before install). Mirrors the same pattern in llm-build-compactor-gradle-plugin/pom.xml. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-install-plugin</artifactId>
+                <version>3.1.4</version>
+                <executions>
+                    <execution>
+                        <id>install-parent-for-it</id>
+                        <phase>process-test-resources</phase>
+                        <goals><goal>install-file</goal></goals>
+                        <configuration>
+                            <file>${project.basedir}/../.flattened-pom.xml</file>
+                            <groupId>io.github.sfkamath</groupId>
+                            <artifactId>llm-build-compactor</artifactId>
+                            <version>${project.version}</version>
+                            <packaging>pom</packaging>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>install-core-for-it</id>
+                        <phase>process-test-resources</phase>
+                        <goals><goal>install-file</goal></goals>
+                        <configuration>
+                            <file>${project.basedir}/../core/target/core-${project.version}.jar</file>
+                            <pomFile>${project.basedir}/../core/.flattened-pom.xml</pomFile>
+                            <groupId>io.github.sfkamath</groupId>
+                            <artifactId>core</artifactId>
+                            <version>${project.version}</version>
+                            <packaging>jar</packaging>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>install-maven-plugin-for-it</id>
+                        <phase>process-test-resources</phase>
+                        <goals><goal>install-file</goal></goals>
+                        <configuration>
+                            <file>${project.basedir}/../llm-build-compactor-maven-plugin/target/llm-build-compactor-maven-plugin-${project.version}.jar</file>
+                            <pomFile>${project.basedir}/../llm-build-compactor-maven-plugin/.flattened-pom.xml</pomFile>
+                            <groupId>io.github.sfkamath</groupId>
+                            <artifactId>llm-build-compactor-maven-plugin</artifactId>
+                            <version>${project.version}</version>
+                            <packaging>maven-plugin</packaging>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>install-maven-extension-for-it</id>
+                        <phase>process-test-resources</phase>
+                        <goals><goal>install-file</goal></goals>
+                        <configuration>
+                            <file>${project.basedir}/../llm-build-compactor-extension/target/llm-build-compactor-extension-${project.version}.jar</file>
+                            <pomFile>${project.basedir}/../llm-build-compactor-extension/.flattened-pom.xml</pomFile>
+                            <groupId>io.github.sfkamath</groupId>
+                            <artifactId>llm-build-compactor-extension</artifactId>
+                            <version>${project.version}</version>
+                            <packaging>jar</packaging>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.5.5</version>
+                <version>${maven-surefire-plugin.version}</version>
                 <configuration>
                     <includes>
                         <include>**/*Tests.java</include>
@@ -52,7 +134,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
-                <version>3.5.5</version>
+                <version>${maven-failsafe-plugin.version}</version>
                 <configuration>
                     <excludes>
                         <exclude>**/test-projects/**</exclude>

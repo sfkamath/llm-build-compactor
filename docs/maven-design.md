@@ -67,7 +67,7 @@ flowchart TD
 
 The preferred Maven path is installed by writing `.mvn/extensions.xml`:
 
-- `llm-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmInstallMojo.java`
+- `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmInstallMojo.java`
 
 This points Maven at the `maven-extension` artifact so the compactor code is loaded as a **core extension** on the next build.
 
@@ -97,6 +97,8 @@ On `SessionStarted`, the extension captures the `MavenSession` and enables:
 - `maven.test.redirectTestOutputToFile=true`
 
 That pushes test stdout/stderr out of the console path and into files, which is much more compatible with the compactor model.
+
+This property is set in **both** `session.getUserProperties()` and `System.setProperty()`. Surefire resolves its `@Parameter(property="maven.test.redirectTestOutputToFile")` via Maven's expression evaluator, which checks user properties. But some surefire configurations or Maven versions may also check system properties. Setting both ensures the redirect is picked up reliably across environments.
 
 ### 4. Compilation Error Capture
 
@@ -132,11 +134,25 @@ At `SessionEnded`, the extension:
 
 The summary is written to the real captured output stream, not to the suppressed console stream.
 
+## Property Resolution Order
+
+The extension resolves configuration values through `getProperty()` in this order:
+
+1. `System.getProperty(key)` — JVM system properties
+2. `session.getUserProperties().getProperty(key)` — Maven user properties (set by `-D` on the command line)
+3. `MavenProject.getProperties().getProperty(key)` — POM `<properties>` block
+4. Plugin XML configuration (`<configuration><key>value</key></configuration>`)
+5. The hardcoded default from `CompactorDefaults`
+
+**Why step 2 is explicit:** Maven `-D` flags (e.g. `-DllmCompactor.outputAsJson=false`) are user properties stored in `session.getUserProperties()`. Whether Maven also propagates them to JVM system properties depends on the Maven version and launcher. Checking user properties explicitly at step 2 ensures command-line flags always take precedence over plugin XML config regardless of how the Maven launcher is invoked.
+
+**The consequence of missing step 2:** Without the explicit user-property check, a plugin XML value like `<outputAsJson>true</outputAsJson>` can override a command-line `-DllmCompactor.outputAsJson=false` flag, because the XML config is checked before the default but after the (potentially absent) system property.
+
 ## Fallback Plugin Path
 
 Maven also has a fallback plugin path:
 
-- `llm-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmCompactMojo.java`
+- `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmCompactMojo.java`
 
 This path exists for cases where the core extension is not installed.
 
@@ -197,8 +213,8 @@ That tradeoff is intentional for the LLM-focused workflow.
 The main Maven pieces are:
 
 - `maven-extension/src/main/java/io/llmcompactor/extension/BuildOutputSpy.java`
-- `llm-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmInstallMojo.java`
-- `llm-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmCompactMojo.java`
+- `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmInstallMojo.java`
+- `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmCompactMojo.java`
 - `core/src/main/java/io/llmcompactor/core/SummaryWriter.java`
 - `core/src/main/java/io/llmcompactor/core/parser/SurefireParser.java`
 - `core/src/main/java/io/llmcompactor/core/StackTraceCompressor.java`

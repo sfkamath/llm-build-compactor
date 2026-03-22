@@ -4,12 +4,14 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 
 ## Features
 
-- **High-Signal Output**: Suppresses most build noise and emits a compact final summary instead of raw build logs.
-- **Smart Compaction**: Filters stack traces to show only your project's code.
-- **Agent-First Output**: Pretty-printed JSON or clean human-readable text.
-- **Contextual Fixes**: Identifies the exact file/line and provides 7-line code snippets for errors.
-- **Git Integration**: Includes a list of recently changed files to provide context.
-- **Test Insights**: Optional test duration tracking and percentile reports (p50-max).
+- **High-Signal Output**: Suppresses build noise and emits a compact final summary instead of raw build logs (~60-70% token reduction for typical failures).
+- **Smart Compaction**: Filters stack traces to show only your project's frames, and strips package prefixes for brevity.
+- **Agent-First Output**: JSON by default (pretty-printed); human-readable text via `outputAsJson=false`.
+- **Mode Presets**: One-flag configuration via `mode=agent`, `mode=debug`, or `mode=human` — sets output format, fix targets, and log capture in one shot.
+- **Contextual Fixes**: Identifies the exact file/line for every error. For non-test source files, includes a 7-line code snippet around the failure.
+- **Test Log Capture**: Optionally captures stdout/stderr and SLF4J/Log4j2 logs for failed tests (`showFailedTestLogs=true`), with noise filtering (timestamps, thread info, log levels stripped).
+- **Test Insights**: Optional slow-test highlighting and percentile duration reports (p50–max).
+- **Git Integration**: Optionally includes recently changed files for context (`showRecentChanges=true`).
 
 ---
 
@@ -20,7 +22,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 The compactor uses a Maven Extension to achieve complete build silence. Install it using:
 
 ```bash
-mvn io.llmcompactor:llm-compactor-maven-plugin:0.1.3:install
+mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.0.1:install
 ```
 
 This creates `.mvn/extensions.xml` in your project, enabling the Core Extension that suppresses all build output during execution.
@@ -33,9 +35,9 @@ To customize the output format and features, add the plugin configuration to you
 <build>
     <plugins>
         <plugin>
-            <groupId>io.llmcompactor</groupId>
-            <artifactId>llm-compactor-maven-plugin</artifactId>
-            <version>0.1.3</version>
+            <groupId>io.github.sfkamath</groupId>
+            <artifactId>llm-build-compactor-maven-plugin</artifactId>
+            <version>0.0.1</version>
             <configuration>
                 <outputAsJson>false</outputAsJson>
                 <compressStackFrames>true</compressStackFrames>
@@ -66,7 +68,7 @@ Add the plugin to your `build.gradle.kts` (Kotlin DSL):
 
 ```kotlin
 plugins {
-    id("io.llmcompactor.gradle") version "0.1.3"
+    id("io.github.sfkamath.llm-build-compactor") version "0.0.1"
 }
 ```
 
@@ -74,7 +76,7 @@ Or `build.gradle` (Groovy DSL):
 
 ```groovy
 plugins {
-    id 'io.llmcompactor.gradle' version '0.1.3'
+    id 'io.github.sfkamath.llm-build-compactor' version '0.0.1'
 }
 ```
 
@@ -88,7 +90,7 @@ llmCompactor {
     compressStackFrames.set(true)
     showFixTargets.set(true)
     showRecentChanges.set(true)
-    showDuration.set(true)
+    showSlowTests.set(true)
 }
 ```
 
@@ -100,7 +102,7 @@ llmCompactor {
     compressStackFrames = true
     showFixTargets = true
     showRecentChanges = true
-    showDuration = true
+    showSlowTests = true
 }
 ```
 
@@ -199,9 +201,9 @@ When `showFailedTestLogs` is enabled (default: `false`), the compactor captures 
 
 ```xml
 <plugin>
-    <groupId>io.llmcompactor</groupId>
-    <artifactId>llm-compactor-maven-plugin</artifactId>
-    <version>0.1.3</version>
+    <groupId>io.github.sfkamath</groupId>
+    <artifactId>llm-build-compactor-maven-plugin</artifactId>
+    <version>0.0.1</version>
     <configuration>
         <showFailedTestLogs>true</showFailedTestLogs>
     </configuration>
@@ -220,15 +222,14 @@ llmCompactor {
 
 ```text
 Errors:
-  - org.opentest4j.AssertionFailedError at OrderServiceTest.java:35
+  - OrderServiceTest.java:35
     Discount calculation failed
-    Stack trace:
         at OrderServiceTest.testOrderWithDiscount(OrderServiceTest.java:35)
     Test logs:
-        13:07:03.506 [main] INFO  i.l.testbed.OrderServiceTest - SLF4J: Testing refund processing
+        SLF4J: Testing refund processing
         System.out: Applying 10% discount to order ORD-101
         System.err: Processing refund for order ORD-102
-        13:07:03.511 [main] INFO  i.l.testbed.OrderServiceTest - Refund processed successfully
+        Refund processed successfully
 ```
 
 ### Logging Framework Setup
@@ -308,8 +309,7 @@ This provides **instant context** for AI agents, making fixes cheaper and faster
   {
     "file": "src/it/java/io/llmcompactor/testbed/OrderProcessorIT.java",
     "line": 49,
-    "reason": "org.opentest4j.AssertionFailedError: expected: <100.00> but was: <175.00>",
-    "snippet": "        BigDecimal total = processor.calculateTotal(orders);\n        \n        // Intentional failure - wrong expected total\n        assertEquals(new BigDecimal(\"100.00\"), total, \n            \"Total should be sum of all orders\");\n    }\n"
+    "reason": "AssertionFailedError: expected: <100.00> but was: <175.00>"
   }
 ]
 ```
@@ -330,7 +330,7 @@ This provides **instant context** for AI agents, making fixes cheaper and faster
       "file": "src/test/java/io/llmcompactor/testbed/StackTraceTest.java",
       "line": 37,
       "message": "Order processing failed",
-      "stackTrace": "at io.llmcompactor.testbed.StackTraceTest.testNestedException(StackTraceTest.java:37)\nCaused by: java.lang.IllegalArgumentException: Order validation failed\nat io.llmcompactor.testbed.StackTraceTest.validateOrder(StackTraceTest.java:47)"
+      "stackTrace": "at StackTraceTest.testNestedException(StackTraceTest.java:37)\nCaused by: java.lang.IllegalArgumentException: Order validation failed\nat StackTraceTest.validateOrder(StackTraceTest.java:47)"
     }
   ],
   "testDurationPercentiles": {
@@ -349,11 +349,11 @@ Tests Run: 18
 Failures: 9
 
 Errors:
-  - java.lang.RuntimeException at src/test/java/io/llmcompactor/testbed/StackTraceTest.java:37
+  - src/test/java/io/llmcompactor/testbed/StackTraceTest.java:37
     Order processing failed
-        at io.llmcompactor.testbed.StackTraceTest.testNestedException(StackTraceTest.java:37)
-      Caused by: java.lang.IllegalArgumentException: Order validation failed
-        at io.llmcompactor.testbed.StackTraceTest.validateOrder(StackTraceTest.java:47)
+        at StackTraceTest.testNestedException(StackTraceTest.java:37)
+        Caused by: java.lang.IllegalArgumentException: Order validation failed
+        at StackTraceTest.validateOrder(StackTraceTest.java:47)
 ```
 
 ---
@@ -372,7 +372,7 @@ For information on building, testing, and contributing to the LLM Build Compacto
 ./scripts/test-quick.sh
 
 # Test with intentional failures (verifies plugin behavior)
-cd test-project && mvn clean verify
+cd test-project-maven && mvn clean verify
 ```
 
 **Java Version Support:** Java 8 through 25. See [`docs/development-guide.md`](docs/development-guide.md) for the Gradle wrapper strategy and multi-version testing.

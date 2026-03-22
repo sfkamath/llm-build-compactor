@@ -137,6 +137,12 @@ At the end of the build, the plugin:
 
 The summary is emitted at build end as the primary user-visible output of the compactor.
 
+## Property Handling
+
+The Gradle plugin reads configuration through Gradle's own `findProperty()` API, which natively resolves `-D` command-line flags, `gradle.properties`, and plugin extension values in a consistent priority order. This is unlike the Maven extension, which must explicitly check `session.getUserProperties()` because Maven `-D` flags are user properties and may not be propagated to JVM system properties.
+
+As a result, the Gradle property path is simpler and has no equivalent to Maven's plugin-XML-overriding-CLI-flag failure mode.
+
 ## Why Lifecycle Details Matter
 
 The lifecycle constraints explain several non-obvious design choices:
