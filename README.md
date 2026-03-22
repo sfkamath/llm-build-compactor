@@ -22,7 +22,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 The compactor uses a Maven Extension to achieve complete build silence. Install it using:
 
 ```bash
-mvn io.llmcompactor:llm-compactor-maven-plugin:0.1.3:install
+mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.0.1:install
 ```
 
 This creates `.mvn/extensions.xml` in your project, enabling the Core Extension that suppresses all build output during execution.
@@ -35,9 +35,9 @@ To customize the output format and features, add the plugin configuration to you
 <build>
     <plugins>
         <plugin>
-            <groupId>io.llmcompactor</groupId>
-            <artifactId>llm-compactor-maven-plugin</artifactId>
-            <version>0.1.3</version>
+            <groupId>io.github.sfkamath</groupId>
+            <artifactId>llm-build-compactor-maven-plugin</artifactId>
+            <version>0.0.1</version>
             <configuration>
                 <outputAsJson>false</outputAsJson>
                 <compressStackFrames>true</compressStackFrames>
@@ -68,7 +68,7 @@ Add the plugin to your `build.gradle.kts` (Kotlin DSL):
 
 ```kotlin
 plugins {
-    id("io.llmcompactor.gradle") version "0.1.3"
+    id("io.github.sfkamath.llm-build-compactor") version "0.0.1"
 }
 ```
 
@@ -76,7 +76,7 @@ Or `build.gradle` (Groovy DSL):
 
 ```groovy
 plugins {
-    id 'io.llmcompactor.gradle' version '0.1.3'
+    id 'io.github.sfkamath.llm-build-compactor' version '0.0.1'
 }
 ```
 
@@ -201,9 +201,9 @@ When `showFailedTestLogs` is enabled (default: `false`), the compactor captures 
 
 ```xml
 <plugin>
-    <groupId>io.llmcompactor</groupId>
-    <artifactId>llm-compactor-maven-plugin</artifactId>
-    <version>0.1.3</version>
+    <groupId>io.github.sfkamath</groupId>
+    <artifactId>llm-build-compactor-maven-plugin</artifactId>
+    <version>0.0.1</version>
     <configuration>
         <showFailedTestLogs>true</showFailedTestLogs>
     </configuration>
@@ -372,7 +372,7 @@ For information on building, testing, and contributing to the LLM Build Compacto
 ./scripts/test-quick.sh
 
 # Test with intentional failures (verifies plugin behavior)
-cd test-project && mvn clean verify
+cd test-project-maven && mvn clean verify
 ```
 
 **Java Version Support:** Java 8 through 25. See [`docs/development-guide.md`](docs/development-guide.md) for the Gradle wrapper strategy and multi-version testing.

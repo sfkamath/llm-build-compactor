@@ -50,8 +50,8 @@ public class LlmInstallMojo extends AbstractMojo {
           "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
               + "<extensions>\n"
               + "    <extension>\n"
-              + "        <groupId>io.llmcompactor</groupId>\n"
-              + "        <artifactId>maven-extension</artifactId>\n"
+              + "        <groupId>io.github.sfkamath</groupId>\n"
+              + "        <artifactId>llm-build-compactor-extension</artifactId>\n"
               + "        <version>"
               + version
               + "</version>\n"

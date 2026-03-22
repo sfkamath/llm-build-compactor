@@ -67,7 +67,7 @@ flowchart TD
 
 The preferred Maven path is installed by writing `.mvn/extensions.xml`:
 
-- `llm-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmInstallMojo.java`
+- `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmInstallMojo.java`
 
 This points Maven at the `maven-extension` artifact so the compactor code is loaded as a **core extension** on the next build.
 
@@ -152,7 +152,7 @@ The extension resolves configuration values through `getProperty()` in this orde
 
 Maven also has a fallback plugin path:
 
-- `llm-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmCompactMojo.java`
+- `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmCompactMojo.java`
 
 This path exists for cases where the core extension is not installed.
 
@@ -213,8 +213,8 @@ That tradeoff is intentional for the LLM-focused workflow.
 The main Maven pieces are:
 
 - `maven-extension/src/main/java/io/llmcompactor/extension/BuildOutputSpy.java`
-- `llm-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmInstallMojo.java`
-- `llm-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmCompactMojo.java`
+- `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmInstallMojo.java`
+- `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmCompactMojo.java`
 - `core/src/main/java/io/llmcompactor/core/SummaryWriter.java`
 - `core/src/main/java/io/llmcompactor/core/parser/SurefireParser.java`
 - `core/src/main/java/io/llmcompactor/core/StackTraceCompressor.java`

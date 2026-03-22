@@ -158,8 +158,8 @@
             </plugin>
 
             <plugin>
-                <groupId>io.llmcompactor</groupId>
-                <artifactId>llm-compactor-maven-plugin</artifactId>
+                <groupId>io.github.sfkamath</groupId>
+                <artifactId>llm-build-compactor-maven-plugin</artifactId>
                 <version>@project.version@</version>
                 <configuration>
                     <compressStackFrames>true</compressStackFrames>

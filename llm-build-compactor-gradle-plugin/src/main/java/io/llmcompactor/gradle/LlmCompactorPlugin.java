@@ -10,14 +10,22 @@ import io.llmcompactor.core.extract.FixTargetGenerator;
 import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.GradleParser;
 import io.llmcompactor.core.parser.TestResult;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -293,10 +301,10 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             .setShowStacktrace(
                 org.gradle.api.logging.configuration.ShowStacktrace.INTERNAL_EXCEPTIONS);
         // Java 8 compatible null output stream
-        java.io.OutputStream nullOut =
-            new java.io.OutputStream() {
+        OutputStream nullOut =
+            new OutputStream() {
               @Override
-              public void write(int b) throws java.io.IOException {
+              public void write(int b) throws IOException {
                 // Discard all bytes
               }
             };
@@ -406,15 +414,15 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
   private void installInitScript(Path gradleUserHome) throws IOException {
     Path initDir = gradleUserHome.resolve("init.d");
-    java.nio.file.Files.createDirectories(initDir);
+    Files.createDirectories(initDir);
     Path initScript = initDir.resolve(INIT_SCRIPT_NAME);
 
-    try (java.io.InputStream is = getClass().getResourceAsStream("/llm-compactor-init.gradle")) {
+    try (InputStream is = getClass().getResourceAsStream("/llm-compactor-init.gradle")) {
       if (is == null) {
         return;
       }
       // Java 8 compatible readAllBytes
-      java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+      ByteArrayOutputStream buffer = new ByteArrayOutputStream();
       int nRead;
       byte[] data = new byte[4096];
       while ((nRead = is.read(data, 0, data.length)) != -1) {
@@ -422,14 +430,14 @@ public class LlmCompactorPlugin implements Plugin<Project> {
       }
       byte[] contentBytes = buffer.toByteArray();
       boolean needsWrite = true;
-      if (java.nio.file.Files.exists(initScript)) {
-        byte[] existingBytes = java.nio.file.Files.readAllBytes(initScript);
-        if (java.util.Arrays.equals(existingBytes, contentBytes)) {
+      if (Files.exists(initScript)) {
+        byte[] existingBytes = Files.readAllBytes(initScript);
+        if (Arrays.equals(existingBytes, contentBytes)) {
           needsWrite = false;
         }
       }
       if (needsWrite) {
-        java.nio.file.Files.write(initScript, contentBytes);
+        Files.write(initScript, contentBytes);
       }
     }
   }
@@ -532,7 +540,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             testDurationPercentiles);
 
     if (extension.getOutputPath().isPresent()) {
-      SummaryWriter.write(summary, java.nio.file.Paths.get(extension.getOutputPath().get()));
+      SummaryWriter.write(summary, Paths.get(extension.getOutputPath().get()));
     }
 
     String renderedSummary;
@@ -558,7 +566,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     task.getOptions().setWarnings(false);
     task.getOptions().setDeprecation(false);
     List<String> compilerArgs = task.getOptions().getCompilerArgs();
-    compilerArgs.removeIf(arg -> "-Amicronaut.processing.incremental=true".equals(arg));
+    compilerArgs.removeIf("-Amicronaut.processing.incremental=true"::equals);
     if (!containsCompilerArg(compilerArgs, "-nowarn")) {
       compilerArgs.add("-nowarn");
     }
@@ -596,27 +604,24 @@ public class LlmCompactorPlugin implements Plugin<Project> {
           .getSourceSets()
           .all(
               sourceSet -> {
-                for (java.io.File root : sourceSet.getAllJava().getSrcDirs()) {
+                for (File root : sourceSet.getAllJava().getSrcDirs()) {
                   if (root.exists()) {
                     Path rootPath = root.toPath();
-                    try (java.util.stream.Stream<Path> walk = java.nio.file.Files.walk(rootPath)) {
-                      walk.filter(java.nio.file.Files::isRegularFile)
+                    try (Stream<Path> walk = Files.walk(rootPath)) {
+                      walk.filter(Files::isRegularFile)
                           .filter(p -> p.toString().endsWith(".java"))
                           .forEach(
                               p -> {
                                 Path relative = rootPath.relativize(p);
                                 if (relative.getParent() != null) {
                                   String pkg =
-                                      relative
-                                          .getParent()
-                                          .toString()
-                                          .replace(java.io.File.separator, ".");
+                                      relative.getParent().toString().replace(File.separator, ".");
                                   if (!packages.contains(pkg)) {
                                     packages.add(pkg);
                                   }
                                 }
                               });
-                    } catch (java.io.IOException e) {
+                    } catch (IOException e) {
                       // Ignore
                     }
                   }

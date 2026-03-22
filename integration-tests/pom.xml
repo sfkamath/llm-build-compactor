@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.llmcompactor</groupId>
+        <groupId>io.github.sfkamath</groupId>
         <artifactId>llm-build-compactor</artifactId>
         <version>${revision}</version>
     </parent>
@@ -62,7 +62,7 @@
             <!-- Install built artifacts to local Maven repo so the test-project subprocesses
                  can resolve them. These modules are built before integration-tests in the
                  reactor (their JARs exist in target/) but are not yet installed (verify phase
-                 comes before install). Mirrors the same pattern in gradle-plugin/pom.xml. -->
+                 comes before install). Mirrors the same pattern in llm-build-compactor-gradle-plugin/pom.xml. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-install-plugin</artifactId>
@@ -74,7 +74,7 @@
                         <goals><goal>install-file</goal></goals>
                         <configuration>
                             <file>${project.basedir}/../.flattened-pom.xml</file>
-                            <groupId>io.llmcompactor</groupId>
+                            <groupId>io.github.sfkamath</groupId>
                             <artifactId>llm-build-compactor</artifactId>
                             <version>${project.version}</version>
                             <packaging>pom</packaging>
@@ -87,7 +87,7 @@
                         <configuration>
                             <file>${project.basedir}/../core/target/core-${project.version}.jar</file>
                             <pomFile>${project.basedir}/../core/.flattened-pom.xml</pomFile>
-                            <groupId>io.llmcompactor</groupId>
+                            <groupId>io.github.sfkamath</groupId>
                             <artifactId>core</artifactId>
                             <version>${project.version}</version>
                             <packaging>jar</packaging>
@@ -98,10 +98,10 @@
                         <phase>process-test-resources</phase>
                         <goals><goal>install-file</goal></goals>
                         <configuration>
-                            <file>${project.basedir}/../llm-compactor-maven-plugin/target/llm-compactor-maven-plugin-${project.version}.jar</file>
-                            <pomFile>${project.basedir}/../llm-compactor-maven-plugin/.flattened-pom.xml</pomFile>
-                            <groupId>io.llmcompactor</groupId>
-                            <artifactId>llm-compactor-maven-plugin</artifactId>
+                            <file>${project.basedir}/../llm-build-compactor-maven-plugin/target/llm-build-compactor-maven-plugin-${project.version}.jar</file>
+                            <pomFile>${project.basedir}/../llm-build-compactor-maven-plugin/.flattened-pom.xml</pomFile>
+                            <groupId>io.github.sfkamath</groupId>
+                            <artifactId>llm-build-compactor-maven-plugin</artifactId>
                             <version>${project.version}</version>
                             <packaging>maven-plugin</packaging>
                         </configuration>
@@ -111,10 +111,10 @@
                         <phase>process-test-resources</phase>
                         <goals><goal>install-file</goal></goals>
                         <configuration>
-                            <file>${project.basedir}/../maven-extension/target/maven-extension-${project.version}.jar</file>
-                            <pomFile>${project.basedir}/../maven-extension/.flattened-pom.xml</pomFile>
-                            <groupId>io.llmcompactor</groupId>
-                            <artifactId>maven-extension</artifactId>
+                            <file>${project.basedir}/../llm-build-compactor-extension/target/llm-build-compactor-extension-${project.version}.jar</file>
+                            <pomFile>${project.basedir}/../llm-build-compactor-extension/.flattened-pom.xml</pomFile>
+                            <groupId>io.github.sfkamath</groupId>
+                            <artifactId>llm-build-compactor-extension</artifactId>
                             <version>${project.version}</version>
                             <packaging>jar</packaging>
                         </configuration>

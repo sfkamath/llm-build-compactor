@@ -6,7 +6,7 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.llmcompactor</groupId>
+    <groupId>io.github.sfkamath</groupId>
     <artifactId>llm-build-compactor</artifactId>
     <version>${revision}</version>
     <packaging>pom</packaging>
@@ -43,9 +43,9 @@
 
     <modules>
         <module>core</module>
-        <module>llm-compactor-maven-plugin</module>
-        <module>maven-extension</module>
-        <module>gradle-plugin</module>
+        <module>llm-build-compactor-maven-plugin</module>
+        <module>llm-build-compactor-extension</module>
+        <module>llm-build-compactor-gradle-plugin</module>
     </modules>
 
     <dependencyManagement>
@@ -75,13 +75,13 @@
                 <scope>provided</scope>
             </dependency>
             <dependency>
-                <groupId>io.llmcompactor</groupId>
+                <groupId>io.github.sfkamath</groupId>
                 <artifactId>core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
-                <groupId>io.llmcompactor</groupId>
-                <artifactId>maven-extension</artifactId>
+                <groupId>io.github.sfkamath</groupId>
+                <artifactId>llm-build-compactor-extension</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -351,8 +351,8 @@
             <build>
                 <plugins>
                     <plugin>
-                        <groupId>io.llmcompactor</groupId>
-                        <artifactId>llm-compactor-maven-plugin</artifactId>
+                        <groupId>io.github.sfkamath</groupId>
+                        <artifactId>llm-build-compactor-maven-plugin</artifactId>
                         <version>${project.version}</version>
                         <executions>
                             <execution>

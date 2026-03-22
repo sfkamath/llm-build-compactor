@@ -148,7 +148,7 @@ The LLM Build Compactor plugin must:
 ### Design Constraints
 
 - **No build forking** - Plugin runs as part of normal build, doesn't re-run it
-- **Zero configuration** - Use `mvn io.llmcompactor:llm-compactor-maven-plugin:install` to setup Core Extension
+- **Zero configuration** - Use `mvn io.github.sfkamath:llm-build-compactor-maven-plugin:install` to setup Core Extension
 - **Transparent passthrough** - All Maven goals execute normally
 
 ### Architecture: Core Extension + Mojo
@@ -168,7 +168,7 @@ The LLM Build Compactor plugin must:
 
 The Core Extension (`maven-extension`) handles complete silence of Maven logging by re-initializing SLF4J and suppressing `System.out`. To use it:
 
-1. Install the extension to your project: `mvn io.llmcompactor:llm-compactor-maven-plugin:0.1.0:install`
+1. Install the extension to your project: `mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.0.1:install`
 2. Run your build: `mvn verify -DllmCompactor.outputAsJson=true`
 
 ### Configuration Properties

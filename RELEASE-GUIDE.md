@@ -7,7 +7,7 @@
 - Gradle: version is passed via `-PpluginVersion=` from the Maven publish job's output
 - `gradle.properties` holds the local development version (`pluginVersion=X.Y.Z`)
 - **Commit prefix determines version bump** (conventional commits):
-  - `fix:` → patch (0.1.2 → 0.1.3)
+  - `fix:` → patch (0.0.1 → 0.0.2)
   - `feat:` → minor (0.1.1 → 0.2.0)
   - `BREAKING CHANGE` in body → major (0.1.1 → 1.0.0)
   - Ensure the commit prefix matches the intended version bump (use `bump-version.sh` script if needed)
@@ -29,7 +29,7 @@ Versions in docs and build files are set manually to match the upcoming release:
 mvn clean install -Drevision=X.Y.Z
 
 # Gradle plugin
-cd gradle-plugin && ../gradlew build --no-daemon
+cd llm-build-compactor-gradle-plugin && ../gradlew build --no-daemon
 ```
 
 ### 3. Repository ordering in `.kts` files

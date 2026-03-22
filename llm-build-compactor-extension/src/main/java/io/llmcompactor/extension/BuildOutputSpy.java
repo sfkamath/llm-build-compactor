@@ -461,7 +461,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
   }
 
   private String getPluginConfigValue(MavenProject project, String key) {
-    Plugin plugin = project.getPlugin("io.llmcompactor:llm-compactor-maven-plugin");
+    Plugin plugin = project.getPlugin("io.github.sfkamath:llm-build-compactor-maven-plugin");
     if (plugin == null) {
       return null;
     }

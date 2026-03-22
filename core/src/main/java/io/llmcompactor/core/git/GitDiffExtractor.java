@@ -14,7 +14,7 @@ public final class GitDiffExtractor {
   public static List<String> changedFiles() {
 
     // Use a set to deduplicate files touched across recent commits
-    Set<String> seen = new LinkedHashSet<String>();
+    Set<String> seen = new LinkedHashSet<>();
 
     try {
 
@@ -46,7 +46,7 @@ public final class GitDiffExtractor {
       }
     }
 
-    return new ArrayList<String>(seen);
+    return new ArrayList<>(seen);
   }
 
   private GitDiffExtractor() {}

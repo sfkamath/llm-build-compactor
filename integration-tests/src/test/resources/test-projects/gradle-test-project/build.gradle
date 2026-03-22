@@ -5,8 +5,8 @@ buildscript {
         mavenLocal()
     }
     dependencies {
-        classpath 'io.llmcompactor:gradle-plugin:@project.version@'
-        classpath 'io.llmcompactor:core:@project.version@'
+        classpath 'io.github.sfkamath:llm-build-compactor-gradle-plugin:@project.version@'
+        classpath 'io.github.sfkamath:core:@project.version@'
     }
 }
 
@@ -14,7 +14,7 @@ plugins {
     id 'java'
 }
 
-group = 'io.llmcompactor'
+group = 'io.github.sfkamath'
 version = '1.0.0-SNAPSHOT'
 
 java {
@@ -52,4 +52,4 @@ test {
     ignoreFailures = true
 }
 
-apply plugin: 'io.llmcompactor.gradle'
+apply plugin: 'io.github.sfkamath.llm-build-compactor'

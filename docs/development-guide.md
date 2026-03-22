@@ -29,7 +29,7 @@ Maven works across all Java versions with a single wrapper: `./mvnw`
 The project uses a single version defined in `pom.xml`:
 
 ```xml
-<revision>0.1.3-SNAPSHOT</revision>
+<revision>0.0.1-SNAPSHOT</revision>
 ```
 
 - All Maven modules inherit this via `${revision}` / `${project.version}`
@@ -40,14 +40,14 @@ The project uses a single version defined in `pom.xml`:
 
 ### Why Gradle needs install-file
 
-`gradle-plugin` wraps a Gradle build via `exec-maven-plugin`. Gradle runs as an **external subprocess** and cannot see the Maven reactor — it must resolve `core:${version}` from a repository (`mavenCentral()` or `mavenLocal()`). The `gradle-plugin/pom.xml` therefore runs two `install-file` executions at `process-resources` before Gradle builds:
+`llm-build-compactor-gradle-plugin` wraps a Gradle build via `exec-maven-plugin`. Gradle runs as an **external subprocess** and cannot see the Maven reactor — it must resolve `core:${version}` from a repository (`mavenCentral()` or `mavenLocal()`). The `llm-build-compactor-gradle-plugin/pom.xml` therefore runs two `install-file` executions at `process-resources` before Gradle builds:
 
 1. The root POM — because `core`'s flattened POM still has `<parent>`, so Gradle fetches it too
 2. The `core` JAR + its flattened POM
 
-### Standalone test-project versioning
+### Standalone test-project-maven versioning
 
-`test-project/.mvn/extensions.xml` uses a **hardcoded** version (e.g. `0.1.3`) because that file is loaded by Maven before the build lifecycle — property resolution and resource filtering don't apply. Update it manually when bumping the version for local testing. CI uses the published release version.
+`test-project-maven/.mvn/extensions.xml` uses a **hardcoded** version (e.g. `0.0.1`) because that file is loaded by Maven before the build lifecycle — property resolution and resource filtering don't apply. Update it manually when bumping the version for local testing. CI uses the published release version.
 
 ---
 
@@ -59,7 +59,7 @@ The project uses a single version defined in `pom.xml`:
 ./mvnw clean verify
 ```
 
-Works on a clean machine with an empty local repo. The `gradle-plugin` module
+Works on a clean machine with an empty local repo. The `llm-build-compactor-gradle-plugin` module
 installs `core` and the root POM to local repo before invoking Gradle, so no
 prior `mvn install` is required.
 
@@ -103,7 +103,7 @@ reactor. They are activated via the `integration-tests` profile:
 
 The `integration-tests` module is **self-contained**: its `pom.xml` runs `install-file`
 executions at `process-test-resources` to install the root POM, `core`,
-`llm-compactor-maven-plugin`, and `maven-extension` into `~/.m2` before any test
+`llm-build-compactor-maven-plugin`, and `llm-build-compactor-extension` into `~/.m2` before any test
 subprocess launches.
 
 Resource filtering substitutes `@project.version@` into the test projects at
@@ -115,7 +115,7 @@ with the integration-tests module's own properties (see Troubleshooting below).
 
 | Project | Build Tool | Purpose |
 |---------|------------|---------|
-| `test-project/` | Maven | Standalone; tests Surefire/Failsafe parsing, stack traces, Lombok |
+| `test-project-maven/` | Maven | Standalone; tests Surefire/Failsafe parsing, stack traces, Lombok |
 | `integration-tests/src/test/resources/test-projects/maven-test-project/` | Maven | Filtered copy used by integration tests |
 | `integration-tests/src/test/resources/test-projects/gradle-test-project/` | Gradle | Filtered copy used by integration tests |
 
@@ -128,7 +128,7 @@ correctly parses errors:
 - `OrderProcessorIT.java` — AssertionError (wrong total)
 
 ```bash
-cd test-project && mvn clean verify
+cd test-project-maven && mvn clean verify
 cat target/llm-summary.json
 ```
 
@@ -138,14 +138,14 @@ cat target/llm-summary.json
 
 ```
 llm-build-compactor/
-├── pom.xml                        # Parent POM; version=${revision}
-├── gradle.properties              # Gradle wrapper config only (no version)
-├── core/                          # Core parsing/compaction logic (Java 8+)
-├── maven-extension/               # Maven extension for build silence (Java 8+)
-├── llm-compactor-maven-plugin/    # Maven Mojo (Java 8+)
-├── gradle-plugin/                 # Gradle plugin (Java 17+); wraps Gradle build via Maven
-├── integration-tests/             # Integration tests (not in default reactor; -Pintegration-tests)
-└── test-project/                  # Standalone Maven test project with intentional failures
+├── pom.xml                              # Parent POM; version=${revision}
+├── gradle.properties                    # Gradle wrapper config only (no version)
+├── core/                                # Core parsing/compaction logic (Java 8+)
+├── llm-build-compactor-extension/       # Maven extension for build silence (Java 8+)
+├── llm-build-compactor-maven-plugin/    # Maven Mojo (Java 8+)
+├── llm-build-compactor-gradle-plugin/   # Gradle plugin (Java 17+); wraps Gradle build via Maven
+├── integration-tests/                   # Integration tests (not in default reactor; -Pintegration-tests)
+└── test-project-maven/                  # Standalone Maven test project with intentional failures
 ```
 
 ### Key Design Decisions
@@ -154,7 +154,7 @@ llm-build-compactor/
 2. **Gradle plugin is Java 17+:** Modern Gradle API requires it
 3. **Maven components are Java 8:** Maven 3.8+ supports Java 8
 4. **Test projects have failing tests:** Intentional — verifies error parsing
-5. **Gradle gets version from Maven:** `gradle-plugin/pom.xml` passes `-PpluginVersion=${project.version}`; `gradle.properties` no longer carries a version to avoid drift
+5. **Gradle gets version from Maven:** `llm-build-compactor-gradle-plugin/pom.xml` passes `-PpluginVersion=${project.version}`; `gradle.properties` no longer carries a version to avoid drift
 6. **Integration test resources use `@...@` tokens only:** Prevents Maven resource filtering from expanding `${project.build.directory}` and similar properties with the parent module's values
 
 ---
@@ -174,7 +174,7 @@ Versions follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 | Commit Prefix | Version Bump | Example |
 |---------------|--------------|---------|
-| `fix:` | Patch | 0.1.2 → 0.1.3 |
+| `fix:` | Patch | 0.0.1 → 0.0.2 |
 | `feat:` | Minor | 0.1.1 → 0.2.0 |
 | `BREAKING CHANGE` in body | Major | 0.1.1 → 1.0.0 |
 
@@ -200,7 +200,7 @@ as `-Drevision=<new_tag>`. The `pom.xml` revision value is a local dev default o
 ./mvnw clean verify -X 2>&1 | tee build.log
 
 # Gradle verbose
-cd gradle-plugin && ../gradlew-smart clean build --info -PpluginVersion=0.1.3-SNAPSHOT
+cd llm-build-compactor-gradle-plugin && ../gradlew-smart clean build --info -PpluginVersion=0.0.1-SNAPSHOT
 ```
 
 ### Run SpotBugs Locally
@@ -213,13 +213,13 @@ cd gradle-plugin && ../gradlew-smart clean build --info -PpluginVersion=0.1.3-SN
 
 ## Troubleshooting
 
-### gradle-plugin fails with "Could not find io.llmcompactor:core"
+### gradle-plugin fails with "Could not find io.github.sfkamath:core"
 
-This should not happen with the current setup — `gradle-plugin/pom.xml` installs
+This should not happen with the current setup — `llm-build-compactor-gradle-plugin/pom.xml` installs
 `core` and the root POM to `~/.m2` before invoking Gradle. If it does occur:
 
-1. Confirm you are running `./mvnw` from the project root (not inside `gradle-plugin/`)
-2. Run with `-pl core,gradle-plugin -am` to isolate the two modules
+1. Confirm you are running `./mvnw` from the project root (not inside `llm-build-compactor-gradle-plugin/`)
+2. Run with `-pl core,llm-build-compactor-gradle-plugin -am` to isolate the two modules
 
 ### "Unsupported class file major version"
 
@@ -244,12 +244,12 @@ mvn clean verify                               # compactor summary
 
 This usually means the surefire/failsafe XML reports weren't written to the expected
 location. The most common cause: a `${project.build.directory}` expression in a
-test-project `pom.xml` was expanded by Maven's resource filter (running in the context
+test-project-maven `pom.xml` was expanded by Maven's resource filter (running in the context
 of `integration-tests`) to `integration-tests/target` rather than the subprocess
 project's own `target/`. Always use literal relative paths like `target/surefire-reports`
-in test-project pom.xml files — never `${project.build.directory}`.
+in test-project-maven pom.xml files — never `${project.build.directory}`.
 
-### "Could not find io.llmcompactor:gradle-plugin:@project.version@"
+### "Could not find io.github.sfkamath:llm-build-compactor-maven-plugin:@project.version@"
 
 The `build.gradle` token was not substituted. Confirm that `**/build.gradle` is listed
 in the filtered includes in `integration-tests/pom.xml`, and re-run

@@ -8,18 +8,18 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.llmcompactor</groupId>
+        <groupId>io.github.sfkamath</groupId>
         <artifactId>llm-build-compactor</artifactId>
         <version>${revision}</version>
     </parent>
 
-    <artifactId>gradle-plugin</artifactId>
+    <artifactId>llm-build-compactor-gradle-plugin</artifactId>
     <packaging>pom</packaging>
 
     <dependencies>
         <!-- Declare dependencies for Maven resolution (actual artifacts published by Gradle) -->
         <dependency>
-            <groupId>io.llmcompactor</groupId>
+            <groupId>io.github.sfkamath</groupId>
             <artifactId>core</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -112,7 +112,7 @@
                         </goals>
                         <configuration>
                             <file>${project.basedir}/../.flattened-pom.xml</file>
-                            <groupId>io.llmcompactor</groupId>
+                            <groupId>io.github.sfkamath</groupId>
                             <artifactId>llm-build-compactor</artifactId>
                             <version>${project.version}</version>
                             <packaging>pom</packaging>
@@ -127,7 +127,7 @@
                         <configuration>
                             <file>${project.basedir}/../core/target/core-${project.version}.jar</file>
                             <pomFile>${project.basedir}/../core/.flattened-pom.xml</pomFile>
-                            <groupId>io.llmcompactor</groupId>
+                            <groupId>io.github.sfkamath</groupId>
                             <artifactId>core</artifactId>
                             <version>${project.version}</version>
                             <packaging>jar</packaging>

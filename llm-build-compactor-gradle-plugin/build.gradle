@@ -9,7 +9,7 @@ plugins {
 def rootProps = new Properties()
 rootProps.load(new FileInputStream(file('../gradle.properties')))
 
-group = 'io.llmcompactor'
+group = 'io.github.sfkamath'
 def pluginVersion = findProperty('pluginVersion') ?: rootProps['pluginVersion']
 version = pluginVersion
 
@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    implementation "io.llmcompactor:core:${version}"
+    implementation "io.github.sfkamath:core:${version}"
     compileOnly 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
 }
 
@@ -29,7 +29,7 @@ gradlePlugin {
 
     plugins {
         llmCompactor {
-            id = 'io.llmcompactor.gradle'
+            id = 'io.github.sfkamath.llm-build-compactor'
             implementationClass = 'io.llmcompactor.gradle.LlmCompactorPlugin'
             displayName = 'LLM Build Compactor'
             description = 'Compact build output for LLM-assisted development'
@@ -55,6 +55,11 @@ def generatePluginProperties = tasks.register('generatePluginProperties') {
 sourceSets.main.resources.srcDir(generatePluginProperties)
 
 publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = 'llm-build-compactor-gradle-plugin'
+        }
+    }
     repositories {
         maven {
             url = uri('file://' + System.getProperty('user.home') + '/.m2/repository')
