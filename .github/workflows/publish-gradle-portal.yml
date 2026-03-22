@@ -32,7 +32,9 @@ jobs:
 
       - name: Read version from latest tag
         id: version
-        run: echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+        run: |
+          git fetch --tags --quiet
+          echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
 
       - name: Install core to local Maven repo
         run: ./mvnw install -pl core -am -Drevision=${{ steps.version.outputs.tag }} -DskipTests -ntp --quiet
