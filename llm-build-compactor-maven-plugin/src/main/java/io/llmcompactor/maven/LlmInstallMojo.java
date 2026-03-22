@@ -75,8 +75,7 @@ public class LlmInstallMojo extends AbstractMojo {
   }
 
   private String loadPluginVersion() throws MojoExecutionException {
-    try (InputStream is =
-        getClass().getResourceAsStream("/llm-compactor-plugin.properties")) {
+    try (InputStream is = getClass().getResourceAsStream("/llm-compactor-plugin.properties")) {
       if (is == null) {
         throw new MojoExecutionException(
             "Cannot determine plugin version: llm-compactor-plugin.properties not found in JAR");
@@ -90,8 +89,7 @@ public class LlmInstallMojo extends AbstractMojo {
       }
       return v;
     } catch (IOException e) {
-      throw new MojoExecutionException(
-          "Failed to read plugin version: " + e.getMessage(), e);
+      throw new MojoExecutionException("Failed to read plugin version: " + e.getMessage(), e);
     }
   }
 }
