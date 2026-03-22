@@ -1,5 +1,9 @@
 # LLM Build Compactor
 
+[![Java CI](https://github.com/sfkamath/llm-build-compactor/actions/workflows/ci.yml/badge.svg)](https://github.com/sfkamath/llm-build-compactor/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/tag/sfkamath/llm-build-compactor)](https://github.com/sfkamath/llm-build-compactor/tags)
+[![License](https://img.shields.io/github/license/sfkamath/llm-build-compactor)](LICENSE)
+
 A universal, zero-config tool that extracts **actionable build diagnostics** from Maven and Gradle runs. It filters out thousands of lines of framework noise (JUnit, Spring, Micronaut, Reactor) and produces a high-signal JSON or human-readable summary of failures optimized for AI agents and build-repair loops.
 
 ## Features
@@ -22,7 +26,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 The compactor uses a Maven Extension to achieve complete build silence. Install it using:
 
 ```bash
-mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.0.1:install
+mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.0.2:install
 ```
 
 This creates `.mvn/extensions.xml` in your project, enabling the Core Extension that suppresses all build output during execution.
@@ -37,7 +41,7 @@ To customize the output format and features, add the plugin configuration to you
         <plugin>
             <groupId>io.github.sfkamath</groupId>
             <artifactId>llm-build-compactor-maven-plugin</artifactId>
-            <version>0.0.1</version>
+            <version>0.0.2</version>
             <configuration>
                 <outputAsJson>false</outputAsJson>
                 <compressStackFrames>true</compressStackFrames>
@@ -68,7 +72,7 @@ Add the plugin to your `build.gradle.kts` (Kotlin DSL):
 
 ```kotlin
 plugins {
-    id("io.github.sfkamath.llm-build-compactor") version "0.0.1"
+    id("io.github.sfkamath.llm-build-compactor") version "0.0.2"
 }
 ```
 
@@ -76,7 +80,7 @@ Or `build.gradle` (Groovy DSL):
 
 ```groovy
 plugins {
-    id 'io.github.sfkamath.llm-build-compactor' version '0.0.1'
+    id 'io.github.sfkamath.llm-build-compactor' version '0.0.2'
 }
 ```
 
@@ -203,7 +207,7 @@ When `showFailedTestLogs` is enabled (default: `false`), the compactor captures 
 <plugin>
     <groupId>io.github.sfkamath</groupId>
     <artifactId>llm-build-compactor-maven-plugin</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2</version>
     <configuration>
         <showFailedTestLogs>true</showFailedTestLogs>
     </configuration>
