@@ -106,7 +106,7 @@ jobs:
           servers: '[{ "id": "github", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}" }]'
 
       - name: Publish Maven modules to GitHub Packages
-        run: ./mvnw deploy -Pgithub -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet
+        run: ./mvnw deploy -Pgithub -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet --projects '!llm-build-compactor-gradle-plugin'
 
       - name: Install core for Gradle plugin build
         run: ./mvnw install -pl core -am -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet
