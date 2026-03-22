@@ -397,6 +397,7 @@
                 <module>integration-tests</module>
             </modules>
         </profile>
+        <!-- No longer in use - superseded by Maven Central (ossrh profile) and Gradle Plugin Portal -->
         <profile>
             <id>github</id>
             <distributionManagement>

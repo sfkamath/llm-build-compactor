@@ -7,10 +7,11 @@
 - Gradle: version is passed via `-PpluginVersion=` from the Maven publish job's output
 - `gradle.properties` holds the local development version (`pluginVersion=X.Y.Z`)
 - **Commit prefix determines version bump** (conventional commits):
-  - `fix:` → patch (0.0.1 → 0.0.2)
-  - `feat:` → minor (0.1.1 → 0.2.0)
-  - `BREAKING CHANGE` in body → major (0.1.1 → 1.0.0)
-  - Ensure the commit prefix matches the intended version bump (use `bump-version.sh` script if needed)
+  - `fix:` → patch (0.0.4 → 0.0.5)
+  - `feat:` → minor (0.0.4 → 0.1.0)
+  - `BREAKING CHANGE` in body → major (0.1.0 → 1.0.0)
+  - **No space before the colon** — `feat:` works, `feat :` is not recognised and falls back to patch
+  - Ensure the commit prefix matches the intended version bump
 
 ## Pre-Release Checklist (on the release branch)
 
@@ -19,8 +20,12 @@
 Versions in docs and build files are set manually to match the upcoming release:
 
 - `README.md` — all version references in Quick Start and Workflow examples
+- `docs/maven-extension-model.md` — version references
+- `docs/development-guide.md` — version examples
 - `gradle.properties` — `pluginVersion` value
 - `pom.xml` — `<version>` default value
+
+> **Note:** Version references in docs can drift out of sync between releases. Always check the Maven Central and Gradle Plugin Portal badges in the README for the true latest published version.
 
 ### 2. Verify builds
 

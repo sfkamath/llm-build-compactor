@@ -167,7 +167,7 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on every push/PR:
 - **Build matrix:** Java 8, 11, 17, 21, 25
 - **Quality checks:** SpotBugs, Spotless, Modernizer, JaCoCo on Java 21
 - **Integration tests:** Java 17 job after the build matrix
-- **Publish:** Automatic to GitHub Packages on main branch merge
+- **Publish:** Automatic to Maven Central and Gradle Plugin Portal on main branch merge
 
 ### Version Bumping
 
@@ -175,9 +175,11 @@ Versions follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 | Commit Prefix | Version Bump | Example |
 |---------------|--------------|---------|
-| `fix:` | Patch | 0.0.1 → 0.0.2 |
-| `feat:` | Minor | 0.1.1 → 0.2.0 |
-| `BREAKING CHANGE` in body | Major | 0.1.1 → 1.0.0 |
+| `fix:` | Patch | 0.0.4 → 0.0.5 |
+| `feat:` | Minor | 0.0.4 → 0.1.0 |
+| `BREAKING CHANGE` in body | Major | 0.1.0 → 1.0.0 |
+
+> **Important:** The prefix must have no space before the colon — `feat:` works, `feat :` does not.
 
 CI bumps the version via `mathieudutour/github-tag-action` and passes it to Maven
 as `-Drevision=<new_tag>`. The `pom.xml` revision value is a local dev default only.
@@ -201,7 +203,7 @@ as `-Drevision=<new_tag>`. The `pom.xml` revision value is a local dev default o
 ./mvnw clean verify -X 2>&1 | tee build.log
 
 # Gradle verbose
-cd llm-build-compactor-gradle-plugin && ../gradlew-smart clean build --info -PpluginVersion=0.0.1-SNAPSHOT
+cd llm-build-compactor-gradle-plugin && ../gradlew-smart clean build --info -PpluginVersion=0.1.0-SNAPSHOT
 ```
 
 ### Run SpotBugs Locally
