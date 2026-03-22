@@ -44,7 +44,7 @@ public class LlmInstallMojo extends AbstractMojo {
   private String version;
 
   public void execute() throws MojoExecutionException {
-    if (project.getParent() != null) {
+    if (!project.isExecutionRoot()) {
       return;
     }
     Path mvnDir = basedir.toPath().resolve(".mvn");
