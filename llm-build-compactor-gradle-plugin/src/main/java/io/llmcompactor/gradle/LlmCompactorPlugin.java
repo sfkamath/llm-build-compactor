@@ -565,7 +565,15 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     task.getOptions().setFork(false);
     task.getOptions().setWarnings(false);
     task.getOptions().setDeprecation(false);
-    List<String> compilerArgs = task.getOptions().getCompilerArgs();
+    // Groovy DSL may populate compilerArgs with GStringImpl; normalize to plain Strings
+    // to avoid ClassCastException when iterating a List<String> that contains GString values.
+    @SuppressWarnings("unchecked")
+    List<Object> rawArgs = (List<Object>) (List<?>) task.getOptions().getCompilerArgs();
+    List<String> compilerArgs = new ArrayList<>();
+    for (Object arg : rawArgs) {
+      compilerArgs.add(arg.toString());
+    }
+    task.getOptions().setCompilerArgs(compilerArgs);
     compilerArgs.removeIf("-Amicronaut.processing.incremental=true"::equals);
     if (!containsCompilerArg(compilerArgs, "-nowarn")) {
       compilerArgs.add("-nowarn");
