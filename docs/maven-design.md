@@ -194,6 +194,14 @@ The current Maven design is intended to work across the full reactor:
 
 That is especially important for multi-module builds where raw Maven console output would otherwise contain long reactor tables, plugin banners, and repeated per-module lifecycle noise.
 
+## Known Limitations
+
+### Loggers that pre-capture System.err
+
+Some Maven plugins (e.g. `openapi-generator-maven-plugin`) initialise their own logger at class-load time and capture the `System.err` reference before the extension redirects it. Because these loggers hold a direct reference to the original stream rather than calling `System.err` dynamically, their output bypasses suppression.
+
+This is unfixable without native file-descriptor redirection. The workaround is to fix the root cause in the offending plugin — for example, creating a missing `.openapi-generator-ignore` file eliminates the warning at source rather than trying to suppress it.
+
 ## Current Tradeoff
 
 The current Maven design chooses:

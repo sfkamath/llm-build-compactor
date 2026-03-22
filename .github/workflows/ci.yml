@@ -123,11 +123,9 @@ jobs:
 
   # publish-maven-central:
   #   name: Publish to Maven Central
-  #   needs: build
+  #   needs: publish
   #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
   #   runs-on: ubuntu-latest
-  #   permissions:
-  #     contents: write
 
   #   steps:
   #     - uses: actions/checkout@v6
@@ -155,21 +153,11 @@ jobs:
   #       with:
   #         servers: '[{ "id": "central", "username": "${{ secrets.CENTRAL_USERNAME }}", "password": "${{ secrets.CENTRAL_PASSWORD }}" }]'
 
-  #     - name: Bump version and push tag
-  #       id: tag_version
-  #       uses: mathieudutour/github-tag-action@v6.2
-  #       with:
-  #         github_token: ${{ secrets.GITHUB_TOKEN }}
-  #         tag_prefix: ''
-
   #     - name: Deploy to Maven Central
   #       run: |
-  #         mvn deploy -Drevision=${{ steps.tag_version.outputs.new_tag }} -Possrh -DskipTests -Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }} -ntp
+  #         ./mvnw deploy -Possrh -Drevision=${{ needs.publish.outputs.version }} -DskipTests -Dgpg.passphrase=${{ secrets.GPG_PASSPHRASE }} -ntp
   #       env:
   #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  #   outputs:
-  #     version: ${{ steps.tag_version.outputs.new_tag }}
 
   # publish-gradle-plugin:
   #   name: Publish to Gradle Plugin Portal
@@ -193,7 +181,7 @@ jobs:
   #           maven-${{ runner.os }}-
 
   #     - name: Install core to local Maven repo
-  #       run: ./mvnw install -pl core -am -Drevision=${{ needs.publish-maven-central.outputs.version }} -DskipTests -ntp --quiet
+  #       run: ./mvnw install -pl core -am -Drevision=${{ needs.publish.outputs.version }} -DskipTests -ntp --quiet
 
   #     - name: Setup Gradle
   #       uses: gradle/actions/setup-gradle@v4
@@ -202,7 +190,7 @@ jobs:
 
   #     - name: Publish to Gradle Plugin Portal
   #       run: |
-  #         cd llm-build-compactor-gradle-plugin && ../gradlew-smart publishPlugins -PpluginVersion=${{ needs.publish-maven-central.outputs.version }} --no-daemon
+  #         cd llm-build-compactor-gradle-plugin && ../gradlew-smart publishPlugins -PpluginVersion=${{ needs.publish.outputs.version }} --no-daemon
   #       env:
   #         GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
   #         GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}

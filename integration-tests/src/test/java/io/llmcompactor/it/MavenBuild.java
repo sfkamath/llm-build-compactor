@@ -117,6 +117,11 @@ public final class MavenBuild {
 
   /** Executes the Maven build and returns the result. */
   public BuildResult execute() throws IOException, InterruptedException {
+    // Delete stale surefire/failsafe reports so timestamp filtering in SurefireParser
+    // does not skip XML files left over from a previous test run
+    deleteDirectory(projectDir.resolve("target").resolve("surefire-reports"));
+    deleteDirectory(projectDir.resolve("target").resolve("failsafe-reports"));
+
     // Use mvnw from the test project directory
     String mvnw = projectDir.resolve("mvnw").toString();
 
@@ -165,5 +170,21 @@ public final class MavenBuild {
   /** Returns the project directory. */
   public Path getProjectDir() {
     return projectDir;
+  }
+
+  private static void deleteDirectory(Path dir) throws IOException {
+    if (!Files.exists(dir)) {
+      return;
+    }
+    Files.walk(dir)
+        .sorted(java.util.Comparator.reverseOrder())
+        .forEach(
+            p -> {
+              try {
+                Files.delete(p);
+              } catch (IOException e) {
+                // ignore
+              }
+            });
   }
 }

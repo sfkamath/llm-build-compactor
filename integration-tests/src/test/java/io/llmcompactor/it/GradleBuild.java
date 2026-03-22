@@ -152,6 +152,7 @@ public final class GradleBuild {
     List<String> cmd = new ArrayList<>();
     cmd.add(gradlew);
     cmd.add("--daemon"); // Daemon is scoped to GRADLE_USER_HOME so safe to reuse across tests
+    cmd.add("--no-build-cache"); // Prevent cached test results with stale timestamps
 
     // Add project properties
     for (Map.Entry<String, String> prop : properties.entrySet()) {

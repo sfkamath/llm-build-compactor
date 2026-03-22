@@ -158,7 +158,7 @@
             <plugin>
                 <groupId>io.github.sfkamath</groupId>
                 <artifactId>llm-build-compactor-maven-plugin</artifactId>
-                <version>0.1.3</version>
+                <version>0.0.1-SNAPSHOT</version>
                 <configuration>
                     <outputAsJson>false</outputAsJson>
                     <compressStackFrames>true</compressStackFrames>

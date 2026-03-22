@@ -28,6 +28,7 @@ import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.project.MavenProject;
 
 /** Installs the Maven extension into the project by creating .mvn/extensions.xml. */
 @Mojo(name = "install")
@@ -36,10 +37,16 @@ public class LlmInstallMojo extends AbstractMojo {
   @Parameter(defaultValue = "${project.basedir}", readonly = true)
   private File basedir;
 
+  @Parameter(defaultValue = "${project}", readonly = true)
+  private MavenProject project;
+
   @Parameter(property = "llmCompactor.version", defaultValue = "${project.version}")
   private String version;
 
   public void execute() throws MojoExecutionException {
+    if (!project.isExecutionRoot()) {
+      return;
+    }
     Path mvnDir = basedir.toPath().resolve(".mvn");
     Path extensionsXml = mvnDir.resolve("extensions.xml");
 
