@@ -397,6 +397,13 @@
                 <module>integration-tests</module>
             </modules>
         </profile>
+        <profile>
+            <id>smoke-tests</id>
+            <modules>
+                <module>test-project-maven</module>
+                <module>test-project-gradle</module>
+            </modules>
+        </profile>
         <!-- No longer in use - superseded by Maven Central (ossrh profile) and Gradle Plugin Portal -->
         <profile>
             <id>github</id>

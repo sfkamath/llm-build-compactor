@@ -93,16 +93,10 @@ jobs:
             it-${{ runner.os }}-
             maven-${{ runner.os }}-
 
-      - name: Install all modules to local Maven repo
-        run: ./mvnw install -DskipTests -ntp --quiet
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: wrapper
 
-      - name: Smoke test Maven plugin (test-project-maven)
-        run: ./mvnw verify -f test-project-maven/pom.xml -ntp
-
-      - name: Smoke test Gradle plugin (test-project-gradle)
-        run: cd test-project-gradle && ../gradlew-smart test --no-daemon
+      - name: Run smoke tests
+        run: ./mvnw install -Psmoke-tests -ntp
