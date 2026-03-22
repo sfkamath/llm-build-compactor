@@ -1,0 +1,50 @@
+name: Publish to Gradle Plugin Portal
+
+on:
+  workflow_run:
+    workflows: ["Publish to Maven Central"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  publish:
+    name: Publish to Gradle Plugin Portal
+    if: false  # enable: replace with github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.m2/repository
+            ~/.gradle/wrapper/dists
+          key: it-${{ runner.os }}-${{ hashFiles('**/pom.xml', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            it-${{ runner.os }}-
+            maven-${{ runner.os }}-
+
+      - name: Read version from latest tag
+        id: version
+        run: echo "tag=$(git describe --tags --abbrev=0)" >> $GITHUB_OUTPUT
+
+      - name: Install core to local Maven repo
+        run: ./mvnw install -pl core -am -Drevision=${{ steps.version.outputs.tag }} -DskipTests -ntp --quiet
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+
+      - name: Publish to Gradle Plugin Portal
+        run: |
+          cd llm-build-compactor-gradle-plugin && ../gradlew-smart publishPlugins -PpluginVersion=${{ steps.version.outputs.tag }} --no-daemon
+        env:
+          GRADLE_PUBLISH_KEY: ${{ secrets.GRADLE_PUBLISH_KEY }}
+          GRADLE_PUBLISH_SECRET: ${{ secrets.GRADLE_PUBLISH_SECRET }}

@@ -1,0 +1,56 @@
+name: Publish to GitHub Packages
+
+on:
+  workflow_run:
+    workflows: ["Java CI"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  publish:
+    name: Publish to GitHub Packages
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - uses: actions/cache@v5
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: ''
+
+      - name: Setup Maven settings.xml
+        uses: whelk-io/maven-settings-xml-action@v22
+        with:
+          servers: '[{ "id": "github", "username": "${{ github.actor }}", "password": "${{ secrets.GITHUB_TOKEN }}" }]'
+
+      - name: Publish Maven modules to GitHub Packages
+        run: ./mvnw deploy -Pgithub -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet
+
+      - name: Install core for Gradle plugin build
+        run: ./mvnw install -pl core -am -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet
+
+      - name: Publish Gradle plugin to GitHub Packages
+        run: |
+          cd llm-build-compactor-gradle-plugin && ../gradlew-smart publishAllPublicationsToGithubRepository -PpluginVersion=${{ steps.tag_version.outputs.new_tag }} --no-daemon -q --console=plain
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
