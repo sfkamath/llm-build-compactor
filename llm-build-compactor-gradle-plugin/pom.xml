@@ -14,6 +14,7 @@
     </parent>
 
     <artifactId>llm-build-compactor-gradle-plugin</artifactId>
+    <name>LLM Build Compactor :: Gradle Plugin</name>
     <packaging>pom</packaging>
 
     <dependencies>

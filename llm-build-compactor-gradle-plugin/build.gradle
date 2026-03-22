@@ -33,7 +33,7 @@ gradlePlugin {
             implementationClass = 'io.llmcompactor.gradle.LlmCompactorPlugin'
             displayName = 'LLM Build Compactor'
             description = 'Compact build output for LLM-assisted development'
-            tags = ['llm', 'build', 'output', 'compact', 'ai', 'developer-tools', 'maven', 'compress', 'gradle', 'plugin']
+            tags = ['llm', 'build', 'output', 'compact', 'ai', 'developer-tools', 'maven', 'compress']
         }
     }
 }
@@ -59,6 +59,14 @@ publishing {
     repositories {
         maven {
             url = uri('file://' + System.getProperty('user.home') + '/.m2/repository')
+        }
+        maven {
+            name = 'github'
+            url = uri('https://maven.pkg.github.com/sfkamath/llm-build-compactor')
+            credentials {
+                username = System.getenv('GITHUB_ACTOR') ?: findProperty('gpr.user')
+                password = System.getenv('GITHUB_TOKEN') ?: findProperty('gpr.key')
+            }
         }
     }
 }
