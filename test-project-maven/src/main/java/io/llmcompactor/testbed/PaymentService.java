@@ -1,10 +1,12 @@
 package io.llmcompactor.testbed;
 
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 
-@Slf4j
 public class PaymentService {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
     public boolean processPayment(Order order) {
         log.info("Processing payment for order: {}", order != null ? order.getId() : "null");

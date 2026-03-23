@@ -1,14 +1,18 @@
 package io.llmcompactor.testbed;
 
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
 
-@Slf4j
-@RequiredArgsConstructor
 public class OrderProcessor {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderProcessor.class);
+
     private final PaymentService paymentService;
+
+    public OrderProcessor(PaymentService paymentService) {
+        this.paymentService = paymentService;
+    }
 
     public void processOrder(Order order) {
         log.info("Processing order: {}", order != null ? order.getId() : "null");
