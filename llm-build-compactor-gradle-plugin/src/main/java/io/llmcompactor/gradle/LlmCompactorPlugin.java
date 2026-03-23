@@ -148,9 +148,6 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
   @Override
   public void apply(Project project) {
-    // Idempotent auto-installation of the init script for future builds
-    installInitScript(project);
-
     LlmCompactorExtension extension =
         project.getExtensions().create("llmCompactor", LlmCompactorExtension.class);
 
@@ -255,27 +252,96 @@ public class LlmCompactorPlugin implements Plugin<Project> {
       extension.getOutputPath().set(outputPathProp.get());
     }
 
-    // Register the installation task mirroring the Maven install mojo
+    // Register the manual installation task
     project
         .getTasks()
         .register(
             "installLlmCompactor",
             task -> {
               task.setGroup("llm-compactor");
-              task.setDescription("Installs the LLM Compactor init script");
+              task.setDescription(
+                  "Installs the LLM Compactor init script into ~/.gradle/init.d/");
               task.doLast(
                   t -> {
                     try {
                       Path gradleUserHome = project.getGradle().getGradleUserHomeDir().toPath();
                       installInitScript(gradleUserHome);
-                      System.out.println(
-                          "Installed llm-compactor init script to "
-                              + gradleUserHome.resolve("init.d"));
+                      t.getProject()
+                          .getLogger()
+                          .quiet(
+                              "[LLM Compactor] Installed init script at {}."
+                                  + " This suppresses output for ALL Gradle builds on this"
+                                  + " machine. To remove it: ./gradlew uninstallLlmCompactor"
+                                  + " && ./gradlew --stop",
+                              gradleUserHome.resolve("init.d").resolve(INIT_SCRIPT_NAME));
                     } catch (IOException e) {
                       throw new RuntimeException("Failed to install Gradle init script", e);
                     }
                   });
             });
+
+    // Register the uninstallation task
+    project
+        .getTasks()
+        .register(
+            "uninstallLlmCompactor",
+            task -> {
+              task.setGroup("llm-compactor");
+              task.setDescription(
+                  "Removes the LLM Compactor init script from ~/.gradle/init.d/");
+              task.doLast(
+                  t -> {
+                    Path initScript =
+                        project
+                            .getGradle()
+                            .getGradleUserHomeDir()
+                            .toPath()
+                            .resolve("init.d")
+                            .resolve(INIT_SCRIPT_NAME);
+                    try {
+                      if (Files.deleteIfExists(initScript)) {
+                        t.getProject()
+                            .getLogger()
+                            .quiet(
+                                "[LLM Compactor] Removed init script from {}."
+                                    + " IMPORTANT: run './gradlew --stop' to kill the running"
+                                    + " daemon — it loaded the init script at startup and will"
+                                    + " continue suppressing output until restarted.",
+                                initScript);
+                      } else {
+                        t.getProject()
+                            .getLogger()
+                            .quiet(
+                                "[LLM Compactor] Init script not found at {} (nothing to remove).",
+                                initScript);
+                      }
+                    } catch (IOException e) {
+                      throw new RuntimeException("Failed to remove init script", e);
+                    }
+                  });
+            });
+
+    // Auto-install the init script on first apply (idempotent: no-op if already up to date)
+    try {
+      Path gradleUserHome = project.getGradle().getGradleUserHomeDir().toPath();
+      Path initScript = gradleUserHome.resolve("init.d").resolve(INIT_SCRIPT_NAME);
+      boolean isNew = !Files.exists(initScript);
+      installInitScript(gradleUserHome);
+      if (isNew) {
+        project
+            .getLogger()
+            .warn(
+                "[LLM Compactor] Installed init script at {}."
+                    + " This suppresses output for ALL Gradle builds on this machine, not just"
+                    + " this project. To remove it: ./gradlew uninstallLlmCompactor"
+                    + " && ./gradlew --stop",
+                initScript);
+      }
+    } catch (IOException e) {
+      project
+          .getLogger()
+          .warn("[LLM Compactor] Could not install init script: {}", e.getMessage());
+    }
 
     Project rootProject = project.getRootProject();
     if (!rootProject.getExtensions().getExtraProperties().has(ROOT_LISTENER_REGISTERED)) {
@@ -357,6 +423,15 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                     task -> {
                       if (isEnabled) {
                         task.systemProperty("slf4j.internal.verbosity", "ERROR");
+                        task.getTestLogging().setEvents(Collections.emptySet());
+                        task.getTestLogging().setShowStandardStreams(false);
+                        task.getTestLogging().setShowExceptions(false);
+                        task.getTestLogging().setShowCauses(false);
+                        task.getTestLogging().setShowStackTraces(false);
+                        task.addTestOutputListener(
+                            (descriptor, event) -> {
+                              // Swallow test output from build log; XML results capture it
+                            });
                       }
                     });
             p.getTasks()
@@ -401,15 +476,6 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 emitSummary(rootProject, extension, sessionStartTime);
               }
             });
-  }
-
-  private void installInitScript(Project project) {
-    try {
-      Path gradleUserHome = project.getGradle().getGradleUserHomeDir().toPath();
-      installInitScript(gradleUserHome);
-    } catch (Exception e) {
-      // Non-fatal
-    }
   }
 
   private void installInitScript(Path gradleUserHome) throws IOException {
