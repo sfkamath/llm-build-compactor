@@ -1,6 +1,6 @@
 plugins {
     id("java")
-    id("io.llmcompactor.gradle") apply false
+    id("io.github.sfkamath.llm-build-compactor") apply false
 }
 
 // Root build.gradle.kts for LLM Build Compactor

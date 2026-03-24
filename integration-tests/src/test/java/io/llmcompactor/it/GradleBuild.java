@@ -153,6 +153,7 @@ public final class GradleBuild {
     cmd.add(gradlew);
     cmd.add("--daemon"); // Daemon is scoped to GRADLE_USER_HOME so safe to reuse across tests
     cmd.add("--no-build-cache"); // Prevent cached test results with stale timestamps
+    cmd.add("--no-configuration-cache"); // Prevent stale task graph from hiding test results
 
     // Add project properties
     for (Map.Entry<String, String> prop : properties.entrySet()) {
@@ -217,6 +218,11 @@ public final class GradleBuild {
   /** Returns the project directory. */
   public Path getProjectDir() {
     return projectDir;
+  }
+
+  /** Returns the shared Gradle test home directory (useful for inspecting init.d contents). */
+  public static Path gradleTestHome() {
+    return GRADLE_TEST_HOME;
   }
 
   /** Cleans up the shared Gradle test home directory. Should be called after all tests complete. */

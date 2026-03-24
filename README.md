@@ -30,7 +30,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 The compactor uses a Maven Extension to achieve complete build silence. Install it using:
 
 ```bash
-mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.2.1:install
+mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.2.3:install
 ```
 
 This creates `.mvn/extensions.xml` in your project, enabling the Core Extension that suppresses all build output during execution.
@@ -45,7 +45,7 @@ To customize the output format and features, add the plugin configuration to you
         <plugin>
             <groupId>io.github.sfkamath</groupId>
             <artifactId>llm-build-compactor-maven-plugin</artifactId>
-            <version>0.2.1</version>
+            <version>0.2.3</version>
             <configuration>
                 <outputAsJson>false</outputAsJson>
                 <compressStackFrames>true</compressStackFrames>
@@ -76,7 +76,7 @@ Add the plugin to your `build.gradle.kts` (Kotlin DSL):
 
 ```kotlin
 plugins {
-    id("io.github.sfkamath.llm-build-compactor") version "0.2.1"
+    id("io.github.sfkamath.llm-build-compactor") version "0.2.3"
 }
 ```
 
@@ -84,7 +84,7 @@ Or `build.gradle` (Groovy DSL):
 
 ```groovy
 plugins {
-    id 'io.github.sfkamath.llm-build-compactor' version '0.2.1'
+    id 'io.github.sfkamath.llm-build-compactor' version '0.2.3'
 }
 ```
 
@@ -114,18 +114,47 @@ llmCompactor {
 }
 ```
 
-### 3. Install the Bootstrap Files
+### 3. Global Settings (Auto-Installed)
 
-To enable the Gradle bootstrap path, install the companion init script:
+When you first apply the plugin, it automatically installs two global suppressions:
+
+| File | What it adds |
+|------|-------------|
+| `~/.gradle/init.d/llm-compactor-silence.gradle` | Init script that suppresses Gradle lifecycle output during the initialization phase, before plugin code runs |
+| `~/.gradle/gradle.properties` | `org.gradle.logging.level=quiet` wrapped in `# >>> llm-compactor >>>` markers, which silences per-test pass/fail lines (e.g. Spock's `MySpec some test PASSED`) |
+
+Both are managed as a unit by `installLlmCompactor` / `uninstallLlmCompactor`.
+
+> **Warning:** These settings affect **all Gradle builds on your machine**, not just
+> projects that use this plugin. A one-line notice is printed the first time they are installed.
+
+#### Uninstalling
+
+If you want to remove both suppressions (e.g. when removing the plugin from your project):
+
+```bash
+./gradlew uninstallLlmCompactor
+./gradlew --stop
+```
+
+The `./gradlew --stop` is **required**. The running Gradle daemon loaded the init script at
+startup and will continue suppressing output for all builds until it is restarted.
+
+> **If you remove the plugin from your build file without running `uninstallLlmCompactor`
+> first**, both suppressions remain active. Run `./gradlew uninstallLlmCompactor && ./gradlew --stop`
+> from any project that still has the plugin applied, or remove them manually:
+> ```
+> rm ~/.gradle/init.d/llm-compactor-silence.gradle
+> # remove the llm-compactor block from ~/.gradle/gradle.properties
+> ```
+
+#### Re-installing manually
+
+If the settings are ever lost (e.g. after cleaning `~/.gradle`), reinstall them with:
 
 ```bash
 ./gradlew installLlmCompactor
 ```
-
-This installs:
-- a companion init script in `~/.gradle/init.d/`
-
-The plugin then applies task-level suppression and emits a single final summary for the build.
 
 ---
 
@@ -211,7 +240,7 @@ When `showFailedTestLogs` is enabled (default: `false`), the compactor captures 
 <plugin>
     <groupId>io.github.sfkamath</groupId>
     <artifactId>llm-build-compactor-maven-plugin</artifactId>
-    <version>0.2.1</version>
+    <version>0.2.3</version>
     <configuration>
         <showFailedTestLogs>true</showFailedTestLogs>
     </configuration>
@@ -367,6 +396,8 @@ Errors:
 ## Development
 
 For information on building, testing, and contributing to the LLM Build Compactor itself, see [`docs/development-guide.md`](docs/development-guide.md).
+
+For a detailed explanation of how the integration tests work — including why they cannot be run in isolation, how the test projects are wired up, and how to debug failures — see [`integration-tests/README.md`](integration-tests/README.md).
 
 **Quick Start:**
 
