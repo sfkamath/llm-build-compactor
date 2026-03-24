@@ -30,7 +30,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 The compactor uses a Maven Extension to achieve complete build silence. Install it using:
 
 ```bash
-mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.2.1:install
+mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.2.3:install
 ```
 
 This creates `.mvn/extensions.xml` in your project, enabling the Core Extension that suppresses all build output during execution.
@@ -45,7 +45,7 @@ To customize the output format and features, add the plugin configuration to you
         <plugin>
             <groupId>io.github.sfkamath</groupId>
             <artifactId>llm-build-compactor-maven-plugin</artifactId>
-            <version>0.2.1</version>
+            <version>0.2.3</version>
             <configuration>
                 <outputAsJson>false</outputAsJson>
                 <compressStackFrames>true</compressStackFrames>
@@ -76,7 +76,7 @@ Add the plugin to your `build.gradle.kts` (Kotlin DSL):
 
 ```kotlin
 plugins {
-    id("io.github.sfkamath.llm-build-compactor") version "0.2.1"
+    id("io.github.sfkamath.llm-build-compactor") version "0.2.3"
 }
 ```
 
@@ -84,7 +84,7 @@ Or `build.gradle` (Groovy DSL):
 
 ```groovy
 plugins {
-    id 'io.github.sfkamath.llm-build-compactor' version '0.2.1'
+    id 'io.github.sfkamath.llm-build-compactor' version '0.2.3'
 }
 ```
 
@@ -114,22 +114,23 @@ llmCompactor {
 }
 ```
 
-### 3. Global Init Script (Auto-Installed)
+### 3. Global Settings (Auto-Installed)
 
-When you first apply the plugin, it automatically installs a companion init script at
-`~/.gradle/init.d/llm-compactor-silence.gradle`.
+When you first apply the plugin, it automatically installs two global suppressions:
 
-**Why it is needed:** Gradle has already started emitting lifecycle output before plugin code
-runs during project configuration. The init script runs earlier — during Gradle's
-initialization phase — and suppresses that startup output so the compactor summary is the
-only thing you see.
+| File | What it adds |
+|------|-------------|
+| `~/.gradle/init.d/llm-compactor-silence.gradle` | Init script that suppresses Gradle lifecycle output during the initialization phase, before plugin code runs |
+| `~/.gradle/gradle.properties` | `org.gradle.logging.level=quiet` wrapped in `# >>> llm-compactor >>>` markers, which silences per-test pass/fail lines (e.g. Spock's `MySpec some test PASSED`) |
 
-> **Warning:** The init script affects **all Gradle builds on your machine**, not just
-> projects that use this plugin. A one-line notice is printed the first time it is installed.
+Both are managed as a unit by `installLlmCompactor` / `uninstallLlmCompactor`.
+
+> **Warning:** These settings affect **all Gradle builds on your machine**, not just
+> projects that use this plugin. A one-line notice is printed the first time they are installed.
 
 #### Uninstalling
 
-If you want to remove the init script (e.g. when removing the plugin from your project):
+If you want to remove both suppressions (e.g. when removing the plugin from your project):
 
 ```bash
 ./gradlew uninstallLlmCompactor
@@ -140,14 +141,16 @@ The `./gradlew --stop` is **required**. The running Gradle daemon loaded the ini
 startup and will continue suppressing output for all builds until it is restarted.
 
 > **If you remove the plugin from your build file without running `uninstallLlmCompactor`
-> first**, the init script remains in `~/.gradle/init.d/` and continues to suppress output
-> in all your Gradle builds. Run `./gradlew uninstallLlmCompactor && ./gradlew --stop` from
-> any project that still has the plugin applied, or delete the file manually:
-> `rm ~/.gradle/init.d/llm-compactor-silence.gradle`
+> first**, both suppressions remain active. Run `./gradlew uninstallLlmCompactor && ./gradlew --stop`
+> from any project that still has the plugin applied, or remove them manually:
+> ```
+> rm ~/.gradle/init.d/llm-compactor-silence.gradle
+> # remove the llm-compactor block from ~/.gradle/gradle.properties
+> ```
 
 #### Re-installing manually
 
-If the init script is ever lost (e.g. after cleaning `~/.gradle`), reinstall it with:
+If the settings are ever lost (e.g. after cleaning `~/.gradle`), reinstall them with:
 
 ```bash
 ./gradlew installLlmCompactor
@@ -237,7 +240,7 @@ When `showFailedTestLogs` is enabled (default: `false`), the compactor captures 
 <plugin>
     <groupId>io.github.sfkamath</groupId>
     <artifactId>llm-build-compactor-maven-plugin</artifactId>
-    <version>0.2.1</version>
+    <version>0.2.3</version>
     <configuration>
         <showFailedTestLogs>true</showFailedTestLogs>
     </configuration>

@@ -45,6 +45,8 @@ import org.gradle.api.tasks.testing.Test;
 public class LlmCompactorPlugin implements Plugin<Project> {
   private static final String ROOT_LISTENER_REGISTERED = "llmCompactorRootListenerRegistered";
   private static final String INIT_SCRIPT_NAME = "llm-compactor-silence.gradle";
+  private static final String GRADLE_PROPS_MARKER_START = "# >>> llm-compactor >>>";
+  private static final String GRADLE_PROPS_MARKER_END = "# <<< llm-compactor <<<";
 
   /** Creates a new instance of the LLM Build Compactor plugin. */
   public LlmCompactorPlugin() {}
@@ -259,17 +261,18 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             "installLlmCompactor",
             task -> {
               task.setGroup("llm-compactor");
-              task.setDescription(
-                  "Installs the LLM Compactor init script into ~/.gradle/init.d/");
+              task.setDescription("Installs the LLM Compactor init script into ~/.gradle/init.d/");
               task.doLast(
                   t -> {
                     try {
                       Path gradleUserHome = project.getGradle().getGradleUserHomeDir().toPath();
                       installInitScript(gradleUserHome);
+                      installGradleProperties(gradleUserHome);
                       t.getProject()
                           .getLogger()
                           .quiet(
-                              "[LLM Compactor] Installed init script at {}."
+                              "[LLM Compactor] Installed init script at {} and set"
+                                  + " org.gradle.logging.level=quiet in ~/.gradle/gradle.properties."
                                   + " This suppresses output for ALL Gradle builds on this"
                                   + " machine. To remove it: ./gradlew uninstallLlmCompactor"
                                   + " && ./gradlew --stop",
@@ -287,60 +290,58 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             "uninstallLlmCompactor",
             task -> {
               task.setGroup("llm-compactor");
-              task.setDescription(
-                  "Removes the LLM Compactor init script from ~/.gradle/init.d/");
+              task.setDescription("Removes the LLM Compactor init script from ~/.gradle/init.d/");
               task.doLast(
                   t -> {
-                    Path initScript =
-                        project
-                            .getGradle()
-                            .getGradleUserHomeDir()
-                            .toPath()
-                            .resolve("init.d")
-                            .resolve(INIT_SCRIPT_NAME);
+                    Path gradleUserHome = project.getGradle().getGradleUserHomeDir().toPath();
+                    Path initScript = gradleUserHome.resolve("init.d").resolve(INIT_SCRIPT_NAME);
                     try {
-                      if (Files.deleteIfExists(initScript)) {
+                      boolean initScriptRemoved = Files.deleteIfExists(initScript);
+                      boolean propsRemoved = uninstallGradleProperties(gradleUserHome);
+                      if (initScriptRemoved || propsRemoved) {
                         t.getProject()
                             .getLogger()
                             .quiet(
-                                "[LLM Compactor] Removed init script from {}."
+                                "[LLM Compactor] Removed init script ({}) and gradle.properties"
+                                    + " entry ({})."
                                     + " IMPORTANT: run './gradlew --stop' to kill the running"
                                     + " daemon — it loaded the init script at startup and will"
                                     + " continue suppressing output until restarted.",
-                                initScript);
+                                initScriptRemoved ? "yes" : "not found",
+                                propsRemoved ? "yes" : "not found");
                       } else {
                         t.getProject()
                             .getLogger()
                             .quiet(
-                                "[LLM Compactor] Init script not found at {} (nothing to remove).",
-                                initScript);
+                                "[LLM Compactor] Nothing to remove (init script and"
+                                    + " gradle.properties entry not found).");
                       }
                     } catch (IOException e) {
-                      throw new RuntimeException("Failed to remove init script", e);
+                      throw new RuntimeException("Failed to uninstall LLM Compactor", e);
                     }
                   });
             });
 
-    // Auto-install the init script on first apply (idempotent: no-op if already up to date)
+    // Auto-install on first apply (idempotent: no-op if already up to date)
     try {
       Path gradleUserHome = project.getGradle().getGradleUserHomeDir().toPath();
       Path initScript = gradleUserHome.resolve("init.d").resolve(INIT_SCRIPT_NAME);
       boolean isNew = !Files.exists(initScript);
       installInitScript(gradleUserHome);
+      installGradleProperties(gradleUserHome);
       if (isNew) {
         project
             .getLogger()
             .warn(
-                "[LLM Compactor] Installed init script at {}."
+                "[LLM Compactor] Installed init script at {} and set"
+                    + " org.gradle.logging.level=quiet in ~/.gradle/gradle.properties."
                     + " This suppresses output for ALL Gradle builds on this machine, not just"
                     + " this project. To remove it: ./gradlew uninstallLlmCompactor"
                     + " && ./gradlew --stop",
                 initScript);
       }
     } catch (IOException e) {
-      project
-          .getLogger()
-          .warn("[LLM Compactor] Could not install init script: {}", e.getMessage());
+      project.getLogger().warn("[LLM Compactor] Could not install: {}", e.getMessage());
     }
 
     Project rootProject = project.getRootProject();
@@ -506,6 +507,53 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         Files.write(initScript, contentBytes);
       }
     }
+  }
+
+  private void installGradleProperties(Path gradleUserHome) throws IOException {
+    Path propsFile = gradleUserHome.resolve("gradle.properties");
+    String content =
+        Files.exists(propsFile) ? new String(Files.readAllBytes(propsFile), "UTF-8") : "";
+    if (content.contains(GRADLE_PROPS_MARKER_START)) {
+      return; // already installed
+    }
+    String block =
+        "\n"
+            + GRADLE_PROPS_MARKER_START
+            + "\n"
+            + "org.gradle.logging.level=quiet\n"
+            + GRADLE_PROPS_MARKER_END
+            + "\n";
+    if (!content.isEmpty() && !content.endsWith("\n")) {
+      content += "\n";
+    }
+    Files.write(propsFile, (content + block).getBytes("UTF-8"));
+  }
+
+  private boolean uninstallGradleProperties(Path gradleUserHome) throws IOException {
+    Path propsFile = gradleUserHome.resolve("gradle.properties");
+    if (!Files.exists(propsFile)) {
+      return false;
+    }
+    String content = new String(Files.readAllBytes(propsFile), "UTF-8");
+    int start = content.indexOf(GRADLE_PROPS_MARKER_START);
+    if (start < 0) {
+      return false;
+    }
+    int end = content.indexOf(GRADLE_PROPS_MARKER_END, start);
+    if (end < 0) {
+      return false;
+    }
+    end += GRADLE_PROPS_MARKER_END.length();
+    if (end < content.length() && content.charAt(end) == '\n') {
+      end++;
+    }
+    // absorb a preceding blank line if present
+    if (start > 0 && content.charAt(start - 1) == '\n') {
+      start--;
+    }
+    String cleaned = content.substring(0, start) + content.substring(end);
+    Files.write(propsFile, cleaned.getBytes("UTF-8"));
+    return true;
   }
 
   private void emitSummary(

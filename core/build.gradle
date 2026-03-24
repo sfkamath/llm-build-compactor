@@ -2,8 +2,13 @@ plugins {
     id 'java'
 }
 
-group = 'io.llmcompactor'
-version = '0.1.0'
+import java.util.Properties
+
+def rootProps = new Properties()
+rootProps.load(new FileInputStream(file('../gradle.properties')))
+
+group = 'io.github.sfkamath'
+version = findProperty('pluginVersion') ?: rootProps['pluginVersion']
 
 repositories {
     mavenCentral()

@@ -359,6 +359,8 @@ class GradleOptionTests {
   class InitScriptTests {
 
     private static final String INIT_SCRIPT_NAME = "llm-compactor-silence.gradle";
+    private static final String MARKER_START = "# >>> llm-compactor >>>";
+    private static final String MARKER_END = "# <<< llm-compactor <<<";
 
     @Test
     @DisplayName("applying the plugin auto-installs the init script")
@@ -412,6 +414,97 @@ class GradleOptionTests {
 
       assertThat(result.exitCode()).isZero();
       assertThat(initScript).doesNotExist();
+    }
+
+    @Test
+    @DisplayName("applying the plugin auto-installs the gradle.properties block")
+    void testAutoInstallGradleProperties() throws Exception {
+      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
+      // Remove any existing marker block
+      removeMarkerBlock(propsFile);
+
+      GradleBuild.inProject("gradle-test-project").withTask("test").execute();
+
+      assertThat(propsFile).exists();
+      assertThat(new String(Files.readAllBytes(propsFile))).contains(MARKER_START);
+    }
+
+    @Test
+    @DisplayName("installLlmCompactor writes org.gradle.logging.level=quiet to gradle.properties")
+    void testInstallGradleProperties() throws Exception {
+      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
+      removeMarkerBlock(propsFile);
+
+      GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
+
+      String content = new String(Files.readAllBytes(propsFile));
+      assertThat(content).contains(MARKER_START);
+      assertThat(content).contains("org.gradle.logging.level=quiet");
+      assertThat(content).contains(MARKER_END);
+    }
+
+    @Test
+    @DisplayName("installLlmCompactor is idempotent for gradle.properties")
+    void testInstallGradlePropertiesIdempotent() throws Exception {
+      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
+      removeMarkerBlock(propsFile);
+
+      GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
+      GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
+
+      String content = new String(Files.readAllBytes(propsFile));
+      int markerCount = 0;
+      int idx = 0;
+      while ((idx = content.indexOf(MARKER_START, idx)) >= 0) {
+        markerCount++;
+        idx += MARKER_START.length();
+      }
+      assertThat(markerCount).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("uninstallLlmCompactor removes the gradle.properties block")
+    void testUninstallGradleProperties() throws Exception {
+      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
+      removeMarkerBlock(propsFile);
+
+      GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
+      assertThat(new String(Files.readAllBytes(propsFile))).contains(MARKER_START);
+
+      GradleBuild.inProject("gradle-test-project").withTask("uninstallLlmCompactor").execute();
+
+      String content = new String(Files.readAllBytes(propsFile));
+      assertThat(content).doesNotContain(MARKER_START);
+      assertThat(content).doesNotContain("org.gradle.logging.level=quiet");
+    }
+
+    @Test
+    @DisplayName("uninstallLlmCompactor preserves existing gradle.properties content")
+    void testUninstallGradlePropertiesPreservesOtherContent() throws Exception {
+      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
+      removeMarkerBlock(propsFile);
+      // Write existing user content
+      Files.write(propsFile, "org.gradle.parallel=true\n".getBytes());
+
+      GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
+      GradleBuild.inProject("gradle-test-project").withTask("uninstallLlmCompactor").execute();
+
+      String content = new String(Files.readAllBytes(propsFile));
+      assertThat(content).contains("org.gradle.parallel=true");
+      assertThat(content).doesNotContain(MARKER_START);
+    }
+
+    private void removeMarkerBlock(Path propsFile) throws Exception {
+      if (!Files.exists(propsFile)) return;
+      String content = new String(Files.readAllBytes(propsFile));
+      int start = content.indexOf(MARKER_START);
+      if (start < 0) return;
+      int end = content.indexOf(MARKER_END, start);
+      if (end < 0) return;
+      end += MARKER_END.length();
+      if (end < content.length() && content.charAt(end) == '\n') end++;
+      if (start > 0 && content.charAt(start - 1) == '\n') start--;
+      Files.write(propsFile, (content.substring(0, start) + content.substring(end)).getBytes());
     }
   }
 
