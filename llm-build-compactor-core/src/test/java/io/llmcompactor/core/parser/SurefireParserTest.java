@@ -331,4 +331,35 @@ class SurefireParserTest {
     BuildError error = result.errors().get(0);
     assertThat(error.testLogs()).isNull();
   }
+
+  @Test
+  void shouldParseGroovySpockStackTraces() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"io.llmcompactor.testbed.GroovySpockTest\" tests=\"1\" failures=\"1\" errors=\"0\" skipped=\"0\" time=\"0.05\">\n"
+            + "  <testcase name=\"null pointer test\" classname=\"io.llmcompactor.testbed.GroovySpockTest\" time=\"0.05\">\n"
+            + "    <failure message=\"NullPointerException\" type=\"java.lang.NullPointerException\">\n"
+            + "java.lang.NullPointerException: test\n"
+            + "at io.llmcompactor.testbed.Service.process(Service.java:15)\n"
+            + "at io.llmcompactor.testbed.GroovySpockTest.null pointer test(GroovySpockTest.groovy:15)\n"
+            + "    </failure>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.GroovySpockTest.xml"),
+        xml.getBytes(),
+        StandardOpenOption.CREATE);
+
+    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    assertThat(result.errors()).hasSize(1);
+    BuildError error = result.errors().get(0);
+    assertThat(error.file()).contains("GroovySpockTest.groovy");
+    assertThat(error.lines()).containsExactly(15);
+    assertThat(error.stackTrace()).contains("GroovySpockTest.groovy:15");
+  }
 }

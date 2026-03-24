@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'groovy'
     id 'io.github.sfkamath.llm-build-compactor'
 }
 
@@ -23,6 +24,9 @@ dependencies {
     testImplementation 'io.projectreactor:reactor-core'
     testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    testImplementation 'org.apache.groovy:groovy-all:4.0.23'
+    testImplementation 'org.spockframework:spock-core:2.4-groovy-4.0'
 }
 
 sourceSets {

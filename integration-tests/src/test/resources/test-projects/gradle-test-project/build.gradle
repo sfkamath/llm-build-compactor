@@ -35,12 +35,18 @@ dependencies {
     testImplementation 'io.projectreactor:reactor-core'
     testImplementation 'io.projectreactor:reactor-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.10.0'
+
+    testImplementation 'org.codehaus.groovy:groovy-all:3.0.19'
+    testImplementation 'org.spockframework:spock-core:2.3-groovy-3.0'
 }
 
 sourceSets {
     test {
         java {
             srcDirs += 'src/it/java'
+        }
+        groovy {
+            srcDirs += 'src/test/groovy'
         }
     }
 }

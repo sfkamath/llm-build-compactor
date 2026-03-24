@@ -26,6 +26,7 @@ import org.xml.sax.SAXException;
 public final class SurefireParser {
 
   private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\\.java:(\\d+)\\)");
+  private static final Pattern GROOVY_LINE_NUMBER_PATTERN = Pattern.compile("\\.groovy:(\\d+)\\)");
 
   public static TestResult parse(
       Path targetDir,
@@ -205,11 +206,14 @@ public final class SurefireParser {
 
     // For file detection: use the last project frame (typically the test method)
     // For line detection: use the first project frame (where exception originated)
+    // Supports both Java (.java:) and Groovy (.groovy:) files
     String[] lines = message.split("\n");
     String firstProjectFrame = null;
     String lastProjectFrame = null;
     for (String l : lines) {
-      if (l.contains(".java:") && !isFrameworkFrame(l, stackFrameWhitelist, stackFrameBlacklist)) {
+      boolean hasJavaFile = l.contains(".java:");
+      boolean hasGroovyFile = l.contains(".groovy:");
+      if ((hasJavaFile || hasGroovyFile) && !isFrameworkFrame(l, stackFrameWhitelist, stackFrameBlacklist)) {
         if (firstProjectFrame == null) {
           firstProjectFrame = l;
         }
@@ -220,7 +224,12 @@ public final class SurefireParser {
     // Use first frame for line number (where exception originated)
     if (firstProjectFrame != null) {
       Matcher m = LINE_NUMBER_PATTERN.matcher(firstProjectFrame);
-      if (m.find()) {
+      boolean found = m.find();
+      if (!found) {
+        m = GROOVY_LINE_NUMBER_PATTERN.matcher(firstProjectFrame);
+        found = m.find();
+      }
+      if (found) {
         line = Integer.parseInt(m.group(1));
       }
     }
@@ -228,17 +237,32 @@ public final class SurefireParser {
     // Use last frame for file detection (typically the test file)
     if (lastProjectFrame != null) {
       Matcher m = LINE_NUMBER_PATTERN.matcher(lastProjectFrame);
-      if (m.find()) {
+      boolean found = m.find();
+      if (!found) {
+        m = GROOVY_LINE_NUMBER_PATTERN.matcher(lastProjectFrame);
+        found = m.find();
+      }
+      if (found) {
         int atIndex = lastProjectFrame.indexOf("at ");
         int parenIndex = lastProjectFrame.indexOf("(");
         int javaIndex = lastProjectFrame.indexOf(".java:");
-        if (atIndex >= 0 && parenIndex > atIndex && javaIndex > parenIndex) {
+        int groovyIndex = lastProjectFrame.indexOf(".groovy:");
+        int fileExtIndex = javaIndex >= 0 ? javaIndex : groovyIndex;
+        if (atIndex >= 0 && parenIndex > atIndex && fileExtIndex > parenIndex) {
           String fullClass = lastProjectFrame.substring(atIndex + 3, parenIndex);
           int lastDotInClass = fullClass.lastIndexOf(".");
           if (lastDotInClass > 0) {
             String packageName = fullClass.substring(0, lastDotInClass);
-            String fileName = lastProjectFrame.substring(parenIndex + 1, javaIndex + 5);
+            String fileName;
+            if (javaIndex >= 0) {
+              fileName = lastProjectFrame.substring(parenIndex + 1, javaIndex + 5);
+            } else {
+              fileName = lastProjectFrame.substring(parenIndex + 1, groovyIndex + 7);
+            }
             int classNameEnd = fileName.indexOf(".java");
+            if (classNameEnd < 0) {
+              classNameEnd = fileName.indexOf(".groovy");
+            }
             if (classNameEnd > 0) {
               String className = fileName.substring(0, classNameEnd);
               if (packageName.endsWith("." + className)) {
