@@ -68,7 +68,7 @@
     </properties>
 
     <modules>
-        <module>core</module>
+        <module>llm-build-compactor-core</module>
         <module>llm-build-compactor-maven-plugin</module>
         <module>llm-build-compactor-extension</module>
         <module>llm-build-compactor-gradle-plugin</module>
@@ -102,7 +102,7 @@
             </dependency>
             <dependency>
                 <groupId>io.github.sfkamath</groupId>
-                <artifactId>core</artifactId>
+                <artifactId>llm-build-compactor-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>

@@ -21,7 +21,7 @@
         <!-- Declare dependencies for Maven resolution (actual artifacts published by Gradle) -->
         <dependency>
             <groupId>io.github.sfkamath</groupId>
-            <artifactId>core</artifactId>
+            <artifactId>llm-build-compactor-core</artifactId>
             <version>${project.version}</version>
         </dependency>
     </dependencies>
@@ -126,10 +126,10 @@
                             <goal>install-file</goal>
                         </goals>
                         <configuration>
-                            <file>${project.basedir}/../core/target/core-${project.version}.jar</file>
-                            <pomFile>${project.basedir}/../core/.flattened-pom.xml</pomFile>
+                            <file>${project.basedir}/../llm-build-compactor-core/target/llm-build-compactor-core-${project.version}.jar</file>
+                            <pomFile>${project.basedir}/../llm-build-compactor-core/.flattened-pom.xml</pomFile>
                             <groupId>io.github.sfkamath</groupId>
-                            <artifactId>core</artifactId>
+                            <artifactId>llm-build-compactor-core</artifactId>
                             <version>${project.version}</version>
                             <packaging>jar</packaging>
                         </configuration>

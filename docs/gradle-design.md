@@ -183,11 +183,11 @@ That is intentional for the LLM-focused use case.
 
 The main pieces are:
 
-- `gradle-plugin/src/main/java/io/llmcompactor/gradle/LlmCompactorPlugin.java`
-- `gradle-plugin/src/main/resources/llm-compactor-init.gradle`
-- `core/src/main/java/io/llmcompactor/core/SummaryWriter.java`
-- `core/src/main/java/io/llmcompactor/core/parser/GradleParser.java`
-- `core/src/main/java/io/llmcompactor/core/StackTraceCompressor.java`
+- `llm-build-compactor-gradle-plugin/src/main/java/io/llmcompactor/gradle/LlmCompactorPlugin.java`
+- `llm-build-compactor-gradle-plugin/src/main/resources/llm-compactor-init.gradle`
+- `llm-build-compactor-core/src/main/java/io/llmcompactor/core/SummaryWriter.java`
+- `llm-build-compactor-core/src/main/java/io/llmcompactor/core/parser/GradleParser.java`
+- `llm-build-compactor-core/src/main/java/io/llmcompactor/core/StackTraceCompressor.java`
 
 ## Summary
 

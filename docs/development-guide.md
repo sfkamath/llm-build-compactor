@@ -40,10 +40,10 @@ The project uses a single version defined in `pom.xml`:
 
 ### Why Gradle needs install-file
 
-`llm-build-compactor-gradle-plugin` wraps a Gradle build via `exec-maven-plugin`. Gradle runs as an **external subprocess** and cannot see the Maven reactor — it must resolve `core:${version}` from a repository (`mavenCentral()` or `mavenLocal()`). The `llm-build-compactor-gradle-plugin/pom.xml` therefore runs two `install-file` executions at `process-resources` before Gradle builds:
+`llm-build-compactor-gradle-plugin` wraps a Gradle build via `exec-maven-plugin`. Gradle runs as an **external subprocess** and cannot see the Maven reactor — it must resolve `llm-build-compactor-core:${version}` from a repository (`mavenCentral()` or `mavenLocal()`). The `llm-build-compactor-gradle-plugin/pom.xml` therefore runs two `install-file` executions at `process-resources` before Gradle builds:
 
-1. The root POM — because `core`'s flattened POM still has `<parent>`, so Gradle fetches it too
-2. The `core` JAR + its flattened POM
+1. The root POM — because `llm-build-compactor-core`'s flattened POM still has `<parent>`, so Gradle fetches it too
+2. The `llm-build-compactor-core` JAR + its flattened POM
 
 ### test-project-maven extensions.xml
 
@@ -60,7 +60,7 @@ The project uses a single version defined in `pom.xml`:
 ```
 
 Works on a clean machine with an empty local repo. The `llm-build-compactor-gradle-plugin` module
-installs `core` and the root POM to local repo before invoking Gradle, so no
+installs `llm-build-compactor-core` and the root POM to local repo before invoking Gradle, so no
 prior `mvn install` is required.
 
 ### Build with Quality Checks
@@ -125,7 +125,7 @@ reactor. They are activated via the `integration-tests` profile:
 ```
 
 The `integration-tests` module is **self-contained**: its `pom.xml` runs `install-file`
-executions at `process-test-resources` to install the root POM, `core`,
+executions at `process-test-resources` to install the root POM, `llm-build-compactor-core`,
 `llm-build-compactor-maven-plugin`, and `llm-build-compactor-extension` into `~/.m2` before any test
 subprocess launches.
 
@@ -164,7 +164,7 @@ cat target/llm-summary.json
 llm-build-compactor/
 ├── pom.xml                              # Parent POM; version=${revision}
 ├── gradle.properties                    # Default pluginVersion for local composite builds
-├── core/                                # Core parsing/compaction logic (Java 8+)
+├── llm-build-compactor-core/            # Core parsing/compaction logic (Java 8+)
 ├── llm-build-compactor-extension/       # Maven extension for build silence (Java 8+)
 ├── llm-build-compactor-maven-plugin/    # Maven Mojo (Java 8+)
 ├── llm-build-compactor-gradle-plugin/   # Gradle plugin (Java 17+); wraps Gradle build via Maven
@@ -243,13 +243,13 @@ cd llm-build-compactor-gradle-plugin && ../gradlew-smart clean build --info -Ppl
 
 ## Troubleshooting
 
-### gradle-plugin fails with "Could not find io.github.sfkamath:core"
+### gradle-plugin fails with "Could not find io.github.sfkamath:llm-build-compactor-core"
 
 This should not happen with the current setup — `llm-build-compactor-gradle-plugin/pom.xml` installs
-`core` and the root POM to `~/.m2` before invoking Gradle. If it does occur:
+`llm-build-compactor-core` and the root POM to `~/.m2` before invoking Gradle. If it does occur:
 
 1. Confirm you are running `./mvnw` from the project root (not inside `llm-build-compactor-gradle-plugin/`)
-2. Run with `-pl core,llm-build-compactor-gradle-plugin -am` to isolate the two modules
+2. Run with `-pl llm-build-compactor-core,llm-build-compactor-gradle-plugin -am` to isolate the two modules
 
 ### "Unsupported class file major version"
 

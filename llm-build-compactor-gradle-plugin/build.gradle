@@ -19,7 +19,7 @@ repositories {
 }
 
 dependencies {
-    implementation "io.github.sfkamath:core:${version}"
+    implementation "io.github.sfkamath:llm-build-compactor-core:${version}"
     compileOnly 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
 }
 

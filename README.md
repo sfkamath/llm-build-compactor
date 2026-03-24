@@ -164,7 +164,7 @@ Settings can be configured in your `pom.xml` (Maven), `build.gradle` (Gradle), o
 
 ### Available Options
 
-**Note:** Defaults are centralized in [`CompactorDefaults.java`](core/src/main/java/io/llmcompactor/core/CompactorDefaults.java) and referenced by all build tools.
+**Note:** Defaults are centralized in [`CompactorDefaults.java`](llm-build-compactor-core/src/main/java/io/llmcompactor/core/CompactorDefaults.java) and referenced by all build tools.
 
 | Property | Default | Description |
 |----------|---------|-------------|

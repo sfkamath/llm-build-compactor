@@ -6,7 +6,7 @@ buildscript {
     }
     dependencies {
         classpath 'io.github.sfkamath:llm-build-compactor-gradle-plugin:@project.version@'
-        classpath 'io.github.sfkamath:core:@project.version@'
+        classpath 'io.github.sfkamath:llm-build-compactor-core:@project.version@'
     }
 }
 

@@ -223,9 +223,9 @@ The main Maven pieces are:
 - `maven-extension/src/main/java/io/llmcompactor/extension/BuildOutputSpy.java`
 - `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmInstallMojo.java`
 - `llm-build-compactor-maven-plugin/src/main/java/io/llmcompactor/maven/LlmCompactMojo.java`
-- `core/src/main/java/io/llmcompactor/core/SummaryWriter.java`
-- `core/src/main/java/io/llmcompactor/core/parser/SurefireParser.java`
-- `core/src/main/java/io/llmcompactor/core/StackTraceCompressor.java`
+- `llm-build-compactor-core/src/main/java/io/llmcompactor/core/SummaryWriter.java`
+- `llm-build-compactor-core/src/main/java/io/llmcompactor/core/parser/SurefireParser.java`
+- `llm-build-compactor-core/src/main/java/io/llmcompactor/core/StackTraceCompressor.java`
 
 ## Summary
 
