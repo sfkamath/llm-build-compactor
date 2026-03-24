@@ -173,7 +173,10 @@ Settings can be configured in your `pom.xml` (Maven), `build.gradle` (Gradle), o
 | `llmCompactor.outputAsJson` | `true` | Emit pretty-printed JSON. If `false`, emits human-readable text. |
 | `llmCompactor.showFixTargets` | `true` | Include suggested files for fixing errors. |
 | `llmCompactor.showRecentChanges` | `false` | Include the list of files changed in git recently. |
-| `llmCompactor.includePackages` | (empty) | Comma-separated list of packages to *always* include in stack traces. **Note:** The compactor automatically scans your `src/main`, `src/test`, and `src/it` to identify and preserve project-specific packages. |
+| `llmCompactor.stackFrameWhitelist` | (empty) | Comma-separated list of packages to *always* include in stack traces (whitelist). Use this to see framework stack traces like Micronaut or Spring that are normally filtered. The compactor automatically scans your `src/main`, `src/test`, and `src/it` to identify and preserve project-specific packages. |
+| `llmCompactor.stackFrameBlacklist` | (empty) | Comma-separated list of packages to *always* exclude from stack traces (blacklist). Use this to filter additional framework packages beyond the defaults, or to exclude specific project packages from stack traces. |
+
+**Default Framework Exclusions:** The following packages are automatically excluded from stack traces: `java.*`, `javax.*`, `sun.*`, `com.sun.*`, `jdk.*`, `org.junit.*`, `org.testng.*`, `org.apache.maven.*`, `org.gradle.*`, `org.springframework.*`, `org.hibernate.*`, `io.projectreactor.*`, `reactor.core.*`, `io.micronaut.*`, `io.netty.*`
 | `llmCompactor.showSlowTests` | `true` | Show test duration only for slow tests (≥ threshold). |
 | `llmCompactor.showTotalDuration` | `false` | Include the total build execution time in the summary. |
 | `llmCompactor.showDurationReport` | `false` | Include a heuristic percentile report of test durations (p50, p90, p95, p99, max). |

@@ -280,12 +280,25 @@ class GradleOptionTests {
     }
 
     @Test
-    @DisplayName("includePackages preserves specified packages")
-    void testIncludePackages() throws Exception {
+    @DisplayName("stackFrameWhitelist preserves specified packages")
+    void testStackFrameWhitelist() throws Exception {
       BuildResult result =
           GradleBuild.inProject("gradle-test-project")
               .withTask("test")
-              .withProperty("llmCompactor.includePackages", "io.llmcompactor")
+              .withProperty("llmCompactor.stackFrameWhitelist", "io.llmcompactor")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      assertThat(result.summaryJson()).contains("io.llmcompactor");
+    }
+
+    @Test
+    @DisplayName("stackFrameBlacklist excludes specified packages")
+    void testStackFrameBlacklist() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.stackFrameBlacklist", "io.llmcompactor")
               .execute();
 
       assertThat(result.summaryJson()).isNotNull();

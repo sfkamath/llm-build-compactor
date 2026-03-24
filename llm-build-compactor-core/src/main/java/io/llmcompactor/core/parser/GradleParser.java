@@ -30,7 +30,8 @@ public final class GradleParser {
   public static TestResult parse(
       Path testResultsDir,
       boolean compressStackFrames,
-      List<String> includePackages,
+      List<String> stackFrameWhitelist,
+      List<String> stackFrameBlacklist,
       long sessionStartTime,
       boolean showFailedTestLogs) {
     if (!Files.exists(testResultsDir)) {
@@ -114,7 +115,7 @@ public final class GradleParser {
 
                     String stackTrace =
                         compressStackFrames
-                            ? StackTraceCompressor.compress(message, null, includePackages)
+                            ? StackTraceCompressor.compress(message, null, stackFrameWhitelist, stackFrameBlacklist)
                             : message;
 
                     failures.add(

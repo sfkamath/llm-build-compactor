@@ -75,11 +75,18 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     Property<Boolean> getCompressStackFrames();
 
     /**
-     * List of packages to include in the analysis.
+     * List of packages to include in stack traces (whitelist).
      *
-     * @return list property of package names to include
+     * @return list property of package names to always include in stack traces
      */
-    ListProperty<String> getIncludePackages();
+    ListProperty<String> getStackFrameWhitelist();
+
+    /**
+     * List of packages to exclude from stack traces (blacklist).
+     *
+     * @return list property of package names to always exclude from stack traces
+     */
+    ListProperty<String> getStackFrameBlacklist();
 
     /**
      * Whether to show fix targets for errors.
@@ -590,11 +597,13 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     int totalTestsRun = 0;
     int totalTestFailures = 0;
 
-    List<String> includePackages =
-        new ArrayList<>(extension.getIncludePackages().getOrElse(Collections.emptyList()));
+    List<String> stackFrameWhitelist =
+        new ArrayList<>(extension.getStackFrameWhitelist().getOrElse(Collections.emptyList()));
     for (Project p : project.getAllprojects()) {
-      includePackages.addAll(scanProjectPackages(p));
+      stackFrameWhitelist.addAll(scanProjectPackages(p));
     }
+    List<String> stackFrameBlacklist =
+        new ArrayList<>(extension.getStackFrameBlacklist().getOrElse(Collections.emptyList()));
 
     List<String> stringLogLines =
         logLines.stream().map(Object::toString).collect(Collectors.toList());
@@ -611,7 +620,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
               GradleParser.parse(
                   testResultsDir,
                   extension.getCompressStackFrames().get(),
-                  includePackages,
+                  stackFrameWhitelist,
+                  stackFrameBlacklist,
                   sessionStartTime,
                   showFailedTestLogs);
           totalTestsRun += result.testsRun();

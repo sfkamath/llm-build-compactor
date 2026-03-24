@@ -298,7 +298,8 @@ public class BuildOutputSpy extends AbstractEventSpy {
       }
     }
 
-    List<String> includePackages = buildIncludePackages(projectProps);
+    List<String> stackFrameWhitelist = buildStackFrameWhitelist(projectProps);
+    List<String> stackFrameBlacklist = buildStackFrameBlacklist(projectProps);
 
     List<BuildError> allErrors = new ArrayList<>(compileErrors);
     List<Double> allDurations = new ArrayList<>();
@@ -314,7 +315,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
         if (Files.exists(targetDir)) {
           TestResult result =
               SurefireParser.parse(
-                  targetDir, compress, includePackages, sessionStartTime, showFailedTestLogs);
+                  targetDir, compress, stackFrameWhitelist, stackFrameBlacklist, sessionStartTime, showFailedTestLogs);
           totalTestsRun += result.testsRun();
           totalTestFailures += result.failures();
           allErrors.addAll(result.errors());
@@ -381,8 +382,8 @@ public class BuildOutputSpy extends AbstractEventSpy {
     }
   }
 
-  private List<String> buildIncludePackages(Properties projectProps) {
-    String raw = getProperty("llmCompactor.includePackages", projectProps, "");
+  private List<String> buildStackFrameWhitelist(Properties projectProps) {
+    String raw = getProperty("llmCompactor.stackFrameWhitelist", projectProps, "");
     List<String> packages =
         new ArrayList<>(
             raw.isEmpty() ? Collections.<String>emptyList() : Arrays.asList(raw.split(",")));
@@ -393,6 +394,12 @@ public class BuildOutputSpy extends AbstractEventSpy {
       }
     }
     return packages;
+  }
+
+  private List<String> buildStackFrameBlacklist(Properties projectProps) {
+    String raw = getProperty("llmCompactor.stackFrameBlacklist", projectProps, "");
+    return new ArrayList<>(
+        raw.isEmpty() ? Collections.<String>emptyList() : Arrays.asList(raw.split(",")));
   }
 
   private List<String> scanProjectPackages(MavenProject project) {

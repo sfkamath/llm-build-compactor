@@ -95,4 +95,103 @@ class StackTraceCompressorTest {
     String compressed = StackTraceCompressor.compress(null, "com.example", Collections.emptyList());
     assertThat(compressed).isEmpty();
   }
+
+  @Test
+  void shouldKeepWhitelistedPackages() {
+    String stackTrace =
+        "java.lang.Exception: Error\n"
+            + "at io.micronaut.http.HttpClient.get(HttpClient.java:25)\n"
+            + "at com.myapp.service.OrderService.process(OrderService.java:42)\n"
+            + "at com.myapp.test.OrderServiceTest.testProcess(OrderServiceTest.java:30)";
+
+    String compressed =
+        StackTraceCompressor.compress(
+            stackTrace, "com.myapp", Arrays.asList("io.micronaut"), Collections.emptyList());
+
+    assertThat(compressed).contains("io.micronaut");
+    assertThat(compressed).contains("com.myapp");
+  }
+
+  @Test
+  void shouldExcludeBlacklistedPackages() {
+    String stackTrace =
+        "java.lang.RuntimeException: Failed\n"
+            + "at io.netty.channel.ChannelHandler.handle(ChannelHandler.java:100)\n"
+            + "at com.myapp.service.OrderService.process(OrderService.java:42)\n"
+            + "at com.myapp.test.OrderServiceTest.testProcess(OrderServiceTest.java:30)";
+
+    String compressed =
+        StackTraceCompressor.compress(
+            stackTrace, "com.myapp", Collections.emptyList(), Arrays.asList("io.netty"));
+
+    assertThat(compressed).doesNotContain("io.netty");
+    assertThat(compressed).contains("com.myapp");
+  }
+
+  @Test
+  void shouldAllowBlacklistToOverrideDefaults() {
+    String stackTrace =
+        "java.lang.RuntimeException: Failed\n"
+            + "at org.springframework.web.servlet.DispatcherServlet.doGet(DispatcherServlet.java:100)\n"
+            + "at com.myapp.controller.HomeController.index(HomeController.java:25)";
+
+    String compressed =
+        StackTraceCompressor.compress(
+            stackTrace, "com.myapp", Collections.emptyList(), Arrays.asList("org.springframework"));
+
+    assertThat(compressed).doesNotContain("org.springframework");
+    assertThat(compressed).contains("com.myapp.controller.HomeController");
+  }
+
+  @Test
+  void shouldAllowBlacklistToExcludeProjectPackages() {
+    String stackTrace =
+        "java.lang.RuntimeException: Failed\n"
+            + "at com.myapp.service.InternalHelper.process(InternalHelper.java:50)\n"
+            + "at com.myapp.controller.HomeController.index(HomeController.java:25)";
+
+    String compressed =
+        StackTraceCompressor.compress(
+            stackTrace, "com.myapp", Collections.emptyList(), Arrays.asList("com.myapp.service"));
+
+    assertThat(compressed).doesNotContain("InternalHelper");
+    assertThat(compressed).contains("HomeController");
+  }
+
+  @Test
+  void shouldGiveWhitelistPrecedenceOverBlacklist() {
+    String stackTrace =
+        "java.lang.Exception: Error\n"
+            + "at io.micronaut.http.HttpClient.get(HttpClient.java:25)\n"
+            + "at com.myapp.service.OrderService.process(OrderService.java:42)";
+
+    String compressed =
+        StackTraceCompressor.compress(
+            stackTrace, "com.myapp", Arrays.asList("io.micronaut"), Arrays.asList("io.micronaut"));
+
+    assertThat(compressed).contains("io.micronaut");
+    assertThat(compressed).contains("com.myapp");
+  }
+
+  @Test
+  void shouldHandleBothWhitelistAndBlacklist() {
+    String stackTrace =
+        "java.lang.Exception: Error\n"
+            + "at io.micronaut.http.HttpClient.get(HttpClient.java:25)\n"
+            + "at io.netty.channel.ChannelHandler.handle(ChannelHandler.java:100)\n"
+            + "at org.springframework.web.servlet.DispatcherServlet.doGet(DispatcherServlet.java:100)\n"
+            + "at com.myapp.controller.HomeController.index(HomeController.java:25)";
+
+    String compressed =
+        StackTraceCompressor.compress(
+            stackTrace,
+            "com.myapp",
+            Arrays.asList("io.micronaut"),
+            Arrays.asList("io.netty", "org.springframework"));
+
+    assertThat(compressed).contains("io.micronaut");
+    assertThat(compressed).doesNotContain("io.netty");
+    assertThat(compressed).doesNotContain("org.springframework");
+    assertThat(compressed).contains("com.myapp");
+  }
 }

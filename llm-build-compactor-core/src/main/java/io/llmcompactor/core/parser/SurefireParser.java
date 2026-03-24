@@ -30,7 +30,8 @@ public final class SurefireParser {
   public static TestResult parse(
       Path targetDir,
       boolean compressStackFrames,
-      List<String> includePackages,
+      List<String> stackFrameWhitelist,
+      List<String> stackFrameBlacklist,
       long sessionStartTime,
       boolean showFailedTestLogs) {
     List<BuildError> failures = new ArrayList<>();
@@ -87,7 +88,8 @@ public final class SurefireParser {
                                 message,
                                 type,
                                 file,
-                                includePackages,
+                                stackFrameWhitelist,
+                                stackFrameBlacklist,
                                 compressStackFrames,
                                 duration,
                                 testLogs);
@@ -109,7 +111,8 @@ public final class SurefireParser {
                                 message,
                                 type,
                                 file,
-                                includePackages,
+                                stackFrameWhitelist,
+                                stackFrameBlacklist,
                                 compressStackFrames,
                                 duration,
                                 testLogs);
@@ -192,7 +195,8 @@ public final class SurefireParser {
       String message,
       String type,
       Path file,
-      List<String> includePackages,
+      List<String> stackFrameWhitelist,
+      List<String> stackFrameBlacklist,
       boolean compressStackFrames,
       double duration,
       String testLogs) {
@@ -205,7 +209,7 @@ public final class SurefireParser {
     String firstProjectFrame = null;
     String lastProjectFrame = null;
     for (String l : lines) {
-      if (l.contains(".java:") && !isFrameworkFrame(l, includePackages)) {
+      if (l.contains(".java:") && !isFrameworkFrame(l, stackFrameWhitelist, stackFrameBlacklist)) {
         if (firstProjectFrame == null) {
           firstProjectFrame = l;
         }
@@ -250,7 +254,7 @@ public final class SurefireParser {
 
     String stackTrace =
         compressStackFrames
-            ? StackTraceCompressor.compress(message, null, includePackages)
+            ? StackTraceCompressor.compress(message, null, stackFrameWhitelist, stackFrameBlacklist)
             : message;
 
     String resolvedFile = sourceFile;
@@ -269,17 +273,27 @@ public final class SurefireParser {
         testLogs);
   }
 
-  private static boolean isFrameworkFrame(String line, List<String> includePackages) {
+  private static boolean isFrameworkFrame(
+      String line, List<String> stackFrameWhitelist, List<String> stackFrameBlacklist) {
     String trimmed = line.trim();
     if (!trimmed.startsWith("at ")) {
       return false;
     }
 
     // Explicit inclusion overrides framework detection
-    if (includePackages != null) {
-      for (String pkg : includePackages) {
+    if (stackFrameWhitelist != null) {
+      for (String pkg : stackFrameWhitelist) {
         if (trimmed.contains("at " + pkg)) {
           return false; // It's not a framework frame (we want to keep it)
+        }
+      }
+    }
+
+    // Explicit exclusion - if in blacklist, treat as framework frame (filter it)
+    if (stackFrameBlacklist != null) {
+      for (String pkg : stackFrameBlacklist) {
+        if (trimmed.contains("at " + pkg)) {
+          return true; // Treat as framework frame to filter it out
         }
       }
     }

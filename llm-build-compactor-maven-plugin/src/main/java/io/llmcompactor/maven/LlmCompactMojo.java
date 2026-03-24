@@ -84,8 +84,11 @@ public class LlmCompactMojo extends AbstractMojo {
       defaultValue = "false") // CompactorDefaults.SHOW_DURATION_REPORT
   private boolean showDurationReport;
 
-  @Parameter(property = "llmCompactor.includePackages")
-  private String includePackages;
+  @Parameter(property = "llmCompactor.stackFrameWhitelist")
+  private String stackFrameWhitelist;
+
+  @Parameter(property = "llmCompactor.stackFrameBlacklist")
+  private String stackFrameBlacklist;
 
   @Parameter(
       property = "llmCompactor.showFailedTestLogs",
@@ -123,10 +126,14 @@ public class LlmCompactMojo extends AbstractMojo {
       return;
     }
 
-    List<String> includePackagesList =
-        includePackages == null || includePackages.isEmpty()
+    List<String> stackFrameWhitelistList =
+        stackFrameWhitelist == null || stackFrameWhitelist.isEmpty()
             ? Collections.<String>emptyList()
-            : Arrays.asList(includePackages.split(","));
+            : Arrays.asList(stackFrameWhitelist.split(","));
+    List<String> stackFrameBlacklistList =
+        stackFrameBlacklist == null || stackFrameBlacklist.isEmpty()
+            ? Collections.<String>emptyList()
+            : Arrays.asList(stackFrameBlacklist.split(","));
 
     // Parse test results from existing reports
     long sessionStartTime =
@@ -136,7 +143,8 @@ public class LlmCompactMojo extends AbstractMojo {
         SurefireParser.parse(
             targetDir,
             compressStackFrames,
-            includePackagesList,
+            stackFrameWhitelistList,
+            stackFrameBlacklistList,
             sessionStartTime,
             showFailedTestLogs);
     List<BuildError> testFailures = testResult.errors();
