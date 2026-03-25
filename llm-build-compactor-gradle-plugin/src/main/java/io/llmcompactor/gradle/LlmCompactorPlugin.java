@@ -254,6 +254,26 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 .map(Double::parseDouble)
                 .orElse(CompactorDefaults.TEST_DURATION_THRESHOLD_MS));
 
+    // stackFrameWhitelist - comma-separated list
+    extension
+        .getStackFrameWhitelist()
+        .convention(
+            project
+                .getProviders()
+                .gradleProperty("llmCompactor.stackFrameWhitelist")
+                .map(s -> Arrays.asList(s.split(",")))
+                .orElse(Collections.emptyList()));
+
+    // stackFrameBlacklist - comma-separated list
+    extension
+        .getStackFrameBlacklist()
+        .convention(
+            project
+                .getProviders()
+                .gradleProperty("llmCompactor.stackFrameBlacklist")
+                .map(s -> Arrays.asList(s.split(",")))
+                .orElse(Collections.emptyList()));
+
     // outputPath - only set if gradle property is provided
     org.gradle.api.provider.Provider<String> outputPathProp =
         project.getProviders().gradleProperty("llmCompactor.outputPath");
