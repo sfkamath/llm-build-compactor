@@ -168,7 +168,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
     switch (ee.getType()) {
       case SessionStarted:
         this.session = ee.getSession();
-        if (isInteractiveGoal(session)) {
+        if (isInteractiveGoal(session) || isDisabled()) {
           initialized = true;
           return;
         }

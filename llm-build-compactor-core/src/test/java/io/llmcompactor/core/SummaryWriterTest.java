@@ -93,16 +93,16 @@ class SummaryWriterTest {
     assertThat(SummaryWriter.cleanTestLogLine("12:34:56.789 [main] INFO  Test message"))
         .isEqualTo("Test message");
 
-    // Logger names should be stripped
+    // Logger names should be PRESERVED - users need to see class names in test logs for debugging
     assertThat(
             SummaryWriter.cleanTestLogLine("12:34:56.789 [main] INFO  c.e.MyClass - Test message"))
-        .isEqualTo("Test message");
+        .isEqualTo("c.e.MyClass - Test message");
 
     // SLF4J prefix in message content is kept (only standalone SLF4J lines filtered)
     assertThat(
             SummaryWriter.cleanTestLogLine(
                 "12:34:56.789 [main] INFO  c.e.MyClass - SLF4J: Actual message"))
-        .isEqualTo("SLF4J: Actual message");
+        .isEqualTo("c.e.MyClass - SLF4J: Actual message");
   }
 
   @Test
