@@ -47,9 +47,8 @@ class SurefireParserTest {
     BuildError error = result.errors().get(0);
     assertThat(error.type()).isEqualTo("java.lang.RuntimeException");
     assertThat(error.message()).isEqualTo("java.lang.RuntimeException: Order validation failed");
-    // File should be the test file (last project frame)
-    // Line should be where exception originated (first project frame)
-    assertThat(error.file()).contains("OrderServiceTest.java");
+    // File and line should both be from first project frame (where error originated)
+    assertThat(error.file()).contains("OrderService.java");
     assertThat(error.lines()).containsExactly(15);
     assertThat(error.testDuration()).isEqualTo(0.05);
   }
@@ -187,8 +186,8 @@ class SurefireParserTest {
   }
 
   @Test
-  void shouldUseLastProjectFrameForFileDetection() throws IOException {
-    // When there are multiple project frames, use the last one (the actual test method)
+  void shouldUseFirstProjectFrameForFileAndLineDetection() throws IOException {
+    // When there are multiple project frames, use the first one (where error originated)
     Path reportsDir = tempDir.resolve("surefire-reports");
     Files.createDirectories(reportsDir);
 
@@ -215,9 +214,8 @@ class SurefireParserTest {
     assertThat(result.failures()).isEqualTo(1);
     BuildError error = result.errors().get(0);
 
-    // File should be the test file (last project frame)
-    // Line should be where exception originated (first project frame)
-    assertThat(error.file()).contains("ServiceTest.java");
+    // File and line should both be from first project frame (where error originated)
+    assertThat(error.file()).contains("Service.java");
     assertThat(error.lines()).containsExactly(25);
   }
 
@@ -358,7 +356,8 @@ class SurefireParserTest {
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);
-    assertThat(error.file()).contains("GroovySpockTest.groovy");
+    // File and line should both be from first project frame (where error originated)
+    assertThat(error.file()).contains("Service.java");
     assertThat(error.lines()).containsExactly(15);
     assertThat(error.stackTrace()).contains("GroovySpockTest.groovy:15");
   }

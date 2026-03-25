@@ -204,12 +204,11 @@ public final class SurefireParser {
     String sourceFile = null;
     int line = -1;
 
-    // For file detection: use the last project frame (typically the test method)
-    // For line detection: use the first project frame (where exception originated)
+    // For file and line detection: use the FIRST project frame (where the error originated)
+    // Not the last frame which could be a wrapper/extension class
     // Supports both Java (.java:) and Groovy (.groovy:) files
     String[] lines = message.split("\n");
     String firstProjectFrame = null;
-    String lastProjectFrame = null;
     for (String l : lines) {
       boolean hasJavaFile = l.contains(".java:");
       boolean hasGroovyFile = l.contains(".groovy:");
@@ -217,11 +216,10 @@ public final class SurefireParser {
         if (firstProjectFrame == null) {
           firstProjectFrame = l;
         }
-        lastProjectFrame = l;
       }
     }
 
-    // Use first frame for line number (where exception originated)
+    // Use first frame for both line number AND file detection (where error originated)
     if (firstProjectFrame != null) {
       Matcher m = LINE_NUMBER_PATTERN.matcher(firstProjectFrame);
       boolean found = m.find();
@@ -232,45 +230,35 @@ public final class SurefireParser {
       if (found) {
         line = Integer.parseInt(m.group(1));
       }
-    }
-
-    // Use last frame for file detection (typically the test file)
-    if (lastProjectFrame != null) {
-      Matcher m = LINE_NUMBER_PATTERN.matcher(lastProjectFrame);
-      boolean found = m.find();
-      if (!found) {
-        m = GROOVY_LINE_NUMBER_PATTERN.matcher(lastProjectFrame);
-        found = m.find();
-      }
-      if (found) {
-        int atIndex = lastProjectFrame.indexOf("at ");
-        int parenIndex = lastProjectFrame.indexOf("(");
-        int javaIndex = lastProjectFrame.indexOf(".java:");
-        int groovyIndex = lastProjectFrame.indexOf(".groovy:");
-        int fileExtIndex = javaIndex >= 0 ? javaIndex : groovyIndex;
-        if (atIndex >= 0 && parenIndex > atIndex && fileExtIndex > parenIndex) {
-          String fullClass = lastProjectFrame.substring(atIndex + 3, parenIndex);
-          int lastDotInClass = fullClass.lastIndexOf(".");
-          if (lastDotInClass > 0) {
-            String packageName = fullClass.substring(0, lastDotInClass);
-            String fileName;
-            if (javaIndex >= 0) {
-              fileName = lastProjectFrame.substring(parenIndex + 1, javaIndex + 5);
-            } else {
-              fileName = lastProjectFrame.substring(parenIndex + 1, groovyIndex + 7);
+      
+      // Also use first frame for file detection
+      int atIndex = firstProjectFrame.indexOf("at ");
+      int parenIndex = firstProjectFrame.indexOf("(");
+      int javaIndex = firstProjectFrame.indexOf(".java:");
+      int groovyIndex = firstProjectFrame.indexOf(".groovy:");
+      int fileExtIndex = javaIndex >= 0 ? javaIndex : groovyIndex;
+      if (atIndex >= 0 && parenIndex > atIndex && fileExtIndex > parenIndex) {
+        String fullClass = firstProjectFrame.substring(atIndex + 3, parenIndex);
+        int lastDotInClass = fullClass.lastIndexOf(".");
+        if (lastDotInClass > 0) {
+          String packageName = fullClass.substring(0, lastDotInClass);
+          String fileName;
+          if (javaIndex >= 0) {
+            fileName = firstProjectFrame.substring(parenIndex + 1, javaIndex + 5);
+          } else {
+            fileName = firstProjectFrame.substring(parenIndex + 1, groovyIndex + 7);
+          }
+          int classNameEnd = fileName.indexOf(".java");
+          if (classNameEnd < 0) {
+            classNameEnd = fileName.indexOf(".groovy");
+          }
+          if (classNameEnd > 0) {
+            String className = fileName.substring(0, classNameEnd);
+            if (packageName.endsWith("." + className)) {
+              packageName =
+                  packageName.substring(0, packageName.length() - className.length() - 1);
             }
-            int classNameEnd = fileName.indexOf(".java");
-            if (classNameEnd < 0) {
-              classNameEnd = fileName.indexOf(".groovy");
-            }
-            if (classNameEnd > 0) {
-              String className = fileName.substring(0, classNameEnd);
-              if (packageName.endsWith("." + className)) {
-                packageName =
-                    packageName.substring(0, packageName.length() - className.length() - 1);
-              }
-              sourceFile = resolveSourceFile(packageName, fileName);
-            }
+            sourceFile = resolveSourceFile(packageName, fileName);
           }
         }
       }
