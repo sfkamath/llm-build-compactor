@@ -273,7 +273,7 @@ public final class SummaryWriter {
         if (error.testLogs() != null && !error.testLogs().isEmpty()) {
           List<String> cleanedLogs = processTestLogs(error.testLogs());
           if (!cleanedLogs.isEmpty()) {
-            sb.append("    Test logs:\n");
+            sb.append("    Test logs (").append(error.file()).append("):\n");
             String indent = "        ";
             for (String logLine : cleanedLogs) {
               sb.append(indent).append(logLine).append("\n");
