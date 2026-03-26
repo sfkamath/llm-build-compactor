@@ -325,6 +325,25 @@ class GradleOptionTests {
   }
 
   @Nested
+  @DisplayName("Unknown Properties")
+  class UnknownPropertyTests {
+
+    @Test
+    @DisplayName("unknown property does not cause build failure")
+    void testUnknownProperty() throws Exception {
+      // Use a property that doesn't exist in the extension interface
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.doesNotExist", "someValue")
+              .execute();
+
+      // Build should succeed even with unknown property
+      assertThat(result.exitCode()).isEqualTo(0);
+    }
+  }
+
+  @Nested
   @DisplayName("Maven and Gradle Parity")
   class ParityTests {
 
