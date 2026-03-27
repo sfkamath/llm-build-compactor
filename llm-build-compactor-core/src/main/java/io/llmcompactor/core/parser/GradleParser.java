@@ -26,11 +26,13 @@ import org.xml.sax.SAXException;
 public final class GradleParser {
 
   private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\\.java:(\\d+)");
+  private static final Pattern GROOVY_LINE_NUMBER_PATTERN = Pattern.compile("\\.groovy:(\\d+)");
 
   public static TestResult parse(
       Path testResultsDir,
       boolean compressStackFrames,
-      List<String> includePackages,
+      List<String> stackFrameWhitelist,
+      List<String> stackFrameBlacklist,
       long sessionStartTime,
       boolean showFailedTestLogs) {
     if (!Files.exists(testResultsDir)) {
@@ -99,12 +101,19 @@ public final class GradleParser {
                     String sourceFile = null;
                     int line = -1;
 
-                    // Try to find the first project frame
+                    // Try to find the first project frame (supports both Java and Groovy)
                     String[] lines = message.split("\n");
                     for (String l : lines) {
-                      if (l.contains(".java:") && isProjectFrame(l, className)) {
+                      boolean hasJavaFile = l.contains(".java:");
+                      boolean hasGroovyFile = l.contains(".groovy:");
+                      if ((hasJavaFile || hasGroovyFile) && isProjectFrame(l, className)) {
                         Matcher m = LINE_NUMBER_PATTERN.matcher(l);
-                        if (m.find()) {
+                        boolean found = m.find();
+                        if (!found) {
+                          m = GROOVY_LINE_NUMBER_PATTERN.matcher(l);
+                          found = m.find();
+                        }
+                        if (found) {
                           line = Integer.parseInt(m.group(1));
                           sourceFile = resolveSourceFile(className);
                           break;
@@ -114,7 +123,8 @@ public final class GradleParser {
 
                     String stackTrace =
                         compressStackFrames
-                            ? StackTraceCompressor.compress(message, null, includePackages)
+                            ? StackTraceCompressor.compress(
+                                message, null, stackFrameWhitelist, stackFrameBlacklist)
                             : message;
 
                     failures.add(

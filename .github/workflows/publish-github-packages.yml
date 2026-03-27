@@ -46,7 +46,7 @@ jobs:
         run: ./mvnw deploy -Pgithub -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet
 
       - name: Install core for Gradle plugin build
-        run: ./mvnw install -pl core -am -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet
+        run: ./mvnw install -pl llm-build-compactor-core -am -Drevision=${{ steps.tag_version.outputs.new_tag }} -DskipTests -ntp --quiet
 
       - name: Publish Gradle plugin to GitHub Packages
         run: |

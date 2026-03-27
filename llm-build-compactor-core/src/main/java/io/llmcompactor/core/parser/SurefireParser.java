@@ -26,11 +26,13 @@ import org.xml.sax.SAXException;
 public final class SurefireParser {
 
   private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\\.java:(\\d+)\\)");
+  private static final Pattern GROOVY_LINE_NUMBER_PATTERN = Pattern.compile("\\.groovy:(\\d+)\\)");
 
   public static TestResult parse(
       Path targetDir,
       boolean compressStackFrames,
-      List<String> includePackages,
+      List<String> stackFrameWhitelist,
+      List<String> stackFrameBlacklist,
       long sessionStartTime,
       boolean showFailedTestLogs) {
     List<BuildError> failures = new ArrayList<>();
@@ -87,7 +89,8 @@ public final class SurefireParser {
                                 message,
                                 type,
                                 file,
-                                includePackages,
+                                stackFrameWhitelist,
+                                stackFrameBlacklist,
                                 compressStackFrames,
                                 duration,
                                 testLogs);
@@ -109,7 +112,8 @@ public final class SurefireParser {
                                 message,
                                 type,
                                 file,
-                                includePackages,
+                                stackFrameWhitelist,
+                                stackFrameBlacklist,
                                 compressStackFrames,
                                 duration,
                                 testLogs);
@@ -192,57 +196,69 @@ public final class SurefireParser {
       String message,
       String type,
       Path file,
-      List<String> includePackages,
+      List<String> stackFrameWhitelist,
+      List<String> stackFrameBlacklist,
       boolean compressStackFrames,
       double duration,
       String testLogs) {
     String sourceFile = null;
     int line = -1;
 
-    // For file detection: use the last project frame (typically the test method)
-    // For line detection: use the first project frame (where exception originated)
+    // For file and line detection: use the FIRST project frame (where the error originated)
+    // Not the last frame which could be a wrapper/extension class
+    // Supports both Java (.java:) and Groovy (.groovy:) files
     String[] lines = message.split("\n");
     String firstProjectFrame = null;
-    String lastProjectFrame = null;
     for (String l : lines) {
-      if (l.contains(".java:") && !isFrameworkFrame(l, includePackages)) {
+      boolean hasJavaFile = l.contains(".java:");
+      boolean hasGroovyFile = l.contains(".groovy:");
+      if ((hasJavaFile || hasGroovyFile)
+          && !isFrameworkFrame(l, stackFrameWhitelist, stackFrameBlacklist)) {
         if (firstProjectFrame == null) {
           firstProjectFrame = l;
         }
-        lastProjectFrame = l;
       }
     }
 
-    // Use first frame for line number (where exception originated)
+    // Use first frame for both line number AND file detection (where error originated)
     if (firstProjectFrame != null) {
       Matcher m = LINE_NUMBER_PATTERN.matcher(firstProjectFrame);
-      if (m.find()) {
+      boolean found = m.find();
+      if (!found) {
+        m = GROOVY_LINE_NUMBER_PATTERN.matcher(firstProjectFrame);
+        found = m.find();
+      }
+      if (found) {
         line = Integer.parseInt(m.group(1));
       }
-    }
 
-    // Use last frame for file detection (typically the test file)
-    if (lastProjectFrame != null) {
-      Matcher m = LINE_NUMBER_PATTERN.matcher(lastProjectFrame);
-      if (m.find()) {
-        int atIndex = lastProjectFrame.indexOf("at ");
-        int parenIndex = lastProjectFrame.indexOf("(");
-        int javaIndex = lastProjectFrame.indexOf(".java:");
-        if (atIndex >= 0 && parenIndex > atIndex && javaIndex > parenIndex) {
-          String fullClass = lastProjectFrame.substring(atIndex + 3, parenIndex);
-          int lastDotInClass = fullClass.lastIndexOf(".");
-          if (lastDotInClass > 0) {
-            String packageName = fullClass.substring(0, lastDotInClass);
-            String fileName = lastProjectFrame.substring(parenIndex + 1, javaIndex + 5);
-            int classNameEnd = fileName.indexOf(".java");
-            if (classNameEnd > 0) {
-              String className = fileName.substring(0, classNameEnd);
-              if (packageName.endsWith("." + className)) {
-                packageName =
-                    packageName.substring(0, packageName.length() - className.length() - 1);
-              }
-              sourceFile = resolveSourceFile(packageName, fileName);
+      // Also use first frame for file detection
+      int atIndex = firstProjectFrame.indexOf("at ");
+      int parenIndex = firstProjectFrame.indexOf("(");
+      int javaIndex = firstProjectFrame.indexOf(".java:");
+      int groovyIndex = firstProjectFrame.indexOf(".groovy:");
+      int fileExtIndex = javaIndex >= 0 ? javaIndex : groovyIndex;
+      if (atIndex >= 0 && parenIndex > atIndex && fileExtIndex > parenIndex) {
+        String fullClass = firstProjectFrame.substring(atIndex + 3, parenIndex);
+        int lastDotInClass = fullClass.lastIndexOf(".");
+        if (lastDotInClass > 0) {
+          String packageName = fullClass.substring(0, lastDotInClass);
+          String fileName;
+          if (javaIndex >= 0) {
+            fileName = firstProjectFrame.substring(parenIndex + 1, javaIndex + 5);
+          } else {
+            fileName = firstProjectFrame.substring(parenIndex + 1, groovyIndex + 7);
+          }
+          int classNameEnd = fileName.indexOf(".java");
+          if (classNameEnd < 0) {
+            classNameEnd = fileName.indexOf(".groovy");
+          }
+          if (classNameEnd > 0) {
+            String className = fileName.substring(0, classNameEnd);
+            if (packageName.endsWith("." + className)) {
+              packageName = packageName.substring(0, packageName.length() - className.length() - 1);
             }
+            sourceFile = resolveSourceFile(packageName, fileName);
           }
         }
       }
@@ -250,7 +266,7 @@ public final class SurefireParser {
 
     String stackTrace =
         compressStackFrames
-            ? StackTraceCompressor.compress(message, null, includePackages)
+            ? StackTraceCompressor.compress(message, null, stackFrameWhitelist, stackFrameBlacklist)
             : message;
 
     String resolvedFile = sourceFile;
@@ -269,17 +285,27 @@ public final class SurefireParser {
         testLogs);
   }
 
-  private static boolean isFrameworkFrame(String line, List<String> includePackages) {
+  private static boolean isFrameworkFrame(
+      String line, List<String> stackFrameWhitelist, List<String> stackFrameBlacklist) {
     String trimmed = line.trim();
     if (!trimmed.startsWith("at ")) {
       return false;
     }
 
     // Explicit inclusion overrides framework detection
-    if (includePackages != null) {
-      for (String pkg : includePackages) {
+    if (stackFrameWhitelist != null) {
+      for (String pkg : stackFrameWhitelist) {
         if (trimmed.contains("at " + pkg)) {
           return false; // It's not a framework frame (we want to keep it)
+        }
+      }
+    }
+
+    // Explicit exclusion - if in blacklist, treat as framework frame (filter it)
+    if (stackFrameBlacklist != null) {
+      for (String pkg : stackFrameBlacklist) {
+        if (trimmed.contains("at " + pkg)) {
+          return true; // Treat as framework frame to filter it out
         }
       }
     }

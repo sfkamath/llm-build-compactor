@@ -283,12 +283,25 @@ class MavenOptionTests {
     }
 
     @Test
-    @DisplayName("includePackages preserves specified packages")
-    void testIncludePackages() throws Exception {
+    @DisplayName("stackFrameWhitelist preserves specified packages")
+    void testStackFrameWhitelist() throws Exception {
       BuildResult result =
           MavenBuild.inProject("maven-test-project")
               .withGoal("verify")
-              .withProperty("llmCompactor.includePackages", "io.llmcompactor")
+              .withProperty("llmCompactor.stackFrameWhitelist", "io.llmcompactor")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      assertThat(result.summaryJson()).contains("io.llmcompactor");
+    }
+
+    @Test
+    @DisplayName("stackFrameBlacklist excludes specified packages")
+    void testStackFrameBlacklist() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("llmCompactor.stackFrameBlacklist", "io.llmcompactor")
               .execute();
 
       assertThat(result.summaryJson()).isNotNull();

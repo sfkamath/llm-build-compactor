@@ -75,6 +75,9 @@ public final class SummaryWriter {
   /** Logger name pattern: abbreviated or full package.class */
   private static final Pattern LOGGER_PATTERN = Pattern.compile("[a-z][a-zA-Z0-9_.]*\\s*-\\s*");
 
+  /** ANSI escape code pattern for terminal colors */
+  private static final Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
+
   /** Cleans up test log lines by removing infrastructure noise and normalizing format. */
   public static String cleanTestLogLine(String line) {
     if (line == null || line.isEmpty()) {
@@ -103,7 +106,11 @@ public final class SummaryWriter {
     result = LEVEL_PATTERN.matcher(result).replaceAll("");
 
     // Strip logger name (but keep the message after the dash)
-    result = LOGGER_PATTERN.matcher(result).replaceAll("");
+    // Disabled: users need to see the class name in test logs to debug failures
+    // result = LOGGER_PATTERN.matcher(result).replaceAll("");
+
+    // Strip ANSI escape codes (terminal colors)
+    result = ANSI_PATTERN.matcher(result).replaceAll("");
 
     // Normalize whitespace and trim for consistent alignment
     result = result.replaceAll("\\s+", " ").trim();
@@ -273,7 +280,7 @@ public final class SummaryWriter {
         if (error.testLogs() != null && !error.testLogs().isEmpty()) {
           List<String> cleanedLogs = processTestLogs(error.testLogs());
           if (!cleanedLogs.isEmpty()) {
-            sb.append("    Test logs:\n");
+            sb.append("    Test logs (").append(error.file()).append("):\n");
             String indent = "        ";
             for (String logLine : cleanedLogs) {
               sb.append(indent).append(logLine).append("\n");

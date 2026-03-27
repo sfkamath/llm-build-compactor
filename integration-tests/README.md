@@ -65,7 +65,7 @@ Each `@Test` method in `GradleOptionTests` and `MavenOptionTests` is inside a `@
 
 1. Filters `build.gradle` and `pom.xml` files, replacing `@project.version@` with the current version
 2. Runs `maven-install-plugin:install-file` four times to install the following into local Maven repo:
-   - `core-${version}.jar`
+   - `llm-build-compactor-core-${version}.jar`
    - `llm-build-compactor-gradle-plugin-${version}.jar`
    - `llm-build-compactor-maven-plugin-${version}.jar`
    - `llm-build-compactor-extension-${version}.jar`

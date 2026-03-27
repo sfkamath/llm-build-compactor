@@ -75,11 +75,18 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     Property<Boolean> getCompressStackFrames();
 
     /**
-     * List of packages to include in the analysis.
+     * List of packages to include in stack traces (whitelist).
      *
-     * @return list property of package names to include
+     * @return list property of package names to always include in stack traces
      */
-    ListProperty<String> getIncludePackages();
+    ListProperty<String> getStackFrameWhitelist();
+
+    /**
+     * List of packages to exclude from stack traces (blacklist).
+     *
+     * @return list property of package names to always exclude from stack traces
+     */
+    ListProperty<String> getStackFrameBlacklist();
 
     /**
      * Whether to show fix targets for errors.
@@ -144,6 +151,22 @@ public class LlmCompactorPlugin implements Plugin<Project> {
      * @return property for test duration threshold (default: 100)
      */
     Property<Double> getTestDurationThresholdMs();
+
+    /**
+     * Handles unknown properties gracefully for backward compatibility. Allows newer plugin
+     * versions to work with older build scripts setting properties that don't exist yet.
+     *
+     * @param name the property name that was set
+     * @param value the value being set
+     * @return null (property is ignored)
+     */
+    default Object propertyMissing(String name, Object value) {
+      System.err.println(
+          "[LLM Compactor] Warning: Unknown property '"
+              + name
+              + "' - this may be from a newer plugin version");
+      return null;
+    }
   }
 
   private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
@@ -246,6 +269,26 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 .gradleProperty("llmCompactor.testDurationThresholdMs")
                 .map(Double::parseDouble)
                 .orElse(CompactorDefaults.TEST_DURATION_THRESHOLD_MS));
+
+    // stackFrameWhitelist - comma-separated list
+    extension
+        .getStackFrameWhitelist()
+        .convention(
+            project
+                .getProviders()
+                .gradleProperty("llmCompactor.stackFrameWhitelist")
+                .map(s -> Arrays.asList(s.split(",")))
+                .orElse(Collections.emptyList()));
+
+    // stackFrameBlacklist - comma-separated list
+    extension
+        .getStackFrameBlacklist()
+        .convention(
+            project
+                .getProviders()
+                .gradleProperty("llmCompactor.stackFrameBlacklist")
+                .map(s -> Arrays.asList(s.split(",")))
+                .orElse(Collections.emptyList()));
 
     // outputPath - only set if gradle property is provided
     org.gradle.api.provider.Provider<String> outputPathProp =
@@ -590,11 +633,13 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     int totalTestsRun = 0;
     int totalTestFailures = 0;
 
-    List<String> includePackages =
-        new ArrayList<>(extension.getIncludePackages().getOrElse(Collections.emptyList()));
+    List<String> stackFrameWhitelist =
+        new ArrayList<>(extension.getStackFrameWhitelist().getOrElse(Collections.emptyList()));
     for (Project p : project.getAllprojects()) {
-      includePackages.addAll(scanProjectPackages(p));
+      stackFrameWhitelist.addAll(scanProjectPackages(p));
     }
+    List<String> stackFrameBlacklist =
+        new ArrayList<>(extension.getStackFrameBlacklist().getOrElse(Collections.emptyList()));
 
     List<String> stringLogLines =
         logLines.stream().map(Object::toString).collect(Collectors.toList());
@@ -611,7 +656,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
               GradleParser.parse(
                   testResultsDir,
                   extension.getCompressStackFrames().get(),
-                  includePackages,
+                  stackFrameWhitelist,
+                  stackFrameBlacklist,
                   sessionStartTime,
                   showFailedTestLogs);
           totalTestsRun += result.testsRun();

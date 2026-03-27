@@ -17,7 +17,7 @@
     <dependencies>
         <dependency>
 <groupId>io.github.sfkamath</groupId>
-            <artifactId>core</artifactId>
+            <artifactId>llm-build-compactor-core</artifactId>
         </dependency>
 
         <dependency>

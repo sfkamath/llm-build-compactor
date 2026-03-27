@@ -37,7 +37,9 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.testsRun()).isEqualTo(1);
     assertThat(result.failures()).isEqualTo(1);
@@ -47,9 +49,8 @@ class SurefireParserTest {
     BuildError error = result.errors().get(0);
     assertThat(error.type()).isEqualTo("java.lang.RuntimeException");
     assertThat(error.message()).isEqualTo("java.lang.RuntimeException: Order validation failed");
-    // File should be the test file (last project frame)
-    // Line should be where exception originated (first project frame)
-    assertThat(error.file()).contains("OrderServiceTest.java");
+    // File and line should both be from first project frame (where error originated)
+    assertThat(error.file()).contains("OrderService.java");
     assertThat(error.lines()).containsExactly(15);
     assertThat(error.testDuration()).isEqualTo(0.05);
   }
@@ -72,7 +73,9 @@ class SurefireParserTest {
 
     Files.write(reportsDir.resolve("TEST-error.xml"), xml.getBytes(), StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.errors()).hasSize(1);
     assertThat(result.errors().get(0).type()).isEqualTo("java.lang.NullPointerException");
@@ -102,7 +105,9 @@ class SurefireParserTest {
         surefireDir.resolve("TEST-unit.xml"), unitXml.getBytes(), StandardOpenOption.CREATE);
     Files.write(failsafeDir.resolve("TEST-it.xml"), itXml.getBytes(), StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     // Should count all tests from both directories (1 + 2 = 3)
     assertThat(result.testsRun()).isEqualTo(3);
@@ -135,7 +140,8 @@ class SurefireParserTest {
 
     long sessionStart = System.currentTimeMillis() - 10_000;
     TestResult result =
-        SurefireParser.parse(tempDir, true, Collections.emptyList(), sessionStart, true);
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), sessionStart, true);
 
     // Should only count the 1 test from the new file, ignoring the 10 from the old file
     assertThat(result.testsRun()).isEqualTo(1);
@@ -169,7 +175,9 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.failures()).isEqualTo(1);
     assertThat(result.errors()).hasSize(1);
@@ -187,8 +195,8 @@ class SurefireParserTest {
   }
 
   @Test
-  void shouldUseLastProjectFrameForFileDetection() throws IOException {
-    // When there are multiple project frames, use the last one (the actual test method)
+  void shouldUseFirstProjectFrameForFileAndLineDetection() throws IOException {
+    // When there are multiple project frames, use the first one (where error originated)
     Path reportsDir = tempDir.resolve("surefire-reports");
     Files.createDirectories(reportsDir);
 
@@ -210,14 +218,15 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.failures()).isEqualTo(1);
     BuildError error = result.errors().get(0);
 
-    // File should be the test file (last project frame)
-    // Line should be where exception originated (first project frame)
-    assertThat(error.file()).contains("ServiceTest.java");
+    // File and line should both be from first project frame (where error originated)
+    assertThat(error.file()).contains("Service.java");
     assertThat(error.lines()).containsExactly(25);
   }
 
@@ -247,7 +256,8 @@ class SurefireParserTest {
 
     // With compression enabled
     TestResult compressedResult =
-        SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
     BuildError compressedError = compressedResult.errors().get(0);
 
     // Netty frames should be filtered out
@@ -256,7 +266,8 @@ class SurefireParserTest {
 
     // Without compression
     TestResult uncompressedResult =
-        SurefireParser.parse(tempDir, false, Collections.emptyList(), 0, true);
+        SurefireParser.parse(
+            tempDir, false, Collections.emptyList(), Collections.emptyList(), 0, true);
     BuildError uncompressedError = uncompressedResult.errors().get(0);
 
     // All frames should be present
@@ -291,7 +302,9 @@ class SurefireParserTest {
         testLogs.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);
@@ -325,10 +338,46 @@ class SurefireParserTest {
         testLogs.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), 0, false);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, false);
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);
     assertThat(error.testLogs()).isNull();
+  }
+
+  @Test
+  void shouldParseGroovySpockStackTraces() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"io.llmcompactor.testbed.GroovySpockTest\" tests=\"1\" failures=\"1\" errors=\"0\" skipped=\"0\" time=\"0.05\">\n"
+            + "  <testcase name=\"null pointer test\" classname=\"io.llmcompactor.testbed.GroovySpockTest\" time=\"0.05\">\n"
+            + "    <failure message=\"NullPointerException\" type=\"java.lang.NullPointerException\">\n"
+            + "java.lang.NullPointerException: test\n"
+            + "at io.llmcompactor.testbed.Service.process(Service.java:15)\n"
+            + "at io.llmcompactor.testbed.GroovySpockTest.null pointer test(GroovySpockTest.groovy:15)\n"
+            + "    </failure>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.GroovySpockTest.xml"),
+        xml.getBytes(),
+        StandardOpenOption.CREATE);
+
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    assertThat(result.errors()).hasSize(1);
+    BuildError error = result.errors().get(0);
+    // File and line should both be from first project frame (where error originated)
+    assertThat(error.file()).contains("Service.java");
+    assertThat(error.lines()).containsExactly(15);
+    assertThat(error.stackTrace()).contains("GroovySpockTest.groovy:15");
   }
 }

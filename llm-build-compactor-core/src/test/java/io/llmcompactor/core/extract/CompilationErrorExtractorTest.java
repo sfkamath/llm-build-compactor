@@ -47,4 +47,22 @@ class CompilationErrorExtractorTest {
 
     assertThat(errors).isEmpty();
   }
+
+  @Test
+  void shouldExtractFatalErrorWithAnsiCodes() {
+    List<String> logs =
+        Arrays.asList(
+            "[INFO] --- compiler:3.15.0:compile (default-compile) @ tui-sessions-app ---",
+            "[ERROR] Failed to execute goal [32mmaven-compiler-plugin:3.15.0:compile[m [1m(default-compile)[m on project [36mtui-sessions-app[m: [1;31mFatal error compiling[m",
+            "[1;31mFatal error compiling: java.lang.IllegalArgumentException: The argument does not represent an annotation type: Singleton[m");
+
+    List<BuildError> errors = CompilationErrorExtractor.extract(logs);
+
+    assertThat(errors).hasSize(1);
+    assertThat(errors.get(0).file()).isEqualTo("pom.xml");
+    assertThat(errors.get(0).lines()).containsExactly(1);
+    assertThat(errors.get(0).message())
+        .contains("The argument does not represent an annotation type: Singleton");
+    assertThat(errors.get(0).type()).isEqualTo("COMPILATION_ERROR");
+  }
 }
