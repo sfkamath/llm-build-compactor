@@ -14,8 +14,7 @@ public final class CompilationErrorExtractor {
   private static final Pattern mavenPattern =
       Pattern.compile("(?:\\[ERROR]\\s+)?(.+\\.java):\\[(\\d+),(\\d+)] (.+)");
 
-  private static final Pattern fatalErrorPattern =
-      Pattern.compile("Fatal error compiling: (.+)");
+  private static final Pattern fatalErrorPattern = Pattern.compile("Fatal error compiling: (.+)");
 
   private static final Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
 
@@ -48,8 +47,7 @@ public final class CompilationErrorExtractor {
 
       Matcher fm = fatalErrorPattern.matcher(cleanedLine);
       if (fm.find()) {
-        errors.add(
-            new BuildError("COMPILATION_ERROR", "pom.xml", 1, fm.group(1), cleanedLine));
+        errors.add(new BuildError("COMPILATION_ERROR", "pom.xml", 1, fm.group(1), cleanedLine));
       }
     }
 

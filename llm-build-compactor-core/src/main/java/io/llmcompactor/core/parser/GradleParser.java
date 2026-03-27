@@ -123,7 +123,8 @@ public final class GradleParser {
 
                     String stackTrace =
                         compressStackFrames
-                            ? StackTraceCompressor.compress(message, null, stackFrameWhitelist, stackFrameBlacklist)
+                            ? StackTraceCompressor.compress(
+                                message, null, stackFrameWhitelist, stackFrameBlacklist)
                             : message;
 
                     failures.add(

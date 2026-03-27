@@ -315,7 +315,12 @@ public class BuildOutputSpy extends AbstractEventSpy {
         if (Files.exists(targetDir)) {
           TestResult result =
               SurefireParser.parse(
-                  targetDir, compress, stackFrameWhitelist, stackFrameBlacklist, sessionStartTime, showFailedTestLogs);
+                  targetDir,
+                  compress,
+                  stackFrameWhitelist,
+                  stackFrameBlacklist,
+                  sessionStartTime,
+                  showFailedTestLogs);
           totalTestsRun += result.testsRun();
           totalTestFailures += result.failures();
           allErrors.addAll(result.errors());

@@ -61,7 +61,8 @@ class CompilationErrorExtractorTest {
     assertThat(errors).hasSize(1);
     assertThat(errors.get(0).file()).isEqualTo("pom.xml");
     assertThat(errors.get(0).lines()).containsExactly(1);
-    assertThat(errors.get(0).message()).contains("The argument does not represent an annotation type: Singleton");
+    assertThat(errors.get(0).message())
+        .contains("The argument does not represent an annotation type: Singleton");
     assertThat(errors.get(0).type()).isEqualTo("COMPILATION_ERROR");
   }
 }

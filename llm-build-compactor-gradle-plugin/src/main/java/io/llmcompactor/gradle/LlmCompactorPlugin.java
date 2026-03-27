@@ -153,16 +153,18 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     Property<Double> getTestDurationThresholdMs();
 
     /**
-     * Handles unknown properties gracefully for backward compatibility.
-     * Allows newer plugin versions to work with older build scripts setting properties
-     * that don't exist yet.
+     * Handles unknown properties gracefully for backward compatibility. Allows newer plugin
+     * versions to work with older build scripts setting properties that don't exist yet.
      *
      * @param name the property name that was set
      * @param value the value being set
      * @return null (property is ignored)
      */
     default Object propertyMissing(String name, Object value) {
-      System.err.println("[LLM Compactor] Warning: Unknown property '" + name + "' - this may be from a newer plugin version");
+      System.err.println(
+          "[LLM Compactor] Warning: Unknown property '"
+              + name
+              + "' - this may be from a newer plugin version");
       return null;
     }
   }

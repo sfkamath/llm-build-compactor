@@ -41,8 +41,8 @@ public final class StackTraceCompressor {
 
   /**
    * Compresses a stack trace into a single string containing only "useful" parts: - All project
-   * frames (any frame NOT in the framework list) - Frames explicitly requested via stackFrameWhitelist
-   * - "Caused by" lines that lead to useful frames
+   * frames (any frame NOT in the framework list) - Frames explicitly requested via
+   * stackFrameWhitelist - "Caused by" lines that lead to useful frames
    */
   public static String compress(
       String stackTrace, String projectPackage, List<String> stackFrameWhitelist) {
@@ -58,10 +58,7 @@ public final class StackTraceCompressor {
    * @param blacklist packages to always exclude (stackFrameBlacklist)
    */
   public static String compress(
-      String stackTrace,
-      String projectPackage,
-      List<String> whitelist,
-      List<String> blacklist) {
+      String stackTrace, String projectPackage, List<String> whitelist, List<String> blacklist) {
     if (stackTrace == null || stackTrace.isEmpty()) {
       return "";
     }
@@ -93,15 +90,7 @@ public final class StackTraceCompressor {
   }
 
   private static boolean isUsefulFrame(
-      String trimmedLine, String projectPackage, List<String> stackFrameWhitelist) {
-    return isUsefulFrame(trimmedLine, projectPackage, stackFrameWhitelist, Collections.emptyList());
-  }
-
-  private static boolean isUsefulFrame(
-      String trimmedLine,
-      String projectPackage,
-      List<String> whitelist,
-      List<String> blacklist) {
+      String trimmedLine, String projectPackage, List<String> whitelist, List<String> blacklist) {
     // Normalize the line to remove classloader prefixes
     String normalized = normalizeLine(trimmedLine);
 

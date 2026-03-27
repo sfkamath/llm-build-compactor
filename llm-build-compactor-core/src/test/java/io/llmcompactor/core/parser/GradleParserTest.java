@@ -40,7 +40,9 @@ class GradleParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = GradleParser.parse(resultsDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+    TestResult result =
+        GradleParser.parse(
+            resultsDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.testsRun()).isEqualTo(1);
     assertThat(result.failures()).isEqualTo(1);
@@ -79,7 +81,9 @@ class GradleParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = GradleParser.parse(resultsDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+    TestResult result =
+        GradleParser.parse(
+            resultsDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);
@@ -112,7 +116,9 @@ class GradleParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = GradleParser.parse(resultsDir, true, Collections.emptyList(), Collections.emptyList(), 0, false);
+    TestResult result =
+        GradleParser.parse(
+            resultsDir, true, Collections.emptyList(), Collections.emptyList(), 0, false);
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);

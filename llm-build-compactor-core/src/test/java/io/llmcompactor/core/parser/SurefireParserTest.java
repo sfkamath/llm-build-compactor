@@ -37,7 +37,9 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.testsRun()).isEqualTo(1);
     assertThat(result.failures()).isEqualTo(1);
@@ -71,7 +73,9 @@ class SurefireParserTest {
 
     Files.write(reportsDir.resolve("TEST-error.xml"), xml.getBytes(), StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.errors()).hasSize(1);
     assertThat(result.errors().get(0).type()).isEqualTo("java.lang.NullPointerException");
@@ -101,7 +105,9 @@ class SurefireParserTest {
         surefireDir.resolve("TEST-unit.xml"), unitXml.getBytes(), StandardOpenOption.CREATE);
     Files.write(failsafeDir.resolve("TEST-it.xml"), itXml.getBytes(), StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     // Should count all tests from both directories (1 + 2 = 3)
     assertThat(result.testsRun()).isEqualTo(3);
@@ -134,7 +140,8 @@ class SurefireParserTest {
 
     long sessionStart = System.currentTimeMillis() - 10_000;
     TestResult result =
-        SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), sessionStart, true);
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), sessionStart, true);
 
     // Should only count the 1 test from the new file, ignoring the 10 from the old file
     assertThat(result.testsRun()).isEqualTo(1);
@@ -168,7 +175,9 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.failures()).isEqualTo(1);
     assertThat(result.errors()).hasSize(1);
@@ -209,7 +218,9 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.failures()).isEqualTo(1);
     BuildError error = result.errors().get(0);
@@ -245,7 +256,8 @@ class SurefireParserTest {
 
     // With compression enabled
     TestResult compressedResult =
-        SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
     BuildError compressedError = compressedResult.errors().get(0);
 
     // Netty frames should be filtered out
@@ -254,7 +266,8 @@ class SurefireParserTest {
 
     // Without compression
     TestResult uncompressedResult =
-        SurefireParser.parse(tempDir, false, Collections.emptyList(), Collections.emptyList(), 0, true);
+        SurefireParser.parse(
+            tempDir, false, Collections.emptyList(), Collections.emptyList(), 0, true);
     BuildError uncompressedError = uncompressedResult.errors().get(0);
 
     // All frames should be present
@@ -289,7 +302,9 @@ class SurefireParserTest {
         testLogs.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);
@@ -323,7 +338,9 @@ class SurefireParserTest {
         testLogs.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, false);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, false);
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);
@@ -352,7 +369,9 @@ class SurefireParserTest {
         xml.getBytes(),
         StandardOpenOption.CREATE);
 
-    TestResult result = SurefireParser.parse(tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);

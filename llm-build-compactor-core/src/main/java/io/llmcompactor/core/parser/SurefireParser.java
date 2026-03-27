@@ -212,7 +212,8 @@ public final class SurefireParser {
     for (String l : lines) {
       boolean hasJavaFile = l.contains(".java:");
       boolean hasGroovyFile = l.contains(".groovy:");
-      if ((hasJavaFile || hasGroovyFile) && !isFrameworkFrame(l, stackFrameWhitelist, stackFrameBlacklist)) {
+      if ((hasJavaFile || hasGroovyFile)
+          && !isFrameworkFrame(l, stackFrameWhitelist, stackFrameBlacklist)) {
         if (firstProjectFrame == null) {
           firstProjectFrame = l;
         }
@@ -230,7 +231,7 @@ public final class SurefireParser {
       if (found) {
         line = Integer.parseInt(m.group(1));
       }
-      
+
       // Also use first frame for file detection
       int atIndex = firstProjectFrame.indexOf("at ");
       int parenIndex = firstProjectFrame.indexOf("(");
@@ -255,8 +256,7 @@ public final class SurefireParser {
           if (classNameEnd > 0) {
             String className = fileName.substring(0, classNameEnd);
             if (packageName.endsWith("." + className)) {
-              packageName =
-                  packageName.substring(0, packageName.length() - className.length() - 1);
+              packageName = packageName.substring(0, packageName.length() - className.length() - 1);
             }
             sourceFile = resolveSourceFile(packageName, fileName);
           }
