@@ -85,6 +85,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
   private final List<BuildError> compileErrors = new ArrayList<>();
   private volatile boolean initialized;
+  private volatile boolean buildFailed;
 
   @Override
   public void init(Context context) throws Exception {
@@ -196,10 +197,21 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
   private void handleMojoFailed(ExecutionEvent ee) {
     MojoExecution mojo = ee.getMojoExecution();
+    String output = extractFailureOutput(ee);
+
     if (mojo == null || !"maven-compiler-plugin".equals(mojo.getArtifactId())) {
+      buildFailed = true;
+      if (output != null && !output.isEmpty()) {
+        List<BuildError> extracted =
+            CompilationErrorExtractor.extract(Arrays.asList(output.split("\n")));
+        if (extracted.isEmpty()) {
+          extracted = Collections.singletonList(createGenericCompilationError(ee, output));
+        }
+        compileErrors.addAll(extracted);
+      }
       return;
     }
-    String output = extractFailureOutput(ee);
+
     if (output == null) {
       return;
     }
@@ -359,7 +371,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
     BuildSummary summary =
         new BuildSummary(
-            allErrors.isEmpty() ? "SUCCESS" : "FAILED",
+            allErrors.isEmpty() && !buildFailed ? "SUCCESS" : "FAILED",
             totalTestsRun,
             totalTestFailures,
             allErrors,

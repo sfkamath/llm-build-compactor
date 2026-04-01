@@ -50,4 +50,10 @@ test {
     ignoreFailures = true
 }
 
+tasks.register('failBuild') {
+    doLast {
+        throw new RuntimeException('Intentional build failure for testing')
+    }
+}
+
 apply plugin: 'io.github.sfkamath.llm-build-compactor'

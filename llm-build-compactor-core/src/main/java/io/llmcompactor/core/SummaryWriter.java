@@ -259,8 +259,7 @@ public final class SummaryWriter {
           sb.append(error.file());
           if (error.lines() != null && !error.lines().isEmpty()) {
             sb.append(":")
-                .append(
-                    error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+                .append(error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
           }
         } else {
           sb.append(error.type());
