@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+
+    <suppress until="2026-10-01Z">
+        <notes>CVE-2025-67030 - plexus-utils is a Maven build dependency, not a runtime dependency</notes>
+        <packageUrl regex="true">^pkg:maven/org\.codehaus\.plexus/plexus\-utils@.*$</packageUrl>
+        <cve>CVE-2025-67030</cve>
+    </suppress>
+
+</suppressions>

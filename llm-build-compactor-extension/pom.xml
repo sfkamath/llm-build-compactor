@@ -16,7 +16,7 @@
 
     <dependencies>
         <dependency>
-<groupId>io.github.sfkamath</groupId>
+            <groupId>io.github.sfkamath</groupId>
             <artifactId>llm-build-compactor-core</artifactId>
         </dependency>
 
@@ -34,6 +34,13 @@
         <dependency>
             <groupId>javax.inject</groupId>
             <artifactId>javax.inject</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jacoco</groupId>
+            <artifactId>org.jacoco.core</artifactId>
+            <version>0.8.14</version>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Testing -->

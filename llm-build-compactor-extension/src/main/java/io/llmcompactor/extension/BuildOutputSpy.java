@@ -28,6 +28,7 @@ import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResult;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
@@ -40,6 +41,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -53,6 +55,7 @@ import org.apache.maven.eventspy.AbstractEventSpy;
 import org.apache.maven.execution.ExecutionEvent;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Plugin;
+import org.apache.maven.model.PluginExecution;
 import org.apache.maven.plugin.MojoExecution;
 import org.apache.maven.project.MavenProject;
 import org.codehaus.plexus.util.xml.Xpp3Dom;
@@ -84,8 +87,10 @@ public class BuildOutputSpy extends AbstractEventSpy {
   private MavenSession session;
 
   private final List<BuildError> compileErrors = new ArrayList<>();
+  private final List<String> capturedLines = new ArrayList<>();
   private volatile boolean initialized;
   private volatile boolean buildFailed;
+  private volatile String jacocoCoverageDetails;
 
   @Override
   public void init(Context context) throws Exception {
@@ -178,6 +183,9 @@ public class BuildOutputSpy extends AbstractEventSpy {
       case MojoFailed:
         handleMojoFailed(ee);
         break;
+      case MojoSucceeded:
+        handleMojoSucceeded(ee);
+        break;
       case SessionEnded:
         emitSummary();
         break;
@@ -198,6 +206,19 @@ public class BuildOutputSpy extends AbstractEventSpy {
   private void handleMojoFailed(ExecutionEvent ee) {
     MojoExecution mojo = ee.getMojoExecution();
     String output = extractFailureOutput(ee);
+
+    boolean isJacocoCheck =
+        mojo != null
+            && "org.jacoco".equals(mojo.getGroupId())
+            && "jacoco-maven-plugin".equals(mojo.getArtifactId())
+            && "check".equals(mojo.getGoal());
+
+    if (isJacocoCheck) {
+      jacocoCoverageDetails = extractJacocoCoverageFromReport(ee);
+      if (jacocoCoverageDetails != null && !jacocoCoverageDetails.isEmpty()) {
+        capturedLines.add("[JACOCO_COVERAGE] " + jacocoCoverageDetails);
+      }
+    }
 
     if (mojo == null || !"maven-compiler-plugin".equals(mojo.getArtifactId())) {
       buildFailed = true;
@@ -221,6 +242,163 @@ public class BuildOutputSpy extends AbstractEventSpy {
       extracted = Collections.singletonList(createGenericCompilationError(ee, output));
     }
     compileErrors.addAll(extracted);
+  }
+
+  private void handleMojoSucceeded(ExecutionEvent ee) {
+    MojoExecution mojo = ee.getMojoExecution();
+    if (mojo == null) {
+      return;
+    }
+
+    boolean isJacocoCheck =
+        "org.jacoco".equals(mojo.getGroupId())
+            && "jacoco-maven-plugin".equals(mojo.getArtifactId())
+            && "check".equals(mojo.getGoal());
+
+    if (isJacocoCheck) {
+      jacocoCoverageDetails = extractJacocoCoverageFromReport(ee);
+      if (jacocoCoverageDetails != null && !jacocoCoverageDetails.isEmpty()) {
+        capturedLines.add("[JACOCO_COVERAGE] " + jacocoCoverageDetails);
+      }
+    }
+  }
+
+  private String extractJacocoCoverageFromReport(ExecutionEvent ee) {
+    MavenProject project = ee.getProject();
+    if (project == null) {
+      return null;
+    }
+
+    Path targetDir = project.getBasedir().toPath().resolve("target");
+    Path execFile = targetDir.resolve("jacoco.exec");
+    if (!Files.exists(execFile)) {
+      execFile = targetDir.resolve("jacoco-merged.exec");
+    }
+
+    if (!Files.exists(execFile)) {
+      return null;
+    }
+
+    Map<String, Double> minimums = readConfiguredMinimums(project);
+    String counterType = minimums.isEmpty() ? "LINE" : minimums.keySet().iterator().next();
+    double minValue = minimums.isEmpty() ? 0.8 : minimums.values().iterator().next();
+
+    try {
+      Class<?> readerClass = Class.forName("org.jacoco.core.data.ExecutionDataReader");
+      Object reader =
+          readerClass.getConstructor(InputStream.class).newInstance(Files.newInputStream(execFile));
+
+      final long[] covered = {0};
+      final long[] missed = {0};
+
+      Class<?> visitorClass = Class.forName("org.jacoco.core.data.IExecutionDataVisitor");
+      Object visitor =
+          java.lang.reflect.Proxy.newProxyInstance(
+              visitorClass.getClassLoader(),
+              new Class<?>[] {visitorClass},
+              (proxy, method, args) -> {
+                if ("visitClassExecution".equals(method.getName())) {
+                  try {
+                    Object data = args[0];
+                    Method getProbesMethod = data.getClass().getMethod("getProbes");
+                    boolean[] hits = (boolean[]) getProbesMethod.invoke(data);
+                    for (boolean hit : hits) {
+                      if (hit) {
+                        covered[0]++;
+                      } else {
+                        missed[0]++;
+                      }
+                    }
+                  } catch (IllegalAccessException
+                      | InvocationTargetException
+                      | NoSuchMethodException ex) {
+                    // ignore
+                  }
+                }
+                return null;
+              });
+
+      Class<?> sessionInfoVisitorClass = Class.forName("org.jacoco.core.data.ISessionInfoVisitor");
+      readerClass.getMethod("setExecutionDataVisitor", visitorClass).invoke(reader, visitor);
+      readerClass
+          .getMethod("setSessionInfoVisitor", sessionInfoVisitorClass)
+          .invoke(
+              reader,
+              java.lang.reflect.Proxy.newProxyInstance(
+                  sessionInfoVisitorClass.getClassLoader(),
+                  new Class<?>[] {sessionInfoVisitorClass},
+                  (proxy, method, args) -> null));
+      readerClass.getMethod("read").invoke(reader);
+
+      long total = covered[0] + missed[0];
+      if (total == 0) {
+        return null;
+      }
+
+      int percentage = (int) Math.round((covered[0] * 100.0) / total);
+      int requiredPercentage = (int) Math.round(minValue * 100);
+      return "Coverage: "
+          + percentage
+          + "% ("
+          + covered[0]
+          + "/"
+          + total
+          + " "
+          + counterType.toLowerCase()
+          + "s covered) - required: "
+          + requiredPercentage
+          + "%";
+    } catch (ClassNotFoundException
+        | InstantiationException
+        | IllegalAccessException
+        | InvocationTargetException
+        | NoSuchMethodException
+        | IOException e) {
+      return null;
+    }
+  }
+
+  private Map<String, Double> readConfiguredMinimums(MavenProject project) {
+    Map<String, Double> minimums = new LinkedHashMap<>();
+
+    Plugin jacoco = project.getPlugin("org.jacoco:jacoco-maven-plugin");
+    if (jacoco == null) {
+      return minimums;
+    }
+
+    for (PluginExecution execution : jacoco.getExecutions()) {
+      if (!execution.getGoals().contains("check")) {
+        continue;
+      }
+
+      Xpp3Dom config = (Xpp3Dom) execution.getConfiguration();
+      if (config == null) {
+        continue;
+      }
+
+      Xpp3Dom rules = config.getChild("rules");
+      if (rules == null) {
+        continue;
+      }
+
+      for (Xpp3Dom rule : rules.getChildren("rule")) {
+        Xpp3Dom limits = rule.getChild("limits");
+        if (limits == null) {
+          continue;
+        }
+
+        for (Xpp3Dom limit : limits.getChildren("limit")) {
+          Xpp3Dom counter = limit.getChild("counter");
+          Xpp3Dom minimum = limit.getChild("minimum");
+
+          if (counter != null && minimum != null) {
+            minimums.put(counter.getValue(), Double.parseDouble(minimum.getValue()));
+          }
+        }
+      }
+    }
+
+    return minimums;
   }
 
   private BuildError createGenericCompilationError(ExecutionEvent ee, String output) {
@@ -396,6 +574,12 @@ public class BuildOutputSpy extends AbstractEventSpy {
     } else {
       REAL_OUT.println(
           SummaryWriter.toHumanReadable(summary, showSlowTests, testDurationThresholdMs));
+    }
+
+    if (!capturedLines.isEmpty()) {
+      for (String line : capturedLines) {
+        REAL_OUT.println(line);
+      }
     }
   }
 

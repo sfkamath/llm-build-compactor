@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.gradle.api.Plugin;
@@ -48,6 +49,11 @@ public class LlmCompactorPlugin implements Plugin<Project> {
   private static final String INIT_SCRIPT_NAME = "llm-compactor-silence.gradle";
   private static final String GRADLE_PROPS_MARKER_START = "# >>> llm-compactor >>>";
   private static final String GRADLE_PROPS_MARKER_END = "# <<< llm-compactor <<<";
+  private static final java.util.regex.Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
+
+  private static String stripAnsi(String input) {
+    return input == null ? null : ANSI_PATTERN.matcher(input).replaceAll("");
+  }
 
   /** Creates a new instance of the LLM Build Compactor plugin. */
   public LlmCompactorPlugin() {}
@@ -648,7 +654,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         new ArrayList<>(extension.getStackFrameBlacklist().getOrElse(Collections.emptyList()));
 
     List<String> stringLogLines =
-        logLines.stream().map(Object::toString).collect(Collectors.toList());
+        logLines.stream().map(line -> stripAnsi(line.toString())).collect(Collectors.toList());
 
     List<BuildError> compilationErrors = CompilationErrorExtractor.extract(stringLogLines);
     allErrors.addAll(compilationErrors);
