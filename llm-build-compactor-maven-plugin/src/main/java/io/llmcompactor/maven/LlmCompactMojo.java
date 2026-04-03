@@ -178,9 +178,10 @@ public class LlmCompactMojo extends AbstractMojo {
       testDurationPercentiles = BuildSummary.computePercentiles(allDurations);
     }
 
+    boolean sessionHasErrors = session != null && session.getResult().hasExceptions();
     BuildSummary summary =
         new BuildSummary(
-            allErrors.isEmpty() ? "SUCCESS" : "FAILED",
+            allErrors.isEmpty() && !sessionHasErrors ? "SUCCESS" : "FAILED",
             testResult.testsRun(),
             testResult.failures(),
             allErrors,

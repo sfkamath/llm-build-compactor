@@ -544,4 +544,25 @@ class GradleOptionTests {
   private static JsonNode parseJson(String json) throws IOException {
     return new ObjectMapper().readTree(json);
   }
+
+  @Nested
+  @DisplayName("Build Status")
+  class BuildStatusTests {
+
+    @Test
+    @DisplayName("summary status is FAILED when build has errors")
+    void testStatusFailedOnErrors() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = parseJson(result.summaryJson());
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("status")).isTrue();
+      assertThat(tree.get("status").asText()).isEqualTo("FAILED");
+    }
+  }
 }

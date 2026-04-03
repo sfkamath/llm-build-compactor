@@ -2,5 +2,5 @@ rootProject.name = "llm-build-compactor"
 
 includeBuild("llm-build-compactor-gradle-plugin")
 
-include("core")
+include("llm-build-compactor-core")
 include("test-project-gradle")

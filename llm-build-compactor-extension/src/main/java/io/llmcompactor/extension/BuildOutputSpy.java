@@ -85,6 +85,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
   private final List<BuildError> compileErrors = new ArrayList<>();
   private volatile boolean initialized;
+  private volatile boolean buildFailed;
 
   @Override
   public void init(Context context) throws Exception {
@@ -196,10 +197,21 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
   private void handleMojoFailed(ExecutionEvent ee) {
     MojoExecution mojo = ee.getMojoExecution();
+    String output = extractFailureOutput(ee);
+
     if (mojo == null || !"maven-compiler-plugin".equals(mojo.getArtifactId())) {
+      buildFailed = true;
+      if (output != null && !output.isEmpty()) {
+        List<BuildError> extracted =
+            CompilationErrorExtractor.extract(Arrays.asList(output.split("\n")));
+        if (extracted.isEmpty()) {
+          extracted = Collections.singletonList(createGenericCompilationError(ee, output));
+        }
+        compileErrors.addAll(extracted);
+      }
       return;
     }
-    String output = extractFailureOutput(ee);
+
     if (output == null) {
       return;
     }
@@ -215,7 +227,8 @@ public class BuildOutputSpy extends AbstractEventSpy {
     MavenProject project = ee.getProject();
     String file =
         project != null && project.getFile() != null ? project.getFile().getPath() : "pom.xml";
-    return new BuildError("COMPILATION_ERROR", file, 1, firstLine(output), output);
+    String cleanOutput = CompilationErrorExtractor.stripAnsi(output);
+    return new BuildError("COMPILATION_ERROR", file, 1, firstLine(cleanOutput), cleanOutput);
   }
 
   private String extractFailureOutput(ExecutionEvent ee) {
@@ -251,6 +264,10 @@ public class BuildOutputSpy extends AbstractEventSpy {
   private void emitSummary() {
     if (session == null || originalOut == null || isInteractiveGoal(session)) {
       return;
+    }
+
+    if (!buildFailed && session.getResult() != null && session.getResult().hasExceptions()) {
+      buildFailed = true;
     }
 
     MavenProject topProject = session.getTopLevelProject();
@@ -359,7 +376,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
     BuildSummary summary =
         new BuildSummary(
-            allErrors.isEmpty() ? "SUCCESS" : "FAILED",
+            allErrors.isEmpty() && !buildFailed ? "SUCCESS" : "FAILED",
             totalTestsRun,
             totalTestFailures,
             allErrors,

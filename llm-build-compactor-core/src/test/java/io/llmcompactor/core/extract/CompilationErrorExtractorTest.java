@@ -10,6 +10,25 @@ import org.junit.jupiter.api.Test;
 class CompilationErrorExtractorTest {
 
   @Test
+  void shouldExtractSymbolLocationDetails() {
+    List<String> logs =
+        Arrays.asList(
+            "[INFO] --- compiler:3.13.0:compile (default-compile) @ project ---",
+            "[ERROR] /path/to/StrategyPatternArchitectureTest.java:[190,13] error: cannot find symbol",
+            "  symbol:   method and()",
+            "  location: interface com.tngtech.archunit.lang.syntax.elements.ClassesShouldConjunction");
+
+    List<BuildError> errors = CompilationErrorExtractor.extract(logs);
+
+    assertThat(errors).hasSize(1);
+    assertThat(errors.get(0).file()).isEqualTo("/path/to/StrategyPatternArchitectureTest.java");
+    assertThat(errors.get(0).lines()).containsExactly(190);
+    assertThat(errors.get(0).message())
+        .isEqualTo(
+            "error: cannot find symbol\n  symbol:   method and()\n  location: interface com.tngtech.archunit.lang.syntax.elements.ClassesShouldConjunction");
+  }
+
+  @Test
   void shouldExtractErrorsFromMavenLogs() {
     List<String> logs =
         Arrays.asList(
@@ -64,5 +83,25 @@ class CompilationErrorExtractorTest {
     assertThat(errors.get(0).message())
         .contains("The argument does not represent an annotation type: Singleton");
     assertThat(errors.get(0).type()).isEqualTo("COMPILATION_ERROR");
+  }
+
+  @Test
+  void shouldStripUnicodeEscapeSequences() {
+    String input = "Failed to execute goal \\u001B[32morg.owasp:dependency-check-maven\\u001B[m on project";
+    String expected = "Failed to execute goal org.owasp:dependency-check-maven on project";
+    
+    String result = CompilationErrorExtractor.stripAnsi(input);
+    
+    assertThat(result).isEqualTo(expected);
+  }
+
+  @Test
+  void shouldStripBothAnsiAndUnicodeEscapes() {
+    String input = "\\u001B[32mFailed\\u001B[m to execute goal \\u001B[1morg.owasp\\u001B[m";
+    String expected = "Failed to execute goal org.owasp";
+    
+    String result = CompilationErrorExtractor.stripAnsi(input);
+    
+    assertThat(result).isEqualTo(expected);
   }
 }

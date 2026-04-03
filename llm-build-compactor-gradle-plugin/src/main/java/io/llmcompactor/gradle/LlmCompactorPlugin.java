@@ -24,6 +24,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.gradle.api.Plugin;
@@ -170,6 +172,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
   }
 
   private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
+  private final AtomicBoolean buildFailed = new AtomicBoolean(false);
 
   @Override
   public void apply(Project project) {
@@ -505,6 +508,9 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         .getGradle()
         .buildFinished(
             result -> {
+              if (result.getFailure() != null) {
+                buildFailed.set(true);
+              }
               if (isEnabled) {
                 // Brief wait for Gradle's async logging queue to drain to the null stream
                 // before restoring stdout, preventing stray task output from appearing after
@@ -642,7 +648,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         new ArrayList<>(extension.getStackFrameBlacklist().getOrElse(Collections.emptyList()));
 
     List<String> stringLogLines =
-        logLines.stream().map(Object::toString).collect(Collectors.toList());
+        logLines.stream().map(line -> CompilationErrorExtractor.stripAnsi(line.toString())).collect(Collectors.toList());
 
     List<BuildError> compilationErrors = CompilationErrorExtractor.extract(stringLogLines);
     allErrors.addAll(compilationErrors);
@@ -690,7 +696,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
     BuildSummary summary =
         new BuildSummary(
-            allErrors.isEmpty() ? "SUCCESS" : "FAILED",
+            allErrors.isEmpty() && !buildFailed.get() ? "SUCCESS" : "FAILED",
             totalTestsRun,
             totalTestFailures,
             allErrors,
