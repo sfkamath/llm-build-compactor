@@ -68,6 +68,21 @@ class CompilationErrorExtractorTest {
   }
 
   @Test
+  void shouldExtractModernizerErrors() {
+    List<String> logs =
+        Arrays.asList(
+            "[INFO] --- modernizer:3.2.0:modernizer (modernizer-check) @ project ---",
+            "[ERROR] /path/to/SignalQualityAssessorJob.java:78: Prefer java.util.Optional.orElseThrow");
+
+    List<BuildError> errors = CompilationErrorExtractor.extract(logs);
+
+    assertThat(errors).hasSize(1);
+    assertThat(errors.get(0).file()).isEqualTo("/path/to/SignalQualityAssessorJob.java");
+    assertThat(errors.get(0).lines()).containsExactly(78);
+    assertThat(errors.get(0).message()).isEqualTo("Prefer java.util.Optional.orElseThrow");
+  }
+
+  @Test
   void shouldExtractFatalErrorWithAnsiCodes() {
     List<String> logs =
         Arrays.asList(

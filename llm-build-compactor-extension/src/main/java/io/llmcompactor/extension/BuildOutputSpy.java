@@ -443,6 +443,10 @@ public class BuildOutputSpy extends AbstractEventSpy {
       return;
     }
 
+    if (!buildFailed && session.getResult() != null && session.getResult().hasExceptions()) {
+      buildFailed = true;
+    }
+
     MavenProject topProject = session.getTopLevelProject();
     Properties projectProps = topProject != null ? topProject.getProperties() : new Properties();
 
