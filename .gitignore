@@ -49,3 +49,4 @@ sessions.sqlite
 summaries.db
 sessions-bak.sqlite
 test-project-mse/
+.project

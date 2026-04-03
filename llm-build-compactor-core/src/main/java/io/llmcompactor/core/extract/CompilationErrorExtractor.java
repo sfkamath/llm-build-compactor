@@ -25,30 +25,66 @@ public final class CompilationErrorExtractor {
   public static List<BuildError> extract(List<String> logs) {
 
     List<BuildError> errors = new ArrayList<>();
+    int i = 0;
 
-    for (String line : logs) {
-      String cleanedLine = stripAnsi(line);
+    while (i < logs.size()) {
+      String line = stripAnsi(logs.get(i));
 
-      Matcher m = pattern.matcher(cleanedLine);
+      Matcher m = pattern.matcher(line);
       if (m.find()) {
-        errors.add(
-            new BuildError(
-                "COMPILATION_ERROR", m.group(1), Integer.parseInt(m.group(2)), m.group(3), ""));
+        String message = m.group(3);
+        StringBuilder extraDetails = new StringBuilder();
+
+        int j = i + 1;
+        while (j < logs.size()) {
+          String nextLine = stripAnsi(logs.get(j));
+          if (nextLine.startsWith("  symbol:") || nextLine.startsWith("  location:")) {
+            extraDetails.append("\n").append(nextLine);
+            j++;
+          } else {
+            break;
+          }
+        }
+
+        if (extraDetails.length() > 0) {
+          message = message + extraDetails;
+        }
+
+        errors.add(new BuildError("COMPILATION_ERROR", m.group(1), Integer.parseInt(m.group(2)), message, ""));
+        i = j;
         continue;
       }
 
-      Matcher mm = mavenPattern.matcher(cleanedLine);
+      Matcher mm = mavenPattern.matcher(line);
       if (mm.find()) {
-        errors.add(
-            new BuildError(
-                "COMPILATION_ERROR", mm.group(1), Integer.parseInt(mm.group(2)), mm.group(4), ""));
+        String message = mm.group(4);
+        StringBuilder extraDetails = new StringBuilder();
+
+        int j = i + 1;
+        while (j < logs.size()) {
+          String nextLine = stripAnsi(logs.get(j));
+          if (nextLine.startsWith("  symbol:") || nextLine.startsWith("  location:")) {
+            extraDetails.append("\n").append(nextLine);
+            j++;
+          } else {
+            break;
+          }
+        }
+
+        if (extraDetails.length() > 0) {
+          message = message + extraDetails;
+        }
+
+        errors.add(new BuildError("COMPILATION_ERROR", mm.group(1), Integer.parseInt(mm.group(2)), message, ""));
+        i = j;
         continue;
       }
 
-      Matcher fm = fatalErrorPattern.matcher(cleanedLine);
+      Matcher fm = fatalErrorPattern.matcher(line);
       if (fm.find()) {
-        errors.add(new BuildError("COMPILATION_ERROR", "pom.xml", 1, fm.group(1), cleanedLine));
+        errors.add(new BuildError("COMPILATION_ERROR", "pom.xml", 1, fm.group(1), line));
       }
+      i++;
     }
 
     return errors;

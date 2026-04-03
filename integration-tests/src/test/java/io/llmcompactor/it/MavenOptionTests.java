@@ -327,6 +327,26 @@ class MavenOptionTests {
     }
   }
 
+  @Nested
+  @DisplayName("Build Status")
+  class BuildStatusTests {
+
+    @Test
+    @DisplayName("summary status is FAILED when build has errors")
+    void testStatusFailedOnErrors() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = parseJson(result.summaryJson());
+      assertThat(tree.has("status")).isTrue();
+      assertThat(tree.get("status").asText()).isEqualTo("FAILED");
+    }
+  }
+
   // Helper for JSON validation - parses JSON and returns it for further assertions
   private static JsonNode parseJson(String json) throws IOException {
     return new ObjectMapper().readTree(json);

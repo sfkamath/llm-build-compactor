@@ -24,6 +24,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.gradle.api.Plugin;
@@ -47,6 +49,11 @@ public class LlmCompactorPlugin implements Plugin<Project> {
   private static final String INIT_SCRIPT_NAME = "llm-compactor-silence.gradle";
   private static final String GRADLE_PROPS_MARKER_START = "# >>> llm-compactor >>>";
   private static final String GRADLE_PROPS_MARKER_END = "# <<< llm-compactor <<<";
+  private static final java.util.regex.Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
+
+  private static String stripAnsi(String input) {
+    return input == null ? null : ANSI_PATTERN.matcher(input).replaceAll("");
+  }
 
   /** Creates a new instance of the LLM Build Compactor plugin. */
   public LlmCompactorPlugin() {}
@@ -170,6 +177,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
   }
 
   private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
+  private final AtomicBoolean buildFailed = new AtomicBoolean(false);
 
   @Override
   public void apply(Project project) {
@@ -505,6 +513,9 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         .getGradle()
         .buildFinished(
             result -> {
+              if (result.getFailure() != null) {
+                buildFailed.set(true);
+              }
               if (isEnabled) {
                 // Brief wait for Gradle's async logging queue to drain to the null stream
                 // before restoring stdout, preventing stray task output from appearing after
@@ -518,6 +529,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 System.setOut(originalOut);
                 System.setErr(originalErr);
                 emitSummary(rootProject, extension, sessionStartTime);
+                buildFailed.set(false);
               }
             });
   }
@@ -642,7 +654,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         new ArrayList<>(extension.getStackFrameBlacklist().getOrElse(Collections.emptyList()));
 
     List<String> stringLogLines =
-        logLines.stream().map(Object::toString).collect(Collectors.toList());
+        logLines.stream().map(line -> stripAnsi(line.toString())).collect(Collectors.toList());
 
     List<BuildError> compilationErrors = CompilationErrorExtractor.extract(stringLogLines);
     allErrors.addAll(compilationErrors);
@@ -690,7 +702,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
     BuildSummary summary =
         new BuildSummary(
-            allErrors.isEmpty() ? "SUCCESS" : "FAILED",
+            allErrors.isEmpty() && !buildFailed.get() ? "SUCCESS" : "FAILED",
             totalTestsRun,
             totalTestFailures,
             allErrors,
