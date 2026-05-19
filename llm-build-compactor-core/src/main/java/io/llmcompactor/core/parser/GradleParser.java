@@ -168,8 +168,8 @@ public final class GradleParser {
       }
     }
 
-    // Fallback: if no testcase-level output, use parent testsuite output.
-    // Note: suite-level output contains logs from ALL tests in the class, not only the failing one.
+    // Gradle places system-out/system-err at the suite level, not per testcase.
+    // Fall back to suite output when no testcase-level output is present.
     if (logs.length() == 0) {
       Node parent = testCase.getParentNode();
       if (parent instanceof Element) {
@@ -184,10 +184,7 @@ public final class GradleParser {
               if (logs.length() > 0) {
                 logs.append("\n");
               }
-              logs.append("[class-level ")
-                  .append(child.getNodeName())
-                  .append("]\n")
-                  .append(content);
+              logs.append("[").append(child.getNodeName()).append("]\n").append(content);
             }
           }
         }

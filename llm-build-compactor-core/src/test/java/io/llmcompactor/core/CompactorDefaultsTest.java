@@ -20,7 +20,7 @@ class CompactorDefaultsTest {
     assertThat(CompactorDefaults.SHOW_SLOW_TESTS).isTrue();
     assertThat(CompactorDefaults.SHOW_TOTAL_DURATION).isFalse();
     assertThat(CompactorDefaults.SHOW_DURATION_REPORT).isFalse();
-    assertThat(CompactorDefaults.SHOW_FAILED_TEST_LOGS).isFalse();
+    assertThat(CompactorDefaults.SHOW_FAILED_TEST_LOGS).isTrue();
   }
 
   @Test

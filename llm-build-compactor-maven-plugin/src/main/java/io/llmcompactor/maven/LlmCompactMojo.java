@@ -111,6 +111,10 @@ public class LlmCompactMojo extends AbstractMojo {
 
   public void execute() throws MojoExecutionException {
 
+    if (session != null && session.getUserProperties().getProperty("llmce") != null
+        || System.getProperty("llmce") != null) {
+      enabled = false;
+    }
     if (!enabled) {
       return;
     }

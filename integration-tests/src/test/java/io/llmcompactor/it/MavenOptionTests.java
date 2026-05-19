@@ -31,6 +31,19 @@ class MavenOptionTests {
       assertThat(result.summaryJson()).isNull();
       assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
     }
+
+    @Test
+    @DisplayName("llmce alias produces no compactor summary")
+    void testLlmceAlias() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("llmce", "")
+              .execute();
+
+      assertThat(result.summaryJson()).isNull();
+      assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
+    }
   }
 
   @Nested
@@ -177,22 +190,32 @@ class MavenOptionTests {
 
       JsonNode tree = result.summaryTree();
       assertThat(tree).isNotNull();
-      // The test project has intentionally failing tests, so testLogs must be present
-      // inside the errors array for tests that produce output (like OrderServiceTest)
       assertThat(tree.has("errors")).isTrue();
       JsonNode errors = tree.get("errors");
       assertThat(errors.isArray()).isTrue();
 
-      boolean foundLogs = false;
+      // Find the error from LogIsolationTest.testFailingWithOutput
+      JsonNode isolationError = null;
       for (JsonNode error : errors) {
-        if (error.has("testLogs")) {
-          foundLogs = true;
-          assertThat(error.get("testLogs").isArray()).isTrue();
-          assertThat(error.get("testLogs").size()).isGreaterThan(0);
+        String file = error.has("file") ? error.get("file").asText() : "";
+        if (file.contains("LogIsolationTest")) {
+          isolationError = error;
           break;
         }
       }
-      assertThat(foundLogs).as("Expected at least one error to contain testLogs").isTrue();
+      assertThat(isolationError)
+          .as("Expected an error from LogIsolationTest")
+          .isNotNull();
+
+      // Surefire captures system-out per testcase, so only the failing test's output is present
+      assertThat(isolationError.has("testLogs")).isTrue();
+      String logsText = isolationError.get("testLogs").toString();
+      assertThat(logsText)
+          .as("Failing test's own output must appear")
+          .contains("LOG_ISOLATION_FAILING_ONLY");
+      assertThat(logsText)
+          .as("Passing test's output must not bleed into the failing test's logs")
+          .doesNotContain("LOG_ISOLATION_PASSING_ONLY");
     }
 
     @Test

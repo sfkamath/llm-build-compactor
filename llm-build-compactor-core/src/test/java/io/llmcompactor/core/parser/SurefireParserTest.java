@@ -288,18 +288,13 @@ class SurefireParserTest {
             + "at io.llmcompactor.testbed.OrderService.process(OrderService.java:15)\n"
             + "at io.llmcompactor.testbed.OrderServiceTest.testOrderProcessing(OrderServiceTest.java:10)\n"
             + "    </failure>\n"
+            + "    <system-out><![CDATA[INFO: Starting test\nDEBUG: Creating order\nERROR: Validation failed\n]]></system-out>\n"
             + "  </testcase>\n"
             + "</testsuite>";
 
     Files.write(
         reportsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.xml"),
         xml.getBytes(),
-        StandardOpenOption.CREATE);
-
-    String testLogs = "INFO: Starting test\nDEBUG: Creating order\nERROR: Validation failed\n";
-    Files.write(
-        reportsDir.resolve("io.llmcompactor.testbed.OrderServiceTest-output.txt"),
-        testLogs.getBytes(),
         StandardOpenOption.CREATE);
 
     TestResult result =

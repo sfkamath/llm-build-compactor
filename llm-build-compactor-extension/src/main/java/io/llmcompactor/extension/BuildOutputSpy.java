@@ -143,6 +143,9 @@ public class BuildOutputSpy extends AbstractEventSpy {
   private boolean isDisabled() {
     MavenProject topProject = session != null ? session.getTopLevelProject() : null;
     Properties props = topProject != null ? topProject.getProperties() : new Properties();
+    if (getProperty("llmce", props, null) != null) {
+      return true;
+    }
     return "false".equalsIgnoreCase(getProperty("llmCompactor.enabled", props, "true"));
   }
 

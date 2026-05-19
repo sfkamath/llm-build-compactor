@@ -103,6 +103,16 @@ class SummaryWriterTest {
             SummaryWriter.cleanTestLogLine(
                 "12:34:56.789 [main] INFO  c.e.MyClass - SLF4J: Actual message"))
         .isEqualTo("c.e.MyClass - SLF4J: Actual message");
+
+    // Brackets in log messages should be preserved (like SLF4J {} placeholder content)
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "14:02:21.911 [main] INFO  i.l.testbed.OrderServiceTest - Stubs reset. Active: [file1.json, file2.json]"))
+        .isEqualTo("i.l.testbed.OrderServiceTest - Stubs reset. Active: [file1.json, file2.json]");
+
+    // Test name in brackets should be preserved
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "14:02:21.913 [main] INFO  i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]"))
+        .isEqualTo("i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]");
   }
 
   @Test

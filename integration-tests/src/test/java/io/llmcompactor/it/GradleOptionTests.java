@@ -33,6 +33,19 @@ class GradleOptionTests {
       assertThat(result.summaryJson()).isNull();
       assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
     }
+
+    @Test
+    @DisplayName("llmce alias produces no compactor summary")
+    void testLlmceAlias() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmce", "")
+              .execute();
+
+      assertThat(result.summaryJson()).isNull();
+      assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
+    }
   }
 
   @Nested
@@ -177,22 +190,29 @@ class GradleOptionTests {
 
       JsonNode tree = result.summaryTree();
       assertThat(tree).isNotNull();
-      // The test project has intentionally failing tests, so testLogs must be present
-      // inside the errors array for tests that produce output (like OrderServiceTest)
       assertThat(tree.has("errors")).isTrue();
       JsonNode errors = tree.get("errors");
       assertThat(errors.isArray()).isTrue();
 
-      boolean foundLogs = false;
+      // Find the error from LogIsolationTest.testFailingWithOutput
+      JsonNode isolationError = null;
       for (JsonNode error : errors) {
-        if (error.has("testLogs")) {
-          foundLogs = true;
-          assertThat(error.get("testLogs").isArray()).isTrue();
-          assertThat(error.get("testLogs").size()).isGreaterThan(0);
+        String file = error.has("file") ? error.get("file").asText() : "";
+        if (file.contains("LogIsolationTest")) {
+          isolationError = error;
           break;
         }
       }
-      assertThat(foundLogs).as("Expected at least one error to contain testLogs").isTrue();
+      assertThat(isolationError)
+          .as("Expected an error from LogIsolationTest")
+          .isNotNull();
+
+      // Gradle aggregates system-out at suite level, so the failing test's output is present
+      assertThat(isolationError.has("testLogs")).isTrue();
+      String logsText = isolationError.get("testLogs").toString();
+      assertThat(logsText)
+          .as("Failing test's own output must appear in testLogs")
+          .contains("LOG_ISOLATION_FAILING_ONLY");
     }
 
     @Test

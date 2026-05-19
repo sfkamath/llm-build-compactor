@@ -71,9 +71,9 @@ class GradleParserTest {
             + "at io.llmcompactor.testbed.OrderService.process(OrderService.java:15)\n"
             + "at io.llmcompactor.testbed.OrderServiceTest.testOrderProcessing(OrderServiceTest.java:10)\n"
             + "    </failure>\n"
+            + "    <system-out><![CDATA[INFO: Starting test\nCreating order ORD-100]]></system-out>\n"
+            + "    <system-err><![CDATA[ERROR: Validation failed]]></system-err>\n"
             + "  </testcase>\n"
-            + "  <system-out><![CDATA[INFO: Starting test\nCreating order ORD-100]]></system-out>\n"
-            + "  <system-err><![CDATA[ERROR: Validation failed]]></system-err>\n"
             + "</testsuite>";
 
     Files.write(
@@ -87,9 +87,9 @@ class GradleParserTest {
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);
-    assertThat(error.testLogs()).contains("[class-level system-out]");
+    assertThat(error.testLogs()).contains("[system-out]");
     assertThat(error.testLogs()).contains("INFO: Starting test");
-    assertThat(error.testLogs()).contains("[class-level system-err]");
+    assertThat(error.testLogs()).contains("[system-err]");
     assertThat(error.testLogs()).contains("ERROR: Validation failed");
   }
 

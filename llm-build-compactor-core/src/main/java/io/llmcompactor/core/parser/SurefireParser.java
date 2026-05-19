@@ -3,7 +3,6 @@ package io.llmcompactor.core.parser;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.StackTraceCompressor;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -83,7 +82,7 @@ public final class SurefireParser {
 
                         double duration = getTestDuration(node);
                         String testLogs =
-                            showFailedTestLogs ? readTestLogs(file, reportsDir) : null;
+                            showFailedTestLogs ? readTestLogs(node) : null;
                         BuildError error =
                             parseError(
                                 message,
@@ -106,7 +105,7 @@ public final class SurefireParser {
 
                         double duration = getTestDuration(node);
                         String testLogs =
-                            showFailedTestLogs ? readTestLogs(file, reportsDir) : null;
+                            showFailedTestLogs ? readTestLogs(node) : null;
                         BuildError error =
                             parseError(
                                 message,
@@ -167,29 +166,32 @@ public final class SurefireParser {
     return duration;
   }
 
-  private static String readTestLogs(Path xmlFile, Path reportsDir) {
-    try {
-      Path fileName = xmlFile.getFileName();
-      if (fileName == null) {
-        return null;
-      }
-      String xmlFileName = fileName.toString();
-      // XML files are named TEST-ClassName.xml, output files are ClassName-output.txt
-      String baseName = xmlFileName.replace(".xml", "");
-      if (baseName.startsWith("TEST-")) {
-        baseName = baseName.substring(5);
-      }
-      // Surefire writes ClassName-output.txt for the entire test class (not per-test).
-      // This output may contain logs from all tests in the class, not only the failing one.
-      Path logFile = reportsDir.resolve(baseName + "-output.txt");
-      if (Files.exists(logFile)) {
-        String content = new String(Files.readAllBytes(logFile), StandardCharsets.UTF_8);
-        return "[class-level output for: " + baseName + "]\n" + content;
-      }
-    } catch (IOException e) {
-      // Ignore
+  private static String readTestLogs(Node failureOrError) {
+    Node testCase = failureOrError.getParentNode();
+    while (testCase != null && !("testcase".equals(((Element) testCase).getTagName()))) {
+      testCase = testCase.getParentNode();
     }
-    return null;
+    if (!(testCase instanceof Element)) {
+      return null;
+    }
+    Element testCaseElement = (Element) testCase;
+    String testName = testCaseElement.getAttribute("name");
+    String className = testCaseElement.getAttribute("classname");
+    StringBuilder logs = new StringBuilder();
+    NodeList children = testCaseElement.getChildNodes();
+    for (int i = 0; i < children.getLength(); i++) {
+      Node child = children.item(i);
+      if ("system-out".equals(child.getNodeName()) || "system-err".equals(child.getNodeName())) {
+        String content = child.getTextContent();
+        if (content != null && !content.trim().isEmpty()) {
+          if (logs.length() > 0) {
+            logs.append("\n");
+          }
+          logs.append("[").append(child.getNodeName()).append(" for ").append(testName).append("]\n").append(content);
+        }
+      }
+    }
+    return logs.length() > 0 ? logs.toString() : null;
   }
 
   private static BuildError parseError(

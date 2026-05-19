@@ -66,8 +66,8 @@ public final class SummaryWriter {
   private static final Pattern TIMESTAMP_PATTERN =
       Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s*");
 
-  /** Log thread pattern: [thread-name] */
-  private static final Pattern THREAD_PATTERN = Pattern.compile("\\s*\\[[^\\]]+\\]\\s*");
+  /** Log thread pattern: [thread-name] - only at start after timestamp */
+  private static final Pattern THREAD_PATTERN = Pattern.compile("^\\s*\\[[^\\]]+\\]\\s*");
 
   /** Log level pattern: INFO/DEBUG/WARN/ERROR */
   private static final Pattern LEVEL_PATTERN = Pattern.compile("(INFO|DEBUG|WARN|ERROR|TRACE)\\s+");

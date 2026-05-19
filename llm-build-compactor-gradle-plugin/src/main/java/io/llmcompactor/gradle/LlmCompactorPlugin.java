@@ -179,15 +179,20 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     LlmCompactorExtension extension =
         project.getExtensions().create("llmCompactor", LlmCompactorExtension.class);
 
-    // Read enabled from system property or gradle property
+    // Read enabled from system property or gradle property; llmce is an alias for enabled=false
+    boolean llmceAlias =
+        System.getProperty("llmce") != null
+            || project.getProviders().gradleProperty("llmce").isPresent();
     String sysProp = System.getProperty("llmCompactor.enabled");
     Boolean enabledValue =
-        sysProp != null
-            ? Boolean.parseBoolean(sysProp)
-            : project.getProviders().gradleProperty("llmCompactor.enabled").isPresent()
-                ? Boolean.parseBoolean(
-                    project.getProviders().gradleProperty("llmCompactor.enabled").get())
-                : true;
+        llmceAlias
+            ? false
+            : sysProp != null
+                ? Boolean.parseBoolean(sysProp)
+                : project.getProviders().gradleProperty("llmCompactor.enabled").isPresent()
+                    ? Boolean.parseBoolean(
+                        project.getProviders().gradleProperty("llmCompactor.enabled").get())
+                    : true;
     project.getLogger().debug("[LLM Compactor] sysProp={} enabledValue={}", sysProp, enabledValue);
     extension.getEnabled().set(enabledValue);
 

@@ -49,7 +49,7 @@ public final class CompactorDefaults {
   public static final boolean SHOW_DURATION_REPORT = false;
 
   /** Include logs from failed tests (System.out, SLF4J, etc.). */
-  public static final boolean SHOW_FAILED_TEST_LOGS = false;
+  public static final boolean SHOW_FAILED_TEST_LOGS = true;
 
   // ========================================================================
   // Thresholds
