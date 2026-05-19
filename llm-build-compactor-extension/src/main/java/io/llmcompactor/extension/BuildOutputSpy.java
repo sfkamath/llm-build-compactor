@@ -183,6 +183,14 @@ public class BuildOutputSpy extends AbstractEventSpy {
     boolean isCompilerPlugin =
         mojo != null && "maven-compiler-plugin".equals(mojo.getArtifactId());
 
+    boolean isSurefirePlugin = mojo != null
+        && (mojo.getArtifactId().contains("surefire") || mojo.getArtifactId().contains("failsafe"));
+
+    if (isSurefirePlugin && output != null && output.contains("test failures")) {
+      buildFailed = true;
+      return;
+    }
+
     if (!isCompilerPlugin) {
       buildFailed = true;
     }
