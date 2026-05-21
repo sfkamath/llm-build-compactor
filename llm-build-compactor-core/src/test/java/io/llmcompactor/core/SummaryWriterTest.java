@@ -113,6 +113,40 @@ class SummaryWriterTest {
     assertThat(SummaryWriter.cleanTestLogLine(
         "14:02:21.913 [main] INFO  i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]"))
         .isEqualTo("i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]");
+
+    // Framework stacktrace frames should be filtered (micronaut, netty, spring, etc.)
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "at io.micronaut.context.AbstractExecutableMethodsDefinition$DispatchedExecutableMethod.invoke(AbstractExecutableMethodsDefinition.java:456)"))
+        .isNull();
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)"))
+        .isNull();
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:900)"))
+        .isNull();
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "at java.base/java.util.Optional.map(Optional.java:260)"))
+        .isNull();
+
+    // Project frames should be preserved
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "at com.radioprojections.service.SessionService.toRound(SessionService.java:150)"))
+        .isEqualTo("at com.radioprojections.service.SessionService.toRound(SessionService.java:150)");
+
+    // Leading tab on stacktrace frames should be converted to 2 spaces for visual hierarchy
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "\tat com.radioprojections.service.SessionService.toRound(SessionService.java:150)"))
+        .isEqualTo("  at com.radioprojections.service.SessionService.toRound(SessionService.java:150)");
+
+    // Framework frames with leading tab should still be filtered
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "\tat io.micronaut.context.AbstractExecutableMethodsDefinition$DispatchedExecutableMethod.invoke(AbstractExecutableMethodsDefinition.java:456)"))
+        .isNull();
+
+    // Non-at lines should be preserved even if they mention framework packages
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "i.m.http.server.RouteExecutor - Unexpected error occurred"))
+        .isEqualTo("i.m.http.server.RouteExecutor - Unexpected error occurred");
   }
 
   @Test
@@ -269,13 +303,19 @@ class SummaryWriterTest {
     String logs =
         "12:34:56.789 [main] INFO  Test - Message 1\n"
             + "SLF4J: Noise\n"
-            + "12:34:56.790 [main] INFO  Test - Message 2";
+            + "12:34:56.790 [main] INFO  Test - Message 2\n"
+            + "at io.micronaut.foo.Bar.baz(Bar.java:10)\n"
+            + "at com.myproject.MyClass.myMethod(MyClass.java:20)";
 
     BuildError error = new BuildError("Type", "File.java", 1, "Msg", "Stack", 0.0, logs);
     List<String> logsArray = error.getTestLogsAsArray();
 
-    // SLF4J lines filtered, other lines cleaned
-    assertThat(logsArray).hasSize(2);
+    // SLF4J lines filtered, framework frames filtered, project frames and log messages preserved
+    assertThat(logsArray).hasSize(3);
+    assertThat(logsArray.get(0)).isEqualTo("Test - Message 1");
+    assertThat(logsArray.get(1)).isEqualTo("Test - Message 2");
+    assertThat(logsArray.get(2))
+        .isEqualTo("at com.myproject.MyClass.myMethod(MyClass.java:20)");
   }
 
   @Test

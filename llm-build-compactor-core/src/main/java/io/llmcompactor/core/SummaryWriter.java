@@ -113,7 +113,21 @@ public final class SummaryWriter {
     result = ANSI_PATTERN.matcher(result).replaceAll("");
 
     // Normalize whitespace and trim for consistent alignment
-    result = result.replaceAll("\\s+", " ").trim();
+    String trimmed = result.replaceAll("\\s+", " ").trim();
+
+    // Filter out boilerplate framework stacktrace frames (micronaut, netty, spring, etc.)
+    // Check on the trimmed form since leading tabs hide the "at " prefix
+    if (trimmed.startsWith("at ") && StackTraceCompressor.isFrameworkFrame(trimmed)) {
+      return null;
+    }
+
+    // Convert leading tab to 2 spaces for stacktrace frames to maintain visual hierarchy
+    // This is consistent regardless of terminal tab width settings
+    boolean hasLeadingTab = result.startsWith("\t");
+    result = trimmed;
+    if (hasLeadingTab && result.startsWith("at ")) {
+      result = "  " + result;
+    }
 
     return result.isEmpty() ? null : result;
   }

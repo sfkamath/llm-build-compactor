@@ -31,7 +31,7 @@ public final class StackTraceCompressor {
   /**
    * Normalizes a stack trace line by removing classloader prefixes like "app//", "bytebuddy.", etc.
    */
-  private static String normalizeLine(String line) {
+  static String normalizeLine(String line) {
     if (line == null || line.isEmpty()) {
       return line;
     }
@@ -128,6 +128,24 @@ public final class StackTraceCompressor {
 
     // 4. Default: include it if it's not a known framework
     return true;
+  }
+
+  /**
+   * Returns true if the line is a stacktrace frame from a known framework package.
+   * Checks against the built-in framework prefix list only (no whitelist/blacklist).
+   */
+  public static boolean isFrameworkFrame(String line) {
+    String trimmed = line.trim();
+    if (!trimmed.startsWith("at ")) {
+      return false;
+    }
+    String normalized = normalizeLine(trimmed);
+    for (String prefix : FRAMEWORK_PREFIXES) {
+      if (normalized.contains("at " + prefix)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
