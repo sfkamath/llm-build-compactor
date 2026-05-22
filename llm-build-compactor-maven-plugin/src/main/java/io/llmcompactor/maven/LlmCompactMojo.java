@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -111,9 +112,22 @@ public class LlmCompactMojo extends AbstractMojo {
 
   public void execute() throws MojoExecutionException {
 
+    // Check system/user properties (handles -Dllmce, -DllmCompactor.enabled=false)
     if (session != null && session.getUserProperties().getProperty("llmce") != null
         || System.getProperty("llmce") != null) {
       enabled = false;
+    }
+    // Also check project <properties> (handles <llmCompactor.enabled>false</llmCompactor.enabled>
+    // in pom.xml) — @Parameter only reads from system/user properties, not project properties
+    if (session != null && session.getCurrentProject() != null) {
+      Properties projectProps = session.getCurrentProject().getProperties();
+      if (projectProps.getProperty("llmce") != null) {
+        enabled = false;
+      }
+      String fromProject = projectProps.getProperty("llmCompactor.enabled");
+      if (fromProject != null && "false".equalsIgnoreCase(fromProject)) {
+        enabled = false;
+      }
     }
     if (!enabled) {
       return;
