@@ -147,6 +147,43 @@ class SummaryWriterTest {
     assertThat(SummaryWriter.cleanTestLogLine(
         "i.m.http.server.RouteExecutor - Unexpected error occurred"))
         .isEqualTo("i.m.http.server.RouteExecutor - Unexpected error occurred");
+
+    // java.util.logging date format (Liquibase) should be stripped and then filtered
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "May 23, 2026 12:52:09 AM liquibase.changelog"))
+        .isNull();
+
+    // java.util.logging level with colon should be stripped
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "INFO: Creating database changelog table"))
+        .isEqualTo("Creating database changelog table");
+
+    // Liquibase class references in log lines should be filtered entirely
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "May 23, 2026 12:52:09 AM liquibase.changelog INFO: Creating database changelog table"))
+        .isNull();
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "May 23, 2026 12:52:09 AM liquibase.lockservice INFO: Successfully released change log lock"))
+        .isNull();
+
+    // Micronaut log level configuration should be filtered
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "i.m.l.PropertiesLoggingLevelsConfigurer - Setting log level 'INFO' for logger: 'io.micronaut.data'"))
+        .isNull();
+
+    // Test/runtime bootstrap noise should be filtered from failed-test logs.
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "o.testcontainers.DockerClientFactory - Testcontainers version: 2.0.5"))
+        .isNull();
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "o.t.d.DockerClientProviderStrategy - Found Docker environment with Docker accessed via Unix socket"))
+        .isNull();
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "tc.mongo:latest - Container mongo:latest started in PT0.22301S"))
+        .isNull();
+    assertThat(SummaryWriter.cleanTestLogLine(
+        "i.m.c.DefaultApplicationContext$RuntimeConfiguredEnvironment - Established active environments: [test]"))
+        .isNull();
   }
 
   @Test

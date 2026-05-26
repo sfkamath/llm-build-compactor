@@ -62,15 +62,25 @@ public final class SummaryWriter {
   /** SLF4J infrastructure noise patterns to filter */
   private static final Pattern SLF4J_NOISE_PATTERN = Pattern.compile("^SLF4J:.*$");
 
+  /** Test/runtime bootstrap loggers that obscure per-test diagnostics. */
+  private static final Pattern BOOTSTRAP_LOGGER_PATTERN =
+      Pattern.compile(
+          "^(o\\.testcontainers\\.|o\\.t\\.|tc\\.|i\\.m\\.c\\.DefaultApplicationContext\\$RuntimeConfiguredEnvironment\\b).*");
+
   /** Log timestamp pattern: HH:mm:ss.SSS */
   private static final Pattern TIMESTAMP_PATTERN =
       Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s*");
 
+  /** Date pattern: MMM DD, YYYY HH:MM:SS AM/PM (java.util.logging format used by Liquibase etc.) */
+  private static final Pattern DATE_PATTERN =
+      Pattern.compile("^[A-Z][a-z]{2}\\s+\\d{1,2},\\s+\\d{4}\\s+\\d{1,2}:\\d{2}:\\d{2}\\s+[AP]M\\s*");
+
   /** Log thread pattern: [thread-name] - only at start after timestamp */
   private static final Pattern THREAD_PATTERN = Pattern.compile("^\\s*\\[[^\\]]+\\]\\s*");
 
-  /** Log level pattern: INFO/DEBUG/WARN/ERROR */
-  private static final Pattern LEVEL_PATTERN = Pattern.compile("(INFO|DEBUG|WARN|ERROR|TRACE)\\s+");
+  /** Log level pattern: INFO/DEBUG/WARN/ERROR (space or colon+space separator) */
+  private static final Pattern LEVEL_PATTERN =
+      Pattern.compile("(INFO|DEBUG|WARN|ERROR|TRACE)(\\s+|:\\s+)");
 
   /** Logger name pattern: abbreviated or full package.class */
   private static final Pattern LOGGER_PATTERN = Pattern.compile("[a-z][a-zA-Z0-9_.]*\\s*-\\s*");
@@ -96,8 +106,10 @@ public final class SummaryWriter {
 
     String result = line;
 
-    // Strip timestamp
+    // Strip timestamp (HH:mm:ss.SSS)
     result = TIMESTAMP_PATTERN.matcher(result).replaceFirst("");
+    // Strip date prefix (MMM DD, YYYY HH:MM:SS AM/PM — java.util.logging format used by Liquibase)
+    result = DATE_PATTERN.matcher(result).replaceFirst("");
 
     // Strip thread info
     result = THREAD_PATTERN.matcher(result).replaceAll(" ");
@@ -118,6 +130,13 @@ public final class SummaryWriter {
     // Filter out boilerplate framework stacktrace frames (micronaut, netty, spring, etc.)
     // Check on the trimmed form since leading tabs hide the "at " prefix
     if (trimmed.startsWith("at ") && StackTraceCompressor.isFrameworkFrame(trimmed)) {
+      return null;
+    }
+
+    // Filter out infrastructure noise (Liquibase migration logs, log level config, etc.)
+    if (trimmed.contains("liquibase")
+        || trimmed.contains("PropertiesLoggingLevelsConfigurer")
+        || BOOTSTRAP_LOGGER_PATTERN.matcher(trimmed).matches()) {
       return null;
     }
 
