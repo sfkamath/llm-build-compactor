@@ -18,19 +18,19 @@ public final class CompilationErrorExtractor {
 
   private static final Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
   private static final Pattern UNICODE_ESCAPE_PATTERN = Pattern.compile("\\\\u001[B]\\[[0-9;]*m");
+  private static final Pattern HTML_ENCODED_ANSI_PATTERN =
+      Pattern.compile("(?:&amp)?#27;\\[[0-9;]*m");
 
   public static String stripAnsi(String line) {
     if (line == null) return null;
     line = ANSI_PATTERN.matcher(line).replaceAll("");
     line = UNICODE_ESCAPE_PATTERN.matcher(line).replaceAll("");
+    line = HTML_ENCODED_ANSI_PATTERN.matcher(line).replaceAll("");
     return line;
   }
 
   private static String stripAnsiInternal(String line) {
-    if (line == null) return null;
-    line = ANSI_PATTERN.matcher(line).replaceAll("");
-    line = UNICODE_ESCAPE_PATTERN.matcher(line).replaceAll("");
-    return line;
+    return stripAnsi(line);
   }
 
   public static List<BuildError> extract(List<String> logs) {

@@ -88,6 +88,10 @@ public final class SummaryWriter {
   /** ANSI escape code pattern for terminal colors */
   private static final Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
 
+  /** HTML-encoded ANSI escape codes (&#27; or &amp#27; forms) */
+  private static final Pattern HTML_ENCODED_ANSI_PATTERN =
+      Pattern.compile("(?:&amp)?#27;\\[[0-9;]*m");
+
   /** Cleans up test log lines by removing infrastructure noise and normalizing format. */
   public static String cleanTestLogLine(String line) {
     if (line == null || line.isEmpty()) {
@@ -121,8 +125,9 @@ public final class SummaryWriter {
     // Disabled: users need to see the class name in test logs to debug failures
     // result = LOGGER_PATTERN.matcher(result).replaceAll("");
 
-    // Strip ANSI escape codes (terminal colors)
+    // Strip ANSI escape codes (terminal colors), including HTML-encoded forms
     result = ANSI_PATTERN.matcher(result).replaceAll("");
+    result = HTML_ENCODED_ANSI_PATTERN.matcher(result).replaceAll("");
 
     // Normalize whitespace and trim for consistent alignment
     String trimmed = result.replaceAll("\\s+", " ").trim();
