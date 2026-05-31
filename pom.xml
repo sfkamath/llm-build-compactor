@@ -43,9 +43,9 @@
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <junit-jupiter.version>5.14.3</junit-jupiter.version>
+        <junit-jupiter.version>5.14.4</junit-jupiter.version>
         <assertj.version>3.27.7</assertj.version>
-        <jackson.version>2.21.2</jackson.version>
+        <jackson.version>2.21.4</jackson.version>
 
         <spotbugs.version>4.9.8.2</spotbugs.version>
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
@@ -54,11 +54,11 @@
         <jacoco.version>0.8.14</jacoco.version>
         <jacoco.coverage.minimum>0.85</jacoco.coverage.minimum>
 
-        <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
+        <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>3.5.6</maven-failsafe-plugin.version>
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
-        <maven-core.version>3.9.14</maven-core.version>
-        <maven-plugin-api.version>3.9.14</maven-plugin-api.version>
+        <maven-core.version>3.9.16</maven-core.version>
+        <maven-plugin-api.version>3.9.16</maven-plugin-api.version>
         <maven-plugin-annotations.version>3.15.2</maven-plugin-annotations.version>
         <maven-plugin-plugin.version>3.15.2</maven-plugin-plugin.version>
         <javax.inject.version>1</javax.inject.version>
