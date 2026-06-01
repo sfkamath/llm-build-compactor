@@ -107,15 +107,11 @@ public final class StackTraceCompressor {
   }
 
   private static boolean isExceptionLine(String line) {
-    // Skip lines that look like exception declarations
-    // (e.g., "java.lang.NullPointerException: message" or "org.package.CustomException: message")
-    // Must have Exception in the name AND start with a package pattern
-    if (!line.contains("Exception")) {
-      return false;
-    }
-    // Check if it matches the pattern: package.ClassName: message
-    // The line should start with a lowercase letter (package) or uppercase (ClassName)
-    return line.matches("^[a-zA-Z][a-zA-Z0-9.]*Exception.*:.*");
+    // Matches exception/error declaration lines, e.g.:
+    //   java.lang.NullPointerException: message
+    //   java.lang.AssertionError: expected: <1> but was: <2>
+    //   org.spockframework.runtime.ConditionNotSatisfiedError: Condition not satisfied:
+    return line.matches("^[a-zA-Z][a-zA-Z0-9.]*(Exception|Error).*:.*");
   }
 
   private static boolean isUsefulFrame(

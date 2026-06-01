@@ -110,7 +110,8 @@ public final class GradleParser {
                       if ((l.contains(".java:") || l.contains(".groovy:"))) {
                         // Skip framework frames, but accept frames from test's own package
                         boolean isFramework = StackTraceCompressor.isFrameworkFrame(l);
-                        boolean isFromTestPackage = l.contains(testPackage);
+                        boolean isFromTestPackage =
+                            !testPackage.isEmpty() && l.contains(testPackage);
 
                         if (!isFramework || isFromTestPackage) {
                           // Find last colon and closing paren: "File.ext:123)"

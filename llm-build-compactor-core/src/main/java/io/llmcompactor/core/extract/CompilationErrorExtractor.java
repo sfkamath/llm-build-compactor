@@ -29,38 +29,18 @@ public final class CompilationErrorExtractor {
     return line;
   }
 
-  private static String stripAnsiInternal(String line) {
-    return stripAnsi(line);
-  }
-
   public static List<BuildError> extract(List<String> logs) {
 
     List<BuildError> errors = new ArrayList<>();
     int i = 0;
 
     while (i < logs.size()) {
-      String line = stripAnsiInternal(logs.get(i));
+      String line = stripAnsi(logs.get(i));
 
       Matcher m = pattern.matcher(line);
       if (m.find()) {
-        String message = m.group(3);
-        StringBuilder extraDetails = new StringBuilder();
-
-        int j = i + 1;
-        while (j < logs.size()) {
-          String nextLine = stripAnsi(logs.get(j));
-          if (nextLine.startsWith("  symbol:") || nextLine.startsWith("  location:")) {
-            extraDetails.append("\n").append(nextLine);
-            j++;
-          } else {
-            break;
-          }
-        }
-
-        if (extraDetails.length() > 0) {
-          message = message + extraDetails;
-        }
-
+        int j = collectContinuationLines(logs, i + 1);
+        String message = appendContinuation(m.group(3), logs, i + 1, j);
         errors.add(new BuildError("COMPILATION_ERROR", m.group(1), Integer.parseInt(m.group(2)), message, ""));
         i = j;
         continue;
@@ -68,24 +48,8 @@ public final class CompilationErrorExtractor {
 
       Matcher mm = mavenPattern.matcher(line);
       if (mm.find()) {
-        String message = mm.group(4);
-        StringBuilder extraDetails = new StringBuilder();
-
-        int j = i + 1;
-        while (j < logs.size()) {
-          String nextLine = stripAnsi(logs.get(j));
-          if (nextLine.startsWith("  symbol:") || nextLine.startsWith("  location:")) {
-            extraDetails.append("\n").append(nextLine);
-            j++;
-          } else {
-            break;
-          }
-        }
-
-        if (extraDetails.length() > 0) {
-          message = message + extraDetails;
-        }
-
+        int j = collectContinuationLines(logs, i + 1);
+        String message = appendContinuation(mm.group(4), logs, i + 1, j);
         errors.add(new BuildError("COMPILATION_ERROR", mm.group(1), Integer.parseInt(mm.group(2)), message, ""));
         i = j;
         continue;
@@ -99,6 +63,31 @@ public final class CompilationErrorExtractor {
     }
 
     return errors;
+  }
+
+  /** Returns the index of the first line after i that is NOT a symbol/location continuation. */
+  private static int collectContinuationLines(List<String> logs, int start) {
+    int j = start;
+    while (j < logs.size()) {
+      String next = stripAnsi(logs.get(j));
+      if (next.startsWith("  symbol:") || next.startsWith("  location:")) {
+        j++;
+      } else {
+        break;
+      }
+    }
+    return j;
+  }
+
+  private static String appendContinuation(String base, List<String> logs, int from, int to) {
+    if (from >= to) {
+      return base;
+    }
+    StringBuilder sb = new StringBuilder(base);
+    for (int k = from; k < to; k++) {
+      sb.append("\n").append(stripAnsi(logs.get(k)));
+    }
+    return sb.toString();
   }
 
   private CompilationErrorExtractor() {}
