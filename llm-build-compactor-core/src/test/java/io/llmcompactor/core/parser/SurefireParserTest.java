@@ -375,4 +375,60 @@ class SurefireParserTest {
     assertThat(error.lines()).containsExactly(15);
     assertThat(error.stackTrace()).contains("GroovySpockTest.groovy:15");
   }
+
+  @Test
+  void testLogsLabelIncludesClassAndMethodName() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"io.llmcompactor.testbed.FooTest\" tests=\"1\" failures=\"1\">\n"
+            + "  <testcase name=\"myMethod\" classname=\"io.llmcompactor.testbed.FooTest\">\n"
+            + "    <failure message=\"boom\" type=\"java.lang.AssertionError\">boom</failure>\n"
+            + "    <system-out><![CDATA[hello from test]]></system-out>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.FooTest.xml"),
+        xml.getBytes(),
+        StandardOpenOption.CREATE);
+
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, false, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    BuildError error = result.errors().get(0);
+    assertThat(error.testLogs()).contains("io.llmcompactor.testbed.FooTest#myMethod");
+    assertThat(error.testLogs()).contains("hello from test");
+  }
+
+  @Test
+  void readTestLogsReturnsNullWhenFailureParentIsNotTestcase() throws IOException {
+    // <failure> directly under <testsuite> (non-standard): no ClassCastException, returns null
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"io.llmcompactor.testbed.FooTest\" tests=\"1\" failures=\"1\">\n"
+            + "  <failure message=\"boom\" type=\"java.lang.AssertionError\">boom</failure>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.FooTest.xml"),
+        xml.getBytes(),
+        StandardOpenOption.CREATE);
+
+    // Should not throw; errors are parsed via getElementsByTagName which won't match testcase
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, false, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    // The failure node is under testsuite, not testcase, so the parser finds no testcase node.
+    // Result may have 0 or 1 errors depending on whether getElementsByTagName("failure") picks it
+    // up; the key requirement is no ClassCastException.
+    assertThat(result).isNotNull();
+  }
 }

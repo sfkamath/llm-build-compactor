@@ -66,6 +66,8 @@ public final class StackTraceCompressor {
     String[] lines = stackTrace.split("\n");
     StringBuilder result = new StringBuilder();
     boolean hasContent = false;
+    boolean foundFirstFrame = false;
+    boolean skippedConditionHeader = false;
 
     for (String line : lines) {
       String trimmed = line.trim();
@@ -77,7 +79,22 @@ public final class StackTraceCompressor {
           result.append(trimmed);
           hasContent = true;
         }
+        foundFirstFrame = true;
       } else if (trimmed.startsWith("Caused by:")) {
+        if (hasContent) {
+          result.append("\n");
+        }
+        result.append(trimmed);
+        hasContent = true;
+      } else if (!foundFirstFrame && !trimmed.isEmpty() && !isExceptionLine(trimmed)) {
+        // Skip "Condition not satisfied:" header as it's already extracted as the message
+        if (!skippedConditionHeader && trimmed.equals("Condition not satisfied:")) {
+          skippedConditionHeader = true;
+          continue;
+        }
+        // Preserve assertion/condition output that appears before the first stack frame
+        // (e.g., Spock condition blocks, assertion messages, comparison output)
+        // Skip lines that look like exception declarations (contain Exception keyword)
         if (hasContent) {
           result.append("\n");
         }
@@ -87,6 +104,18 @@ public final class StackTraceCompressor {
     }
 
     return result.toString();
+  }
+
+  private static boolean isExceptionLine(String line) {
+    // Skip lines that look like exception declarations
+    // (e.g., "java.lang.NullPointerException: message" or "org.package.CustomException: message")
+    // Must have Exception in the name AND start with a package pattern
+    if (!line.contains("Exception")) {
+      return false;
+    }
+    // Check if it matches the pattern: package.ClassName: message
+    // The line should start with a lowercase letter (package) or uppercase (ClassName)
+    return line.matches("^[a-zA-Z][a-zA-Z0-9.]*Exception.*:.*");
   }
 
   private static boolean isUsefulFrame(

@@ -168,7 +168,7 @@ public final class SurefireParser {
 
   private static String readTestLogs(Node failureOrError) {
     Node testCase = failureOrError.getParentNode();
-    while (testCase != null && !("testcase".equals(((Element) testCase).getTagName()))) {
+    while (testCase instanceof Element && !("testcase".equals(((Element) testCase).getTagName()))) {
       testCase = testCase.getParentNode();
     }
     if (!(testCase instanceof Element)) {
@@ -187,7 +187,7 @@ public final class SurefireParser {
           if (logs.length() > 0) {
             logs.append("\n");
           }
-          logs.append("[").append(child.getNodeName()).append(" for ").append(testName).append("]\n").append(content);
+          logs.append("[").append(child.getNodeName()).append(" for ").append(className).append("#").append(testName).append("]\n").append(content);
         }
       }
     }

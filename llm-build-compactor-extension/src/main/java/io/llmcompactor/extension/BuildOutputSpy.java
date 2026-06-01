@@ -180,19 +180,15 @@ public class BuildOutputSpy extends AbstractEventSpy {
     MojoExecution mojo = ee.getMojoExecution();
     String output = extractFailureOutput(ee);
 
-    boolean isCompilerPlugin =
-        mojo != null && "maven-compiler-plugin".equals(mojo.getArtifactId());
+    buildFailed = true;
 
     boolean isSurefirePlugin = mojo != null
         && (mojo.getArtifactId().contains("surefire") || mojo.getArtifactId().contains("failsafe"));
 
-    if (isSurefirePlugin && output != null && output.contains("test failures")) {
-      buildFailed = true;
+    // Surefire/failsafe test failures are captured from XML reports by SurefireParser.
+    // Adding errors here would double-count them regardless of the failure message text.
+    if (isSurefirePlugin) {
       return;
-    }
-
-    if (!isCompilerPlugin) {
-      buildFailed = true;
     }
 
     if (output != null && !output.isEmpty()) {

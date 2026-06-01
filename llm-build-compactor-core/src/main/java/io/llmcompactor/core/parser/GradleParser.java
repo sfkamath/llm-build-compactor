@@ -101,22 +101,38 @@ public final class GradleParser {
                     String sourceFile = null;
                     int line = -1;
 
-                    // Try to find the first project frame (supports both Java and Groovy)
+                    // Extract filename and line from stack frames
+                    // Just find the last occurrence of "File.ext:LineNum)" at end of line
                     String[] lines = message.split("\n");
+                    String testPackage = className.substring(0, Math.max(0, className.lastIndexOf(".")));
+
                     for (String l : lines) {
-                      boolean hasJavaFile = l.contains(".java:");
-                      boolean hasGroovyFile = l.contains(".groovy:");
-                      if ((hasJavaFile || hasGroovyFile) && isProjectFrame(l, className)) {
-                        Matcher m = LINE_NUMBER_PATTERN.matcher(l);
-                        boolean found = m.find();
-                        if (!found) {
-                          m = GROOVY_LINE_NUMBER_PATTERN.matcher(l);
-                          found = m.find();
-                        }
-                        if (found) {
-                          line = Integer.parseInt(m.group(1));
-                          sourceFile = resolveSourceFile(className);
-                          break;
+                      if ((l.contains(".java:") || l.contains(".groovy:"))) {
+                        // Skip framework frames, but accept frames from test's own package
+                        boolean isFramework = StackTraceCompressor.isFrameworkFrame(l);
+                        boolean isFromTestPackage = l.contains(testPackage);
+
+                        if (!isFramework || isFromTestPackage) {
+                          // Find last colon and closing paren: "File.ext:123)"
+                          int lastColon = l.lastIndexOf(":");
+                          int lastParen = l.lastIndexOf(")");
+
+                          if (lastColon > 0 && lastParen > lastColon) {
+                            try {
+                              line = Integer.parseInt(l.substring(lastColon + 1, lastParen));
+                              // Find the opening paren before the colon
+                              int openParen = l.lastIndexOf("(", lastColon);
+                              if (openParen > 0) {
+                                sourceFile = l.substring(openParen + 1, lastColon);
+                                // Prefer test class frame, use first available frame
+                                if (l.contains(className)) {
+                                  break;
+                                }
+                              }
+                            } catch (NumberFormatException e) {
+                              // Skip if line number is invalid
+                            }
+                          }
                         }
                       }
                     }
@@ -194,25 +210,6 @@ public final class GradleParser {
     return logs.length() > 0 ? logs.toString() : null;
   }
 
-  private static String resolveSourceFile(String className) {
-    String relativePath = className.replace(".", "/") + ".java";
-    String[] roots = {
-      "src/main/java/", "src/test/java/", "src/it/java/", "src/integration-test/java/"
-    };
-
-    for (String root : roots) {
-      String fullPath = root + relativePath;
-      if (Files.exists(Paths.get(fullPath))) {
-        return fullPath;
-      }
-    }
-    // Default to src/test/java if not found
-    return "src/test/java/" + relativePath;
-  }
-
-  private static boolean isProjectFrame(String line, String className) {
-    return line.contains(className);
-  }
 
   private GradleParser() {}
 }

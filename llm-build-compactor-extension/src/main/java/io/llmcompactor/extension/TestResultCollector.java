@@ -47,7 +47,7 @@ final class TestResultCollector {
             targetDir,
             config,
             buildStackFrameWhitelist(session, config),
-            buildStackFrameBlacklist(config),
+            buildStackFrameBlacklist(session),
             sessionStartTime);
       }
     }
@@ -102,12 +102,9 @@ final class TestResultCollector {
     return packages;
   }
 
-  private static List<String> buildStackFrameBlacklist(OutputConfig config) {
-    // Blacklist comes from config only — no auto-discovery.
-    // We cannot reach the session here so callers must pre-resolve if needed.
-    // This method exists to keep the naming parallel; the actual resolver
-    // is called in BuildOutputSpy which owns the session reference.
-    return Collections.emptyList();
+  private static List<String> buildStackFrameBlacklist(MavenSession session) {
+    String raw = resolverFor(session).getString("llmCompactor.stackFrameBlacklist", "");
+    return splitCsv(raw);
   }
 
   /** Thin helper so this class does not need its own session field for the whitelist build. */
