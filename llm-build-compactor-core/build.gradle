@@ -2,8 +2,6 @@ plugins {
     id 'java'
 }
 
-import java.util.Properties
-
 def rootProps = new Properties()
 rootProps.load(new FileInputStream(file('../gradle.properties')))
 

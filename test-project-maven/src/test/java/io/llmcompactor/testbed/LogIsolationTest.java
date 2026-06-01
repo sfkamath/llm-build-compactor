@@ -1,8 +1,8 @@
 package io.llmcompactor.testbed;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.fail;
+
+import org.junit.jupiter.api.Test;
 
 /**
  * Verifies that showFailedTestLogs captures only the failing test's output.

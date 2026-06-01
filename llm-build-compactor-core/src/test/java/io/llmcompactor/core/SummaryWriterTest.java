@@ -105,84 +105,102 @@ class SummaryWriterTest {
         .isEqualTo("c.e.MyClass - SLF4J: Actual message");
 
     // Brackets in log messages should be preserved (like SLF4J {} placeholder content)
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "14:02:21.911 [main] INFO  i.l.testbed.OrderServiceTest - Stubs reset. Active: [file1.json, file2.json]"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "14:02:21.911 [main] INFO  i.l.testbed.OrderServiceTest - Stubs reset. Active: [file1.json, file2.json]"))
         .isEqualTo("i.l.testbed.OrderServiceTest - Stubs reset. Active: [file1.json, file2.json]");
 
     // Test name in brackets should be preserved
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "14:02:21.913 [main] INFO  i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]"))
-        .isEqualTo("i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]");
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "14:02:21.913 [main] INFO  i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]"))
+        .isEqualTo(
+            "i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]");
 
     // Framework stacktrace frames should be filtered (micronaut, netty, spring, etc.)
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "at io.micronaut.context.AbstractExecutableMethodsDefinition$DispatchedExecutableMethod.invoke(AbstractExecutableMethodsDefinition.java:456)"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at io.micronaut.context.AbstractExecutableMethodsDefinition$DispatchedExecutableMethod.invoke(AbstractExecutableMethodsDefinition.java:456)"))
         .isNull();
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)"))
         .isNull();
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:900)"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:900)"))
         .isNull();
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "at java.base/java.util.Optional.map(Optional.java:260)"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at java.base/java.util.Optional.map(Optional.java:260)"))
         .isNull();
 
     // Project frames should be preserved
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "at com.radioprojections.service.SessionService.toRound(SessionService.java:150)"))
-        .isEqualTo("at com.radioprojections.service.SessionService.toRound(SessionService.java:150)");
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at com.radioprojections.service.SessionService.toRound(SessionService.java:150)"))
+        .isEqualTo(
+            "at com.radioprojections.service.SessionService.toRound(SessionService.java:150)");
 
     // Leading tab on stacktrace frames should be converted to 2 spaces for visual hierarchy
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "\tat com.radioprojections.service.SessionService.toRound(SessionService.java:150)"))
-        .isEqualTo("  at com.radioprojections.service.SessionService.toRound(SessionService.java:150)");
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "\tat com.radioprojections.service.SessionService.toRound(SessionService.java:150)"))
+        .isEqualTo(
+            "  at com.radioprojections.service.SessionService.toRound(SessionService.java:150)");
 
     // Framework frames with leading tab should still be filtered
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "\tat io.micronaut.context.AbstractExecutableMethodsDefinition$DispatchedExecutableMethod.invoke(AbstractExecutableMethodsDefinition.java:456)"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "\tat io.micronaut.context.AbstractExecutableMethodsDefinition$DispatchedExecutableMethod.invoke(AbstractExecutableMethodsDefinition.java:456)"))
         .isNull();
 
     // Non-at lines should be preserved even if they mention framework packages
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "i.m.http.server.RouteExecutor - Unexpected error occurred"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "i.m.http.server.RouteExecutor - Unexpected error occurred"))
         .isEqualTo("i.m.http.server.RouteExecutor - Unexpected error occurred");
 
     // java.util.logging date format (Liquibase) should be stripped and then filtered
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "May 23, 2026 12:52:09 AM liquibase.changelog"))
+    assertThat(SummaryWriter.cleanTestLogLine("May 23, 2026 12:52:09 AM liquibase.changelog"))
         .isNull();
 
     // java.util.logging level with colon should be stripped
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "INFO: Creating database changelog table"))
+    assertThat(SummaryWriter.cleanTestLogLine("INFO: Creating database changelog table"))
         .isEqualTo("Creating database changelog table");
 
     // Liquibase class references in log lines should be filtered entirely
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "May 23, 2026 12:52:09 AM liquibase.changelog INFO: Creating database changelog table"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "May 23, 2026 12:52:09 AM liquibase.changelog INFO: Creating database changelog table"))
         .isNull();
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "May 23, 2026 12:52:09 AM liquibase.lockservice INFO: Successfully released change log lock"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "May 23, 2026 12:52:09 AM liquibase.lockservice INFO: Successfully released change log lock"))
         .isNull();
 
     // Micronaut log level configuration should be filtered
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "i.m.l.PropertiesLoggingLevelsConfigurer - Setting log level 'INFO' for logger: 'io.micronaut.data'"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "i.m.l.PropertiesLoggingLevelsConfigurer - Setting log level 'INFO' for logger: 'io.micronaut.data'"))
         .isNull();
 
     // Test/runtime bootstrap noise should be filtered from failed-test logs.
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "o.testcontainers.DockerClientFactory - Testcontainers version: 2.0.5"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "o.testcontainers.DockerClientFactory - Testcontainers version: 2.0.5"))
         .isNull();
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "o.t.d.DockerClientProviderStrategy - Found Docker environment with Docker accessed via Unix socket"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "o.t.d.DockerClientProviderStrategy - Found Docker environment with Docker accessed via Unix socket"))
         .isNull();
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "tc.mongo:latest - Container mongo:latest started in PT0.22301S"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "tc.mongo:latest - Container mongo:latest started in PT0.22301S"))
         .isNull();
-    assertThat(SummaryWriter.cleanTestLogLine(
-        "i.m.c.DefaultApplicationContext$RuntimeConfiguredEnvironment - Established active environments: [test]"))
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "i.m.c.DefaultApplicationContext$RuntimeConfiguredEnvironment - Established active environments: [test]"))
         .isNull();
   }
 
@@ -351,8 +369,7 @@ class SummaryWriterTest {
     assertThat(logsArray).hasSize(3);
     assertThat(logsArray.get(0)).isEqualTo("Test - Message 1");
     assertThat(logsArray.get(1)).isEqualTo("Test - Message 2");
-    assertThat(logsArray.get(2))
-        .isEqualTo("at com.myproject.MyClass.myMethod(MyClass.java:20)");
+    assertThat(logsArray.get(2)).isEqualTo("at com.myproject.MyClass.myMethod(MyClass.java:20)");
   }
 
   @Test

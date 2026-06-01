@@ -652,7 +652,9 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         new ArrayList<>(extension.getStackFrameBlacklist().getOrElse(Collections.emptyList()));
 
     List<String> stringLogLines =
-        logLines.stream().map(line -> CompilationErrorExtractor.stripAnsi(line.toString())).collect(Collectors.toList());
+        logLines.stream()
+            .map(line -> CompilationErrorExtractor.stripAnsi(line.toString()))
+            .collect(Collectors.toList());
 
     List<BuildError> compilationErrors = CompilationErrorExtractor.extract(stringLogLines);
     allErrors.addAll(compilationErrors);

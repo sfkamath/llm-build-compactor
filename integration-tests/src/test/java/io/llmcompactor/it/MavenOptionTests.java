@@ -203,9 +203,7 @@ class MavenOptionTests {
           break;
         }
       }
-      assertThat(isolationError)
-          .as("Expected an error from LogIsolationTest")
-          .isNotNull();
+      assertThat(isolationError).as("Expected an error from LogIsolationTest").isNotNull();
 
       // Surefire captures system-out per testcase, so only the failing test's output is present
       assertThat(isolationError.has("testLogs")).isTrue();

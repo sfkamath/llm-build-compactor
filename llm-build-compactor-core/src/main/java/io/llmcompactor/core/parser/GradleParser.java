@@ -5,12 +5,10 @@ import io.llmcompactor.core.StackTraceCompressor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.xml.parsers.DocumentBuilder;
@@ -104,7 +102,8 @@ public final class GradleParser {
                     // Extract filename and line from stack frames
                     // Just find the last occurrence of "File.ext:LineNum)" at end of line
                     String[] lines = message.split("\n");
-                    String testPackage = className.substring(0, Math.max(0, className.lastIndexOf(".")));
+                    String testPackage =
+                        className.substring(0, Math.max(0, className.lastIndexOf(".")));
 
                     for (String l : lines) {
                       if ((l.contains(".java:") || l.contains(".groovy:"))) {
@@ -210,7 +209,6 @@ public final class GradleParser {
 
     return logs.length() > 0 ? logs.toString() : null;
   }
-
 
   private GradleParser() {}
 }

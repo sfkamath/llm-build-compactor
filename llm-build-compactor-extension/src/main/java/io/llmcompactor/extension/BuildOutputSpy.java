@@ -51,8 +51,14 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
   private static final List<String> INTERACTIVE_GOALS =
       Arrays.asList(
-          "exec:java", "exec:exec", "spring-boot:run", "quarkus:dev",
-          "micronaut:run", "jetty:run", "tomcat:run", "wildfly:run");
+          "exec:java",
+          "exec:exec",
+          "spring-boot:run",
+          "quarkus:dev",
+          "micronaut:run",
+          "jetty:run",
+          "tomcat:run",
+          "wildfly:run");
 
   // Captured before we suppress output so we can always write the final summary.
   private static final PrintStream REAL_OUT = System.out;
@@ -182,8 +188,10 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
     buildFailed = true;
 
-    boolean isSurefirePlugin = mojo != null
-        && (mojo.getArtifactId().contains("surefire") || mojo.getArtifactId().contains("failsafe"));
+    boolean isSurefirePlugin =
+        mojo != null
+            && (mojo.getArtifactId().contains("surefire")
+                || mojo.getArtifactId().contains("failsafe"));
 
     // Surefire/failsafe test failures are captured from XML reports by SurefireParser.
     // Adding errors here would double-count them regardless of the failure message text.
@@ -197,8 +205,8 @@ public class BuildOutputSpy extends AbstractEventSpy {
   }
 
   /**
-   * Parses structured compilation errors from {@code output}, falling back to a single
-   * generic error if no structured errors are found.
+   * Parses structured compilation errors from {@code output}, falling back to a single generic
+   * error if no structured errors are found.
    */
   private List<BuildError> extractOrWrap(ExecutionEvent ee, String output) {
     List<BuildError> extracted =
@@ -321,8 +329,8 @@ public class BuildOutputSpy extends AbstractEventSpy {
       REAL_OUT.print(SummaryWriter.toJson(summary, config.testDurationThresholdMs));
     } else {
       REAL_OUT.println(
-          SummaryWriter.toHumanReadable(summary, config.showSlowTests,
-              config.testDurationThresholdMs));
+          SummaryWriter.toHumanReadable(
+              summary, config.showSlowTests, config.testDurationThresholdMs));
     }
   }
 
@@ -377,12 +385,15 @@ public class BuildOutputSpy extends AbstractEventSpy {
   }
 
   private static PrintStream nullPrintStream() {
-    OutputStream nullOut = new OutputStream() {
-      @Override public void write(int b) {}
-    };
+    OutputStream nullOut =
+        new OutputStream() {
+          @Override
+          public void write(int b) {}
+        };
     try {
       return new PrintStream(nullOut, true, StandardCharsets.UTF_8.name()) {
-        @Override public void write(byte[] buf, int off, int len) {}
+        @Override
+        public void write(byte[] buf, int off, int len) {}
       };
     } catch (UnsupportedEncodingException e) {
       throw new IllegalStateException("UTF-8 not supported", e);
@@ -391,12 +402,12 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
   private void resetSlf4j() {
     try {
-      Class.forName("org.slf4j.MavenSlf4jFriend")
-          .getMethod("reset").invoke(null);
-      Class.forName("org.slf4j.impl.MavenSlf4jSimpleFriend")
-          .getMethod("init").invoke(null);
-    } catch (ClassNotFoundException | NoSuchMethodException
-        | IllegalAccessException | InvocationTargetException ignored) {
+      Class.forName("org.slf4j.MavenSlf4jFriend").getMethod("reset").invoke(null);
+      Class.forName("org.slf4j.impl.MavenSlf4jSimpleFriend").getMethod("init").invoke(null);
+    } catch (ClassNotFoundException
+        | NoSuchMethodException
+        | IllegalAccessException
+        | InvocationTargetException ignored) {
       // SLF4J bridge not present in this Maven version; nothing to reset.
     }
   }
@@ -406,10 +417,14 @@ public class BuildOutputSpy extends AbstractEventSpy {
   // =========================================================================
 
   @SuppressFBWarnings("MS_EXPOSE_REP")
-  public static PrintStream getRealOut() { return REAL_OUT; }
+  public static PrintStream getRealOut() {
+    return REAL_OUT;
+  }
 
   @SuppressFBWarnings("MS_EXPOSE_REP")
-  public static PrintStream getRealErr() { return REAL_ERR; }
+  public static PrintStream getRealErr() {
+    return REAL_ERR;
+  }
 
   // =========================================================================
   // Inner lifecycle participant
@@ -422,6 +437,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
     private final BuildOutputSpy spy;
 
     @Inject
+    @SuppressFBWarnings("EI_EXPOSE_REP2")
     public Participant(BuildOutputSpy spy) {
       this.spy = spy;
     }

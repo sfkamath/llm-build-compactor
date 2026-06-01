@@ -203,9 +203,7 @@ class GradleOptionTests {
           break;
         }
       }
-      assertThat(isolationError)
-          .as("Expected an error from LogIsolationTest")
-          .isNotNull();
+      assertThat(isolationError).as("Expected an error from LogIsolationTest").isNotNull();
 
       // Gradle aggregates system-out at suite level, so the failing test's output is present
       assertThat(isolationError.has("testLogs")).isTrue();
@@ -417,8 +415,7 @@ class GradleOptionTests {
     @Test
     @DisplayName("applying the plugin auto-installs the init script")
     void testAutoInstall() throws Exception {
-      Path initScript =
-          GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
+      Path initScript = GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
       Files.deleteIfExists(initScript);
 
       GradleBuild.inProject("gradle-test-project").withTask("test").execute();
@@ -429,8 +426,7 @@ class GradleOptionTests {
     @Test
     @DisplayName("installLlmCompactor installs the init script")
     void testInstall() throws Exception {
-      Path initScript =
-          GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
+      Path initScript = GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
       Files.deleteIfExists(initScript);
 
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
@@ -441,8 +437,7 @@ class GradleOptionTests {
     @Test
     @DisplayName("uninstallLlmCompactor removes the init script")
     void testUninstall() throws Exception {
-      Path initScript =
-          GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
+      Path initScript = GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
       // Ensure it exists first
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
       assertThat(initScript).exists();
@@ -455,14 +450,11 @@ class GradleOptionTests {
     @Test
     @DisplayName("uninstallLlmCompactor is a no-op when script is absent")
     void testUninstallIdempotent() throws Exception {
-      Path initScript =
-          GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
+      Path initScript = GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
       Files.deleteIfExists(initScript);
 
       BuildResult result =
-          GradleBuild.inProject("gradle-test-project")
-              .withTask("uninstallLlmCompactor")
-              .execute();
+          GradleBuild.inProject("gradle-test-project").withTask("uninstallLlmCompactor").execute();
 
       assertThat(result.exitCode()).isZero();
       assertThat(initScript).doesNotExist();

@@ -21,9 +21,7 @@ import java.util.List;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.project.MavenProject;
 
-/**
- * Aggregates Surefire test results across all projects in a Maven session.
- */
+/** Aggregates Surefire test results across all projects in a Maven session. */
 final class TestResultCollector {
 
   private int testsRun;
@@ -57,10 +55,21 @@ final class TestResultCollector {
   // Accessors
   // -------------------------------------------------------------------------
 
-  int testsRun()              { return testsRun; }
-  int failures()              { return failures; }
-  List<BuildError> errors()   { return Collections.unmodifiableList(errors); }
-  List<Double> durations()    { return Collections.unmodifiableList(durations); }
+  int testsRun() {
+    return testsRun;
+  }
+
+  int failures() {
+    return failures;
+  }
+
+  List<BuildError> errors() {
+    return Collections.unmodifiableList(errors);
+  }
+
+  List<Double> durations() {
+    return Collections.unmodifiableList(durations);
+  }
 
   // -------------------------------------------------------------------------
   // Private helpers
@@ -110,8 +119,7 @@ final class TestResultCollector {
   /** Thin helper so this class does not need its own session field for the whitelist build. */
   private static PropertyResolver resolverFor(MavenSession session) {
     MavenProject top = session.getTopLevelProject();
-    return new PropertyResolver(
-        session, top != null ? top.getProperties() : null);
+    return new PropertyResolver(session, top != null ? top.getProperties() : null);
   }
 
   private static List<String> splitCsv(String raw) {

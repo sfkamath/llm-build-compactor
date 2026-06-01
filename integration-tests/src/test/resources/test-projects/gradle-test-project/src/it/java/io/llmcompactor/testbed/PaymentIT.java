@@ -1,9 +1,9 @@
 package io.llmcompactor.testbed;
 
-import org.junit.jupiter.api.Test;
-import java.math.BigDecimal;
-
 import static org.junit.jupiter.api.Assertions.*;
+
+import java.math.BigDecimal;
+import org.junit.jupiter.api.Test;
 
 /**
  * Integration tests for payment processing.

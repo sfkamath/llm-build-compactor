@@ -87,11 +87,12 @@ class CompilationErrorExtractorTest {
 
   @Test
   void shouldStripUnicodeEscapeSequences() {
-    String input = "Failed to execute goal \\u001B[32morg.owasp:dependency-check-maven\\u001B[m on project";
+    String input =
+        "Failed to execute goal \\u001B[32morg.owasp:dependency-check-maven\\u001B[m on project";
     String expected = "Failed to execute goal org.owasp:dependency-check-maven on project";
-    
+
     String result = CompilationErrorExtractor.stripAnsi(input);
-    
+
     assertThat(result).isEqualTo(expected);
   }
 
@@ -99,9 +100,9 @@ class CompilationErrorExtractorTest {
   void shouldStripBothAnsiAndUnicodeEscapes() {
     String input = "\\u001B[32mFailed\\u001B[m to execute goal \\u001B[1morg.owasp\\u001B[m";
     String expected = "Failed to execute goal org.owasp";
-    
+
     String result = CompilationErrorExtractor.stripAnsi(input);
-    
+
     assertThat(result).isEqualTo(expected);
   }
 }

@@ -41,7 +41,9 @@ public final class CompilationErrorExtractor {
       if (m.find()) {
         int j = collectContinuationLines(logs, i + 1);
         String message = appendContinuation(m.group(3), logs, i + 1, j);
-        errors.add(new BuildError("COMPILATION_ERROR", m.group(1), Integer.parseInt(m.group(2)), message, ""));
+        errors.add(
+            new BuildError(
+                "COMPILATION_ERROR", m.group(1), Integer.parseInt(m.group(2)), message, ""));
         i = j;
         continue;
       }
@@ -50,7 +52,9 @@ public final class CompilationErrorExtractor {
       if (mm.find()) {
         int j = collectContinuationLines(logs, i + 1);
         String message = appendContinuation(mm.group(4), logs, i + 1, j);
-        errors.add(new BuildError("COMPILATION_ERROR", mm.group(1), Integer.parseInt(mm.group(2)), message, ""));
+        errors.add(
+            new BuildError(
+                "COMPILATION_ERROR", mm.group(1), Integer.parseInt(mm.group(2)), message, ""));
         i = j;
         continue;
       }

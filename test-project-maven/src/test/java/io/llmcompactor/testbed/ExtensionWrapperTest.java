@@ -1,8 +1,8 @@
 package io.llmcompactor.testbed;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
 
 /**
  * Test to reproduce stack trace parsing issue where wrong file is picked

@@ -58,9 +58,11 @@ final class OutputConfig {
 
   static OutputConfig resolve(PropertyResolver props) {
     boolean compress =
-        props.getBoolean("llmCompactor.compressStackFrames", CompactorDefaults.COMPRESS_STACK_FRAMES);
+        props.getBoolean(
+            "llmCompactor.compressStackFrames", CompactorDefaults.COMPRESS_STACK_FRAMES);
     boolean showFailedTestLogs =
-        props.getBoolean("llmCompactor.showFailedTestLogs", CompactorDefaults.SHOW_FAILED_TEST_LOGS);
+        props.getBoolean(
+            "llmCompactor.showFailedTestLogs", CompactorDefaults.SHOW_FAILED_TEST_LOGS);
     boolean showFixTargets =
         props.getBoolean("llmCompactor.showFixTargets", CompactorDefaults.SHOW_FIX_TARGETS);
     boolean outputAsJson =
@@ -98,28 +100,74 @@ final class OutputConfig {
 
   private enum ModePreset {
     NONE {
-      @Override boolean overrideOutputAsJson(boolean v)        { return v; }
-      @Override boolean overrideShowFixTargets(boolean v)      { return v; }
-      @Override boolean overrideShowFailedTestLogs(boolean v)  { return v; }
+      @Override
+      boolean overrideOutputAsJson(boolean v) {
+        return v;
+      }
+
+      @Override
+      boolean overrideShowFixTargets(boolean v) {
+        return v;
+      }
+
+      @Override
+      boolean overrideShowFailedTestLogs(boolean v) {
+        return v;
+      }
     },
     AGENT {
-      @Override boolean overrideOutputAsJson(boolean v)        { return true; }
-      @Override boolean overrideShowFixTargets(boolean v)      { return true; }
-      @Override boolean overrideShowFailedTestLogs(boolean v)  { return false; }
+      @Override
+      boolean overrideOutputAsJson(boolean v) {
+        return true;
+      }
+
+      @Override
+      boolean overrideShowFixTargets(boolean v) {
+        return true;
+      }
+
+      @Override
+      boolean overrideShowFailedTestLogs(boolean v) {
+        return false;
+      }
     },
     DEBUG {
-      @Override boolean overrideOutputAsJson(boolean v)        { return true; }
-      @Override boolean overrideShowFixTargets(boolean v)      { return true; }
-      @Override boolean overrideShowFailedTestLogs(boolean v)  { return true; }
+      @Override
+      boolean overrideOutputAsJson(boolean v) {
+        return true;
+      }
+
+      @Override
+      boolean overrideShowFixTargets(boolean v) {
+        return true;
+      }
+
+      @Override
+      boolean overrideShowFailedTestLogs(boolean v) {
+        return true;
+      }
     },
     HUMAN {
-      @Override boolean overrideOutputAsJson(boolean v)        { return false; }
-      @Override boolean overrideShowFixTargets(boolean v)      { return true; }
-      @Override boolean overrideShowFailedTestLogs(boolean v)  { return false; }
+      @Override
+      boolean overrideOutputAsJson(boolean v) {
+        return false;
+      }
+
+      @Override
+      boolean overrideShowFixTargets(boolean v) {
+        return true;
+      }
+
+      @Override
+      boolean overrideShowFailedTestLogs(boolean v) {
+        return false;
+      }
     };
 
     abstract boolean overrideOutputAsJson(boolean current);
+
     abstract boolean overrideShowFixTargets(boolean current);
+
     abstract boolean overrideShowFailedTestLogs(boolean current);
 
     static ModePreset from(String mode) {
@@ -127,10 +175,14 @@ final class OutputConfig {
         return NONE;
       }
       switch (mode.toLowerCase()) {
-        case "agent": return AGENT;
-        case "debug": return DEBUG;
-        case "human": return HUMAN;
-        default:      return NONE;
+        case "agent":
+          return AGENT;
+        case "debug":
+          return DEBUG;
+        case "human":
+          return HUMAN;
+        default:
+          return NONE;
       }
     }
   }

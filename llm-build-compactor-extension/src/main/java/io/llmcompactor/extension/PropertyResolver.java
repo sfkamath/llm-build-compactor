@@ -102,9 +102,8 @@ final class PropertyResolver {
     if (!(config instanceof Xpp3Dom)) {
       return null;
     }
-    String configKey = key.startsWith(LLMCOMPACTOR_PREFIX)
-        ? key.substring(LLMCOMPACTOR_PREFIX.length())
-        : key;
+    String configKey =
+        key.startsWith(LLMCOMPACTOR_PREFIX) ? key.substring(LLMCOMPACTOR_PREFIX.length()) : key;
     Xpp3Dom child = ((Xpp3Dom) config).getChild(configKey);
     return child != null ? child.getValue() : null;
   }

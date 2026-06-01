@@ -15,7 +15,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 import org.apache.maven.project.MavenProject;
@@ -23,8 +22,8 @@ import org.apache.maven.project.MavenProject;
 /**
  * Discovers Java package names by walking a project's compile and test source roots.
  *
- * <p>Used to seed the stack-frame whitelist so that only frames belonging to the project
- * under build are highlighted in failure output.
+ * <p>Used to seed the stack-frame whitelist so that only frames belonging to the project under
+ * build are highlighted in failure output.
  */
 final class PackageScanner {
 
@@ -52,18 +51,18 @@ final class PackageScanner {
   private static List<String> packagesUnder(Path rootPath) {
     List<String> packages = new ArrayList<>();
     try (Stream<Path> walk = Files.walk(rootPath)) {
-      walk
-          .filter(Files::isRegularFile)
+      walk.filter(Files::isRegularFile)
           .filter(p -> p.toString().endsWith(".java"))
-          .forEach(p -> {
-            Path parent = rootPath.relativize(p).getParent();
-            if (parent != null) {
-              String pkg = parent.toString().replace("/", ".");
-              if (!packages.contains(pkg)) {
-                packages.add(pkg);
-              }
-            }
-          });
+          .forEach(
+              p -> {
+                Path parent = rootPath.relativize(p).getParent();
+                if (parent != null) {
+                  String pkg = parent.toString().replace("/", ".");
+                  if (!packages.contains(pkg)) {
+                    packages.add(pkg);
+                  }
+                }
+              });
     } catch (IOException ignored) {
       // Best-effort scan; a missing or unreadable root is not fatal.
     }

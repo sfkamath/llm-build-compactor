@@ -156,8 +156,8 @@ public final class StackTraceCompressor {
   }
 
   /**
-   * Returns true if the line is a stacktrace frame from a known framework package.
-   * Checks against the built-in framework prefix list only (no whitelist/blacklist).
+   * Returns true if the line is a stacktrace frame from a known framework package. Checks against
+   * the built-in framework prefix list only (no whitelist/blacklist).
    */
   public static boolean isFrameworkFrame(String line) {
     String trimmed = line.trim();

@@ -73,7 +73,8 @@ public final class SummaryWriter {
 
   /** Date pattern: MMM DD, YYYY HH:MM:SS AM/PM (java.util.logging format used by Liquibase etc.) */
   private static final Pattern DATE_PATTERN =
-      Pattern.compile("^[A-Z][a-z]{2}\\s+\\d{1,2},\\s+\\d{4}\\s+\\d{1,2}:\\d{2}:\\d{2}\\s+[AP]M\\s*");
+      Pattern.compile(
+          "^[A-Z][a-z]{2}\\s+\\d{1,2},\\s+\\d{4}\\s+\\d{1,2}:\\d{2}:\\d{2}\\s+[AP]M\\s*");
 
   /** Log thread pattern: [thread-name] - only at start after timestamp */
   private static final Pattern THREAD_PATTERN = Pattern.compile("^\\s*\\[[^\\]]+\\]\\s*");

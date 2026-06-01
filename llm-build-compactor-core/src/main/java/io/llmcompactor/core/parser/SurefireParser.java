@@ -81,8 +81,7 @@ public final class SurefireParser {
                         String message = node.getTextContent().trim();
 
                         double duration = getTestDuration(node);
-                        String testLogs =
-                            showFailedTestLogs ? readTestLogs(node) : null;
+                        String testLogs = showFailedTestLogs ? readTestLogs(node) : null;
                         BuildError error =
                             parseError(
                                 message,
@@ -104,8 +103,7 @@ public final class SurefireParser {
                         String message = node.getTextContent().trim();
 
                         double duration = getTestDuration(node);
-                        String testLogs =
-                            showFailedTestLogs ? readTestLogs(node) : null;
+                        String testLogs = showFailedTestLogs ? readTestLogs(node) : null;
                         BuildError error =
                             parseError(
                                 message,
@@ -187,7 +185,14 @@ public final class SurefireParser {
           if (logs.length() > 0) {
             logs.append("\n");
           }
-          logs.append("[").append(child.getNodeName()).append(" for ").append(className).append("#").append(testName).append("]\n").append(content);
+          logs.append("[")
+              .append(child.getNodeName())
+              .append(" for ")
+              .append(className)
+              .append("#")
+              .append(testName)
+              .append("]\n")
+              .append(content);
         }
       }
     }
