@@ -177,6 +177,19 @@ public class BuildSummary {
     return percentiles;
   }
 
+  public static List<SlowTest> filterSlowTests(List<SlowTest> tests, double thresholdMs) {
+    if (tests == null) {
+      return Collections.emptyList();
+    }
+    List<SlowTest> result = new ArrayList<>();
+    for (SlowTest e : tests) {
+      if (e.testDuration() >= thresholdMs) {
+        result.add(e);
+      }
+    }
+    return result;
+  }
+
   public static List<BuildError> aggregateErrors(List<BuildError> rawErrors) {
     if (rawErrors == null || rawErrors.isEmpty()) {
       return Collections.emptyList();

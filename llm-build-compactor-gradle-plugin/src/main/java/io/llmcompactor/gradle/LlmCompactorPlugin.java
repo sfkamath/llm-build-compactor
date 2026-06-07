@@ -3,6 +3,9 @@ package io.llmcompactor.gradle;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.CompactorDefaults;
+import io.llmcompactor.core.ModePreset;
+import io.llmcompactor.core.parser.ParserUtils;
+import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.FixTarget;
 import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.SummaryWriter;
@@ -15,7 +18,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -301,7 +303,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 .getProviders()
                 .gradleProperty("llmCompactor.stackFrameWhitelist")
                 .orElse(project.getProviders().systemProperty("llmCompactor.stackFrameWhitelist"))
-                .map(s -> Arrays.asList(s.split(",")))
+                .map(ParserUtils::splitCsv)
                 .orElse(Collections.emptyList()));
 
     // stackFrameBlacklist - comma-separated list
@@ -312,7 +314,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                 .getProviders()
                 .gradleProperty("llmCompactor.stackFrameBlacklist")
                 .orElse(project.getProviders().systemProperty("llmCompactor.stackFrameBlacklist"))
-                .map(s -> Arrays.asList(s.split(",")))
+                .map(ParserUtils::splitCsv)
                 .orElse(Collections.emptyList()));
 
     // outputPath - only set if gradle or system property is provided
@@ -438,16 +440,9 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             .getStartParameter()
             .setShowStacktrace(
                 org.gradle.api.logging.configuration.ShowStacktrace.INTERNAL_EXCEPTIONS);
-        // Java 8 compatible null output stream
-        OutputStream nullOut =
-            new OutputStream() {
-              @Override
-              public void write(int b) throws IOException {
-                // Discard all bytes
-              }
-            };
-        System.setOut(new PrintStream(nullOut));
-        System.setErr(new PrintStream(nullOut));
+        PrintStream nullPrint = CompactorDefaults.nullPrintStream();
+        System.setOut(nullPrint);
+        System.setErr(nullPrint);
 
         rootProject.allprojects(
             p -> {
@@ -633,31 +628,11 @@ public class LlmCompactorPlugin implements Plugin<Project> {
   private void emitSummary(
       Project project, LlmCompactorExtension extension, long sessionStartTime) {
     // Apply mode preset if specified (overrides individual flags)
-    String modeValue = extension.getMode().getOrNull();
-    boolean outputAsJson = extension.getOutputAsJson().get();
-    boolean showFixTargets = extension.getShowFixTargets().get();
-    boolean showFailedTestLogs = extension.getShowFailedTestLogs().get();
+    ModePreset preset = ModePreset.from(extension.getMode().getOrNull());
+    boolean outputAsJson = preset.overrideOutputAsJson(extension.getOutputAsJson().get());
+    boolean showFixTargets = preset.overrideShowFixTargets(extension.getShowFixTargets().get());
+    boolean showFailedTestLogs = preset.overrideShowFailedTestLogs(extension.getShowFailedTestLogs().get());
     boolean showRecentChanges = extension.getShowRecentChanges().get();
-
-    if (modeValue != null && !modeValue.isEmpty()) {
-      switch (modeValue.toLowerCase()) {
-        case "agent":
-          outputAsJson = true;
-          showFixTargets = true;
-          showFailedTestLogs = false;
-          break;
-        case "debug":
-          outputAsJson = true;
-          showFixTargets = true;
-          showFailedTestLogs = true;
-          break;
-        case "human":
-          outputAsJson = false;
-          showFixTargets = true;
-          showFailedTestLogs = false;
-          break;
-      }
-    }
 
     List<BuildError> allErrors = new ArrayList<>();
     List<Double> allDurations = new ArrayList<>();
@@ -727,9 +702,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     double thresholdMs = extension.getTestDurationThresholdMs().get();
     List<SlowTest> slowTestList =
         showSlowTestsValue
-            ? allSlowTests.stream()
-                .filter(e -> e.testDuration() >= thresholdMs)
-                .collect(Collectors.toList())
+            ? BuildSummary.filterSlowTests(allSlowTests, thresholdMs)
             : Collections.<SlowTest>emptyList();
 
     BuildSummary summary =

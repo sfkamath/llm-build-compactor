@@ -3,7 +3,6 @@ package io.llmcompactor.core;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -119,17 +118,7 @@ public class BuildError {
   @JsonProperty("testLogs")
   @JsonInclude(JsonInclude.Include.NON_EMPTY)
   public List<String> getTestLogsAsArray() {
-    if (testLogs == null || testLogs.isEmpty()) {
-      return Collections.emptyList();
-    }
-    List<String> result = new ArrayList<>();
-    for (String line : testLogs.split("\n")) {
-      String cleaned = SummaryWriter.cleanTestLogLine(line);
-      if (cleaned != null) {
-        result.add(cleaned);
-      }
-    }
-    return result;
+    return SummaryWriter.processTestLogs(testLogs);
   }
 
   @Override

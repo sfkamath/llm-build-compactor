@@ -12,6 +12,7 @@ package io.llmcompactor.extension;
 
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.SlowTest;
+import io.llmcompactor.core.parser.ParserUtils;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResult;
 import java.nio.file.Files;
@@ -107,7 +108,7 @@ final class TestResultCollector {
     // discovered by scanning each project's source roots.
     PropertyResolver resolver = resolverFor(session);
     String raw = resolver.getString("llmCompactor.stackFrameWhitelist", "");
-    List<String> packages = new ArrayList<>(splitCsv(raw));
+    List<String> packages = new ArrayList<>(ParserUtils.splitCsv(raw));
 
     List<MavenProject> projects = session.getProjects();
     if (projects != null) {
@@ -120,7 +121,7 @@ final class TestResultCollector {
 
   private static List<String> buildStackFrameBlacklist(MavenSession session) {
     String raw = resolverFor(session).getString("llmCompactor.stackFrameBlacklist", "");
-    return splitCsv(raw);
+    return ParserUtils.splitCsv(raw);
   }
 
   /** Thin helper so this class does not need its own session field for the whitelist build. */
@@ -129,17 +130,4 @@ final class TestResultCollector {
     return new PropertyResolver(session, top != null ? top.getProperties() : null);
   }
 
-  private static List<String> splitCsv(String raw) {
-    if (raw == null || raw.isEmpty()) {
-      return Collections.emptyList();
-    }
-    List<String> result = new ArrayList<>();
-    for (String part : raw.split(",")) {
-      String trimmed = part.trim();
-      if (!trimmed.isEmpty()) {
-        result.add(trimmed);
-      }
-    }
-    return result;
-  }
 }

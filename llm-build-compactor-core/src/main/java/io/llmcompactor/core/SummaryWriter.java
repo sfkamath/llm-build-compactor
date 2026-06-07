@@ -154,7 +154,7 @@ public final class SummaryWriter {
   }
 
   /** Processes test logs, cleaning up noise and returning as array of lines. */
-  private static List<String> processTestLogs(String testLogs) {
+  public static List<String> processTestLogs(String testLogs) {
     if (testLogs == null || testLogs.isEmpty()) {
       return Collections.emptyList();
     }

@@ -12,6 +12,7 @@ package io.llmcompactor.extension;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.FixTarget;
 import io.llmcompactor.core.SlowTest;
@@ -19,12 +20,10 @@ import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
 import io.llmcompactor.core.extract.FixTargetGenerator;
 import io.llmcompactor.core.git.GitDiffExtractor;
-import java.io.OutputStream;
+import io.llmcompactor.core.parser.ParserUtils;
 import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -132,7 +131,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
     System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "off");
     resetSlf4j();
 
-    PrintStream nullPrint = nullPrintStream();
+    PrintStream nullPrint = CompactorDefaults.nullPrintStream();
     System.setOut(nullPrint);
     System.setErr(nullPrint);
     System.setProperty(PROP_EXTENSION_ACTIVE, "true");
@@ -223,7 +222,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
     String file =
         project != null && project.getFile() != null ? project.getFile().getPath() : "pom.xml";
     String cleanOutput = CompilationErrorExtractor.stripAnsi(output);
-    return new BuildError("COMPILATION_ERROR", file, 1, firstLine(cleanOutput), cleanOutput);
+    return new BuildError("COMPILATION_ERROR", file, 1, ParserUtils.extractFirstLine(cleanOutput), cleanOutput);
   }
 
   private String extractFailureOutput(ExecutionEvent ee) {
@@ -309,7 +308,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
     List<SlowTest> slowTestList =
         config.showSlowTests
-            ? filterByThreshold(collector.slowTests(), config.testDurationThresholdMs)
+            ? BuildSummary.filterSlowTests(collector.slowTests(), config.testDurationThresholdMs)
             : Collections.<SlowTest>emptyList();
 
     return new BuildSummary(
@@ -382,39 +381,6 @@ public class BuildOutputSpy extends AbstractEventSpy {
       }
     }
     return false;
-  }
-
-  private static List<SlowTest> filterByThreshold(List<SlowTest> tests, double thresholdMs) {
-    List<SlowTest> result = new ArrayList<>();
-    for (SlowTest e : tests) {
-      if (e.testDuration() >= thresholdMs) {
-        result.add(e);
-      }
-    }
-    return result;
-  }
-
-  private static String firstLine(String message) {
-    if (message == null || message.isEmpty()) {
-      return "";
-    }
-    return message.split("\n")[0].trim();
-  }
-
-  private static PrintStream nullPrintStream() {
-    OutputStream nullOut =
-        new OutputStream() {
-          @Override
-          public void write(int b) {}
-        };
-    try {
-      return new PrintStream(nullOut, true, StandardCharsets.UTF_8.name()) {
-        @Override
-        public void write(byte[] buf, int off, int len) {}
-      };
-    } catch (UnsupportedEncodingException e) {
-      throw new IllegalStateException("UTF-8 not supported", e);
-    }
   }
 
   private void resetSlf4j() {

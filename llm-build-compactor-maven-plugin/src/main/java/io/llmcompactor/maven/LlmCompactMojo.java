@@ -4,7 +4,9 @@ import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.FixTarget;
 import io.llmcompactor.core.SlowTest;
+import io.llmcompactor.core.ModePreset;
 import io.llmcompactor.core.SummaryWriter;
+import io.llmcompactor.core.parser.ParserUtils;
 import io.llmcompactor.core.extract.FixTargetGenerator;
 import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.SurefireParser;
@@ -14,12 +16,10 @@ import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.stream.Collectors;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -146,14 +146,8 @@ public class LlmCompactMojo extends AbstractMojo {
       return;
     }
 
-    List<String> stackFrameWhitelistList =
-        stackFrameWhitelist == null || stackFrameWhitelist.isEmpty()
-            ? Collections.<String>emptyList()
-            : Arrays.asList(stackFrameWhitelist.split(","));
-    List<String> stackFrameBlacklistList =
-        stackFrameBlacklist == null || stackFrameBlacklist.isEmpty()
-            ? Collections.<String>emptyList()
-            : Arrays.asList(stackFrameBlacklist.split(","));
+    List<String> stackFrameWhitelistList = ParserUtils.splitCsv(stackFrameWhitelist);
+    List<String> stackFrameBlacklistList = ParserUtils.splitCsv(stackFrameBlacklist);
 
     // Parse test results from existing reports
     long sessionStartTime =
@@ -171,9 +165,7 @@ public class LlmCompactMojo extends AbstractMojo {
     List<Double> allDurations = testResult.allDurations();
     List<SlowTest> slowTestList =
         showSlowTests
-            ? testResult.slowTests().stream()
-                .filter(e -> e.testDuration() >= testDurationThresholdMs)
-                .collect(Collectors.toList())
+            ? BuildSummary.filterSlowTests(testResult.slowTests(), testDurationThresholdMs)
             : Collections.<SlowTest>emptyList();
 
     // Get compilation errors (currently empty, can be populated from EventSpy)
@@ -234,25 +226,9 @@ public class LlmCompactMojo extends AbstractMojo {
   }
 
   private void applyMode(Mode mode) {
-    switch (mode) {
-      case agent:
-        // JSON + fixTargets, no logs (optimized for AI agents)
-        outputAsJson = true;
-        showFixTargets = true;
-        showFailedTestLogs = false;
-        break;
-      case debug:
-        // JSON + fixTargets + logs (for debugging)
-        outputAsJson = true;
-        showFixTargets = true;
-        showFailedTestLogs = true;
-        break;
-      case human:
-        // Human-readable, no logs (default)
-        outputAsJson = false;
-        showFixTargets = true;
-        showFailedTestLogs = false;
-        break;
-    }
+    ModePreset preset = ModePreset.from(mode.name());
+    outputAsJson = preset.overrideOutputAsJson(outputAsJson);
+    showFixTargets = preset.overrideShowFixTargets(showFixTargets);
+    showFailedTestLogs = preset.overrideShowFailedTestLogs(showFailedTestLogs);
   }
 }

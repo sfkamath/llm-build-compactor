@@ -11,6 +11,7 @@
 package io.llmcompactor.extension;
 
 import io.llmcompactor.core.CompactorDefaults;
+import io.llmcompactor.core.ModePreset;
 
 /**
  * Immutable snapshot of all output-related configuration flags for a single build run.
@@ -94,96 +95,4 @@ final class OutputConfig {
         testDurationThresholdMs);
   }
 
-  // -------------------------------------------------------------------------
-  // Mode presets
-  // -------------------------------------------------------------------------
-
-  private enum ModePreset {
-    NONE {
-      @Override
-      boolean overrideOutputAsJson(boolean v) {
-        return v;
-      }
-
-      @Override
-      boolean overrideShowFixTargets(boolean v) {
-        return v;
-      }
-
-      @Override
-      boolean overrideShowFailedTestLogs(boolean v) {
-        return v;
-      }
-    },
-    AGENT {
-      @Override
-      boolean overrideOutputAsJson(boolean v) {
-        return true;
-      }
-
-      @Override
-      boolean overrideShowFixTargets(boolean v) {
-        return true;
-      }
-
-      @Override
-      boolean overrideShowFailedTestLogs(boolean v) {
-        return false;
-      }
-    },
-    DEBUG {
-      @Override
-      boolean overrideOutputAsJson(boolean v) {
-        return true;
-      }
-
-      @Override
-      boolean overrideShowFixTargets(boolean v) {
-        return true;
-      }
-
-      @Override
-      boolean overrideShowFailedTestLogs(boolean v) {
-        return true;
-      }
-    },
-    HUMAN {
-      @Override
-      boolean overrideOutputAsJson(boolean v) {
-        return false;
-      }
-
-      @Override
-      boolean overrideShowFixTargets(boolean v) {
-        return true;
-      }
-
-      @Override
-      boolean overrideShowFailedTestLogs(boolean v) {
-        return false;
-      }
-    };
-
-    abstract boolean overrideOutputAsJson(boolean current);
-
-    abstract boolean overrideShowFixTargets(boolean current);
-
-    abstract boolean overrideShowFailedTestLogs(boolean current);
-
-    static ModePreset from(String mode) {
-      if (mode == null || mode.isEmpty()) {
-        return NONE;
-      }
-      switch (mode.toLowerCase()) {
-        case "agent":
-          return AGENT;
-        case "debug":
-          return DEBUG;
-        case "human":
-          return HUMAN;
-        default:
-          return NONE;
-      }
-    }
-  }
 }
