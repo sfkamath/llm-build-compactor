@@ -155,4 +155,27 @@ class SummaryBuilderTest {
             .build();
     assertThat(summary.errors()).hasSize(2);
   }
+
+  @Test
+  void withConfigAppliesConfigFlags() {
+    CompactorConfig config =
+        DefaultCompactorConfig.builder()
+            .showFixTargets(false)
+            .showRecentChanges(true)
+            .showTotalDuration(true)
+            .showDurationReport(true)
+            .showSlowTests(false)
+            .testDurationThresholdMs(500.0)
+            .build();
+
+    BuildSummary summary =
+        new SummaryBuilder()
+            .addErrors(Collections.singletonList(error("FAIL", "F.java", 1, "msg")))
+            .withConfig(config)
+            .build();
+
+    assertThat(summary.fixTargets()).isEmpty();
+    assertThat(summary.totalBuildDurationMs()).isNotNull();
+    assertThat(summary.slowTests()).isEmpty();
+  }
 }

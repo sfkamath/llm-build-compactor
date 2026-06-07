@@ -29,20 +29,27 @@ final class XmlParserUtils {
     return 0;
   }
 
+  /** Parses the 'time' attribute from a JUnit XML element (in seconds) to milliseconds. */
+  static double parseDurationSecToMs(Element element) {
+    String timeAttr = element.getAttribute("time");
+    if (timeAttr == null || timeAttr.isEmpty()) {
+      return 0.0;
+    }
+    try {
+      return Double.parseDouble(timeAttr) * 1000;
+    } catch (NumberFormatException e) {
+      return 0.0;
+    }
+  }
+
   static void collectDurationsAndSlowTests(
       Document doc, List<Double> allDurations, List<SlowTest> slowTests) {
     NodeList testCaseNodes = doc.getElementsByTagName("testcase");
     for (int i = 0; i < testCaseNodes.getLength(); i++) {
       Element testCase = (Element) testCaseNodes.item(i);
-      String timeAttr = testCase.getAttribute("time");
-      double durationMs = 0.0;
-      if (timeAttr != null && !timeAttr.isEmpty()) {
-        try {
-          durationMs = Double.parseDouble(timeAttr) * 1000;
-          allDurations.add(durationMs);
-        } catch (NumberFormatException e) {
-          // Ignore
-        }
+      double durationMs = parseDurationSecToMs(testCase);
+      if (durationMs > 0) {
+        allDurations.add(durationMs);
       }
       if (durationMs > 0
           && testCase.getElementsByTagName("failure").getLength() == 0

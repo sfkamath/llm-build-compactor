@@ -3,6 +3,7 @@ package io.llmcompactor.maven;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.CompactorConfig;
 import io.llmcompactor.core.CompactorDefaults;
+import io.llmcompactor.core.DefaultCompactorConfig;
 import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.parser.ParserUtils;
@@ -12,7 +13,6 @@ import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 import java.util.Properties;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
@@ -22,7 +22,7 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
 @Mojo(name = "compact", defaultPhase = LifecyclePhase.VERIFY)
-public class LlmCompactMojo extends AbstractMojo implements CompactorConfig {
+public class LlmCompactMojo extends AbstractMojo {
   private static final String EXTENSION_ACTIVE_PROPERTY = "llmCompactor.extension.active";
 
   @Parameter(property = "llmCompactor.enabled", defaultValue = "true")
@@ -33,18 +33,8 @@ public class LlmCompactMojo extends AbstractMojo implements CompactorConfig {
       defaultValue = "target/llm-summary.json") // CompactorConfig.OUTPUT_PATH
   private String outputPath;
 
-  /** Output mode preset. Overrides individual flags when set. */
-  public enum Mode {
-    /** JSON output with fix targets, no logs (optimized for AI agents) */
-    agent,
-    /** JSON output with fix targets and test logs (for debugging) */
-    debug,
-    /** Human-readable output, no logs (default) */
-    human
-  }
-
   @Parameter(property = "llmCompactor.mode")
-  private Mode mode;
+  private String mode;
 
   @Parameter(
       property = "llmCompactor.outputAsJson",
@@ -106,76 +96,6 @@ public class LlmCompactMojo extends AbstractMojo implements CompactorConfig {
   @Parameter(defaultValue = "${project.basedir}", readonly = true)
   private File basedir;
 
-  @Override
-  public boolean enabled() {
-    return enabled;
-  }
-
-  @Override
-  public String outputPath() {
-    return outputPath;
-  }
-
-  @Override
-  public String mode() {
-    return mode != null ? mode.name() : null;
-  }
-
-  @Override
-  public boolean outputAsJson() {
-    return outputAsJson;
-  }
-
-  @Override
-  public boolean compressStackFrames() {
-    return compressStackFrames;
-  }
-
-  @Override
-  public boolean showFixTargets() {
-    return showFixTargets;
-  }
-
-  @Override
-  public boolean showRecentChanges() {
-    return showRecentChanges;
-  }
-
-  @Override
-  public boolean showSlowTests() {
-    return showSlowTests;
-  }
-
-  @Override
-  public boolean showTotalDuration() {
-    return showTotalDuration;
-  }
-
-  @Override
-  public boolean showDurationReport() {
-    return showDurationReport;
-  }
-
-  @Override
-  public boolean showFailedTestLogs() {
-    return showFailedTestLogs;
-  }
-
-  @Override
-  public double testDurationThresholdMs() {
-    return testDurationThresholdMs;
-  }
-
-  @Override
-  public List<String> stackFrameWhitelist() {
-    return ParserUtils.splitCsv(stackFrameWhitelist);
-  }
-
-  @Override
-  public List<String> stackFrameBlacklist() {
-    return ParserUtils.splitCsv(stackFrameBlacklist);
-  }
-
   public void execute() throws MojoExecutionException {
 
     // @Parameter already applied system/user props to `enabled`; supplement with project
@@ -202,7 +122,24 @@ public class LlmCompactMojo extends AbstractMojo implements CompactorConfig {
       return;
     }
 
-    CompactorConfig config = this.resolved();
+    CompactorConfig config =
+        DefaultCompactorConfig.builder()
+            .enabled(enabled)
+            .outputPath(outputPath)
+            .mode(mode)
+            .outputAsJson(outputAsJson)
+            .compressStackFrames(compressStackFrames)
+            .showFixTargets(showFixTargets)
+            .showRecentChanges(showRecentChanges)
+            .showSlowTests(showSlowTests)
+            .showTotalDuration(showTotalDuration)
+            .showDurationReport(showDurationReport)
+            .showFailedTestLogs(showFailedTestLogs)
+            .testDurationThresholdMs(testDurationThresholdMs)
+            .stackFrameWhitelist(ParserUtils.splitCsv(stackFrameWhitelist))
+            .stackFrameBlacklist(ParserUtils.splitCsv(stackFrameBlacklist))
+            .build()
+            .resolved();
 
     long sessionStartTime =
         session != null && session.getStartTime() != null ? session.getStartTime().getTime() : 0L;

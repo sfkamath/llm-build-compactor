@@ -3,6 +3,7 @@ package io.llmcompactor.core.parser;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.SlowTest;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -57,5 +58,21 @@ class TestResultTest {
     TestResult result = new TestResult(3, 1, Collections.emptyList());
 
     assertThat(result.toString()).contains("3").contains("1");
+  }
+
+  @Test
+  void shouldExposeSlowTestsViaJacksonGetter() {
+    SlowTest slow =
+        new SlowTest("Test", "testMethod", 500.0);
+    TestResult result =
+        new TestResult(
+            5,
+            1,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.singletonList(slow));
+
+    assertThat(result.getSlowTests()).hasSize(1);
+    assertThat(result.getSlowTests().get(0).getTestName()).isEqualTo("testMethod");
   }
 }

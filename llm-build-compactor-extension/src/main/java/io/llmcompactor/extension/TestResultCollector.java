@@ -12,6 +12,7 @@ package io.llmcompactor.extension;
 
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.CompactorConfig;
+import io.llmcompactor.core.DefaultCompactorConfig;
 import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResultAggregator;
@@ -69,13 +70,13 @@ final class TestResultCollector {
   }
 
   private static List<String> buildWhitelist(MavenSession session, CompactorConfig config) {
-    List<String> packages = new ArrayList<>(config.stackFrameWhitelist());
     List<MavenProject> projects = session.getProjects();
+    List<List<String>> scanResults = new ArrayList<>();
     if (projects != null) {
       for (MavenProject project : projects) {
-        packages.addAll(PackageScanner.scan(project));
+        scanResults.add(PackageScanner.scan(project));
       }
     }
-    return packages;
+    return DefaultCompactorConfig.mergeWhitelist(config.stackFrameWhitelist(), scanResults);
   }
 }

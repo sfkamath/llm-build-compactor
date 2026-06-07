@@ -27,7 +27,8 @@ class SummaryWriterTest {
             "FAILED",
             10,
             2,
-            Arrays.asList(new BuildError("TestFailure", "src/Test.java", 10, "Fail", "at frame")),
+            Collections.singletonList(
+                new BuildError("TestFailure", "src/Test.java", 10, "Fail", "at frame")),
             Collections.emptyList(),
             Collections.emptyList());
     Path path = tempDir.resolve("llm-summary.json");
@@ -57,11 +58,11 @@ class SummaryWriterTest {
             "FAILED",
             10,
             2,
-            Arrays.asList(
+            Collections.singletonList(
                 new BuildError(
                     "TestFailure", "src/Test.java", 10, "Fail message", "at frame\nCaused by: x")),
             Collections.emptyList(),
-            Arrays.asList("README.md"));
+            Collections.singletonList("README.md"));
 
     String human = SummaryWriter.toHumanReadable(summary, true);
 
@@ -169,6 +170,10 @@ class SummaryWriterTest {
     assertThat(SummaryWriter.cleanTestLogLine("INFO: Creating database changelog table"))
         .isEqualTo("Creating database changelog table");
 
+    // java.util.logging level with colon and timestamp should be stripped
+    assertThat(SummaryWriter.cleanTestLogLine("Oct 25, 2024 10:30:45 AM INFO: Log message"))
+        .isEqualTo("Log message");
+
     // Liquibase class references in log lines should be filtered entirely
     assertThat(
             SummaryWriter.cleanTestLogLine(
@@ -202,6 +207,87 @@ class SummaryWriterTest {
             SummaryWriter.cleanTestLogLine(
                 "i.m.c.DefaultApplicationContext$RuntimeConfiguredEnvironment - Established active environments: [test]"))
         .isNull();
+
+    // [system-out] and [system-err] should be preserved
+    assertThat(SummaryWriter.cleanTestLogLine("[system-out] some output"))
+        .isEqualTo("[system-out] some output");
+    assertThat(SummaryWriter.cleanTestLogLine("[system-err] some error"))
+        .isEqualTo("[system-err] some error");
+
+    // Empty or null lines
+    assertThat(SummaryWriter.cleanTestLogLine("")).isEqualTo("");
+    assertThat(SummaryWriter.cleanTestLogLine(null)).isNull();
+  }
+
+  @Test
+  void shouldFormatHumanReadableWithSlowTestsAndFixTargets() {
+    SlowTest slow = new SlowTest("com.example.SlowTest", "slowMethod", 5000.0);
+    FixTarget target = new FixTarget("src/Main.java", 42, "Null pointer", "if (obj == null)");
+
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            1,
+            1,
+            Collections.emptyList(),
+            Collections.singletonList(target),
+            Collections.emptyList(),
+            10000L,
+            Collections.emptyMap(),
+            Collections.singletonList(slow));
+
+    String human = SummaryWriter.toHumanReadable(summary, true);
+
+    assertThat(human).contains("Slow Tests:");
+    assertThat(human).contains("com.example.SlowTest#slowMethod (5000.00ms)");
+    assertThat(human).contains("Fix Targets:");
+    assertThat(human).contains("src/Main.java:42");
+    assertThat(human).contains("Reason: Null pointer");
+    assertThat(human).contains("Snippet:");
+    assertThat(human).contains("if (obj == null)");
+  }
+
+  @Test
+  void shouldCondenseWhitespaceInJson() {
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(
+                new BuildError(
+                    "Error", "File.java", 1, "Message with  double  space", "stack   with   tabs")),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String json = SummaryWriter.toJson(summary);
+
+    assertThat(json).contains("Message with double space");
+    assertThat(json).contains("stack with tabs");
+  }
+
+  @Test
+  void shouldStripComplexExceptionPackages() {
+    assertThat(SummaryWriter.stripExceptionPackage("com.foo.Bar$InnerException: msg"))
+        .isEqualTo("Bar$InnerException: msg");
+    assertThat(SummaryWriter.stripExceptionPackage("a.b.c.D: message with: colons"))
+        .isEqualTo("D: message with: colons");
+  }
+
+  @Test
+  void toJsonHandlesNullMessageAndStackTrace() {
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(
+                new BuildError("Error", "File.java", null, null, null, 0.0, null)),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String json = SummaryWriter.toJson(summary);
+    assertThat(json).contains("\"status\" : \"FAILED\"");
   }
 
   @Test
@@ -282,6 +368,87 @@ class SummaryWriterTest {
     assertThat(json).contains("\"p50\" : 100.0");
     assertThat(json).contains("\"p90\" : 200.0");
     assertThat(json).contains("\"p99\" : 500.0");
+  }
+
+  @Test
+  void shouldIncludePercentilesInHumanReadable() {
+    Map<String, Double> percentiles = new HashMap<>();
+    percentiles.put("p50", 150.0);
+    percentiles.put("p99", 950.0);
+    BuildSummary summary =
+        new BuildSummary(
+            "SUCCESS",
+            10,
+            0,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            5000L,
+            percentiles);
+
+    String human = SummaryWriter.toHumanReadable(summary, false);
+    assertThat(human).contains("Test Duration Percentiles (ms):");
+    assertThat(human).contains("p50: 150.00");
+    assertThat(human).contains("p99: 950.00");
+  }
+
+  @Test
+  void shouldHandleErrorWithoutFileInHumanReadable() {
+    BuildError error = new BuildError("TestFailure", null, 10, "msg", "stack");
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(error),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String human = SummaryWriter.toHumanReadable(summary, false);
+    assertThat(human).contains("TestFailure");
+    assertThat(human).contains("msg");
+  }
+
+  @Test
+  void shouldHandleErrorWithEmptyLinesInHumanReadable() {
+    BuildError error = new BuildError("Error", "File.java", -1, "msg", "stack");
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(error),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String human = SummaryWriter.toHumanReadable(summary, false);
+    assertThat(human).contains("File.java");
+    assertThat(human).doesNotContain("File.java:");
+  }
+
+  @Test
+  void shouldIncludeTestLogsInHumanReadable() {
+    BuildError error =
+        new BuildError(
+            "Error",
+            "File.java",
+            Collections.singletonList(10),
+            "msg",
+            "stack",
+            0.0,
+            "Test log line");
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(error),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String human = SummaryWriter.toHumanReadable(summary, true);
+    assertThat(human).contains("Test logs (File.java):");
+    assertThat(human).contains("Test log line");
   }
 
   @Test

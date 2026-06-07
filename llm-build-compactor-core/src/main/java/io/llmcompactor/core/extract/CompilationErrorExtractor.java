@@ -2,6 +2,7 @@ package io.llmcompactor.core.extract;
 
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.parser.ParserUtils;
+import io.llmcompactor.core.util.AnsiStripper;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,18 +20,8 @@ public final class CompilationErrorExtractor {
 
   private static final Pattern fatalErrorPattern = Pattern.compile("Fatal error compiling: (.+)");
 
-  private static final Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
-  private static final Pattern UNICODE_ESCAPE_PATTERN = Pattern.compile("\\\\u001[B]\\[[0-9;]*m");
-  private static final Pattern HTML_ENCODED_ANSI_PATTERN =
-      Pattern.compile("(?:&amp)?#27;\\[[0-9;]*m");
-
   public static String stripAnsi(String line) {
-    if (line == null) {
-      return null;
-    }
-    line = ANSI_PATTERN.matcher(line).replaceAll("");
-    line = UNICODE_ESCAPE_PATTERN.matcher(line).replaceAll("");
-    return HTML_ENCODED_ANSI_PATTERN.matcher(line).replaceAll("");
+    return AnsiStripper.stripAnsi(line);
   }
 
   public static List<BuildError> extractOrWrap(String output, String fallbackFile) {

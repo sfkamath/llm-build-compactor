@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import io.llmcompactor.core.util.AnsiStripper;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
@@ -82,13 +83,6 @@ public final class SummaryWriter {
   /** Logger name pattern: abbreviated or full package.class */
   private static final Pattern LOGGER_PATTERN = Pattern.compile("[a-z][a-zA-Z0-9_.]*\\s*-\\s*");
 
-  /** ANSI escape code pattern for terminal colors */
-  private static final Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
-
-  /** HTML-encoded ANSI escape codes (&#27; or &amp#27; forms) */
-  private static final Pattern HTML_ENCODED_ANSI_PATTERN =
-      Pattern.compile("(?:&amp)?#27;\\[[0-9;]*m");
-
   /** Cleans up test log lines by removing infrastructure noise and normalizing format. */
   public static String cleanTestLogLine(String line) {
     if (line == null || line.isEmpty()) {
@@ -123,8 +117,7 @@ public final class SummaryWriter {
     // result = LOGGER_PATTERN.matcher(result).replaceAll("");
 
     // Strip ANSI escape codes (terminal colors), including HTML-encoded forms
-    result = ANSI_PATTERN.matcher(result).replaceAll("");
-    result = HTML_ENCODED_ANSI_PATTERN.matcher(result).replaceAll("");
+    result = AnsiStripper.stripAnsi(result);
 
     // Normalize whitespace and trim for consistent alignment
     String trimmed = result.replaceAll("\\s+", " ").trim();

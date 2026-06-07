@@ -15,6 +15,7 @@ public final class StackTraceCompressor {
           "jdk.",
           "org.junit.",
           "org.testng.",
+          "org.opentest4j.",
           "org.apache.maven.",
           "org.gradle.",
           "org.springframework.",
@@ -157,20 +158,25 @@ public final class StackTraceCompressor {
 
   /**
    * Returns true if the line is a stacktrace frame from a known framework package. Checks against
-   * the built-in framework prefix list only (no whitelist/blacklist).
+   * the built-in framework prefix list, while respecting whitelist/blacklist.
    */
-  public static boolean isFrameworkFrame(String line) {
+  public static boolean isFrameworkFrame(
+      String line, List<String> whitelist, List<String> blacklist) {
     String trimmed = line.trim();
     if (!trimmed.startsWith("at ")) {
       return false;
     }
-    String normalized = normalizeLine(trimmed);
-    for (String prefix : FRAMEWORK_PREFIXES) {
-      if (normalized.contains("at " + prefix)) {
-        return true;
-      }
-    }
-    return false;
+    // A frame is a "framework frame" if it is NOT considered a "useful frame"
+    // when no project-specific package is provided for comparison.
+    return !isUsefulFrame(trimmed, null, whitelist, blacklist);
+  }
+
+  /**
+   * Returns true if the line is a stacktrace frame from a known framework package. Checks against
+   * the built-in framework prefix list only (no whitelist/blacklist).
+   */
+  public static boolean isFrameworkFrame(String line) {
+    return isFrameworkFrame(line, null, null);
   }
 
   /**

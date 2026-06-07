@@ -97,6 +97,75 @@ class StackTraceCompressorTest {
   }
 
   @Test
+  void shouldPreservePreFrameContent() {
+    String stackTrace =
+        "Assertion failed: expected <1> but was <2>\n"
+            + "at com.example.MyTest.test(MyTest.java:10)\n"
+            + "at com.example.Service.process(Service.java:25)";
+
+    String compressed =
+        StackTraceCompressor.compress(stackTrace, "com.example", Collections.emptyList());
+
+    assertThat(compressed).contains("Assertion failed: expected <1> but was <2>");
+    assertThat(compressed).contains("com.example.MyTest");
+  }
+
+  @Test
+  void shouldPreserveMultiplePreFrameLines() {
+    String stackTrace =
+        "Assertion failed:\n"
+            + "Expected: <1>\n"
+            + "but was: <2>\n"
+            + "at com.example.MyTest.test(MyTest.java:10)";
+
+    String compressed =
+        StackTraceCompressor.compress(stackTrace, "com.example", Collections.emptyList());
+
+    assertThat(compressed).contains("Assertion failed:");
+    assertThat(compressed).contains("Expected: <1>");
+    assertThat(compressed).contains("but was: <2>");
+    assertThat(compressed).contains("com.example.MyTest");
+  }
+
+  @Test
+  void shouldSkipConditionNotSatisfiedHeader() {
+    String stackTrace =
+        "Condition not satisfied:\n"
+            + "at com.example.MyTest.test(MyTest.java:10)";
+
+    String compressed =
+        StackTraceCompressor.compress(stackTrace, "com.example", Collections.emptyList());
+
+    assertThat(compressed).doesNotContain("Condition not satisfied:");
+    assertThat(compressed).contains("com.example.MyTest");
+  }
+
+  @Test
+  void shouldHandleCausedByBeforeAnyFrames() {
+    String stackTrace =
+        "Caused by: java.lang.RuntimeException: Inner\n"
+            + "at com.example.Service.process(Service.java:25)";
+
+    String compressed =
+        StackTraceCompressor.compress(stackTrace, "com.example", Collections.emptyList());
+
+    assertThat(compressed).contains("Caused by:");
+    assertThat(compressed).contains("com.example.Service");
+  }
+
+  @Test
+  void normalizeLineHandlesNullAndEmpty() {
+    assertThat(StackTraceCompressor.normalizeLine(null)).isNull();
+    assertThat(StackTraceCompressor.normalizeLine("")).isEqualTo("");
+  }
+
+  @Test
+  void stripPackagePrefixesHandlesNullAndEmpty() {
+    assertThat(StackTraceCompressor.stripPackagePrefixes(null)).isNull();
+    assertThat(StackTraceCompressor.stripPackagePrefixes("")).isEqualTo("");
+  }
+
+  @Test
   void shouldKeepWhitelistedPackages() {
     String stackTrace =
         "java.lang.Exception: Error\n"
@@ -156,6 +225,12 @@ class StackTraceCompressorTest {
 
     assertThat(compressed).doesNotContain("InternalHelper");
     assertThat(compressed).contains("HomeController");
+  }
+
+  @Test
+  void isFrameworkFrameReturnsFalseForNonAtLines() {
+    assertThat(StackTraceCompressor.isFrameworkFrame("not a stack frame", null, null)).isFalse();
+    assertThat(StackTraceCompressor.isFrameworkFrame("", null, null)).isFalse();
   }
 
   @Test

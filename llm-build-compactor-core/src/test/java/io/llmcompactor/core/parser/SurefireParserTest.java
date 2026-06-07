@@ -431,4 +431,78 @@ class SurefireParserTest {
     // up; the key requirement is no ClassCastException.
     assertThat(result).isNotNull();
   }
+
+  @Test
+  void shouldIgnoreCorruptXml() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    Files.write(
+        reportsDir.resolve("TEST-corrupt.xml"),
+        "not xml content".getBytes(),
+        StandardOpenOption.CREATE);
+
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    assertThat(result.testsRun()).isEqualTo(0);
+    assertThat(result.errors()).isEmpty();
+  }
+
+  @Test
+  void shouldHandleMalformedStackTrace() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"com.example.Test\" tests=\"1\" failures=\"1\">\n"
+            + "  <testcase name=\"test\" classname=\"com.example.Test\">\n"
+            + "    <failure message=\"failed\" type=\"error\">\n"
+            + "at malformed.frame(NoFileAndLine)\n"
+            + "    </failure>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-malformed.xml"), xml.getBytes(), StandardOpenOption.CREATE);
+
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    assertThat(result.errors()).hasSize(1);
+    BuildError error = result.errors().get(0);
+    // Should fallback to filename of the XML report since no project frames found
+    assertThat(error.file()).isEqualTo("TEST-malformed.xml");
+    assertThat(error.lines()).isEmpty();
+  }
+
+  @Test
+  void shouldFallbackToDefaultSourcePathWhenNotResolved() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"com.unknown.Test\" tests=\"1\" failures=\"1\">\n"
+            + "  <testcase name=\"test\" classname=\"com.unknown.Test\">\n"
+            + "    <failure message=\"failed\" type=\"error\">\n"
+            + "at com.unknown.Test.method(Test.java:10)\n"
+            + "    </failure>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(reportsDir.resolve("TEST-unknown.xml"), xml.getBytes(), StandardOpenOption.CREATE);
+
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    assertThat(result.errors()).hasSize(1);
+    BuildError error = result.errors().get(0);
+    // resolveSourceFile defaults to src/test/java/packageName/fileName
+    assertThat(error.file()).isEqualTo("src/test/java/com/unknown/Test.java");
+  }
 }

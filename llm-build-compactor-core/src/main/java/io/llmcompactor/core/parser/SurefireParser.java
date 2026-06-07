@@ -1,6 +1,7 @@
 package io.llmcompactor.core.parser;
 
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.PackageDiscoverer;
 import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.StackTraceCompressor;
 import java.io.IOException;
@@ -113,37 +114,26 @@ public final class SurefireParser {
   }
 
   private static String resolveSourceFile(String packageName, String fileName) {
-    String relativePath = packageName.replace(".", "/") + "/" + fileName;
-    String[] roots = {
-      "src/main/java/", "src/test/java/", "src/it/java/", "src/integration-test/java/"
-    };
-
-    for (String root : roots) {
-      String fullPath = root + relativePath;
-      if (Files.exists(Paths.get(fullPath))) {
-        return fullPath;
-      }
+    List<Path> roots =
+        Arrays.asList(
+            Paths.get("src/main/java/"),
+            Paths.get("src/test/java/"),
+            Paths.get("src/it/java/"),
+            Paths.get("src/integration-test/java/"));
+    String resolved = PackageDiscoverer.resolveSourceFile(packageName, fileName, roots);
+    if (resolved != null) {
+      return resolved;
     }
     // Default to src/test/java if not found
-    return "src/test/java/" + relativePath;
+    return "src/test/java/" + packageName.replace(".", "/") + "/" + fileName;
   }
 
   private static double getTestDuration(Node node) {
-    double duration = 0.0;
     Node parentNode = node.getParentNode();
     if (parentNode instanceof Element) {
-      Element testCase = (Element) parentNode;
-      String timeAttr = testCase.getAttribute("time");
-      if (timeAttr != null && !timeAttr.isEmpty()) {
-        try {
-          // JUnit XML time attribute is in seconds; convert to milliseconds
-          duration = Double.parseDouble(timeAttr) * 1000;
-        } catch (NumberFormatException e) {
-          // Ignore
-        }
-      }
+      return XmlParserUtils.parseDurationSecToMs((Element) parentNode);
     }
-    return duration;
+    return 0.0;
   }
 
   private static String readTestLogs(Node failureOrError) {
@@ -154,31 +144,7 @@ public final class SurefireParser {
     if (!(testCase instanceof Element)) {
       return null;
     }
-    Element testCaseElement = (Element) testCase;
-    String testName = testCaseElement.getAttribute("name");
-    String className = testCaseElement.getAttribute("classname");
-    StringBuilder logs = new StringBuilder();
-    NodeList children = testCaseElement.getChildNodes();
-    for (int i = 0; i < children.getLength(); i++) {
-      Node child = children.item(i);
-      if ("system-out".equals(child.getNodeName()) || "system-err".equals(child.getNodeName())) {
-        String content = child.getTextContent();
-        if (content != null && !content.trim().isEmpty()) {
-          if (logs.length() > 0) {
-            logs.append("\n");
-          }
-          logs.append("[")
-              .append(child.getNodeName())
-              .append(" for ")
-              .append(className)
-              .append("#")
-              .append(testName)
-              .append("]\n")
-              .append(content);
-        }
-      }
-    }
-    return logs.length() > 0 ? logs.toString() : null;
+    return TestLogReader.read((Element) testCase, false, "[%s for %s#%s]");
   }
 
   private static BuildError parseError(
@@ -202,7 +168,7 @@ public final class SurefireParser {
       boolean hasJavaFile = l.contains(".java:");
       boolean hasGroovyFile = l.contains(".groovy:");
       if ((hasJavaFile || hasGroovyFile)
-          && !isFrameworkFrame(l, stackFrameWhitelist, stackFrameBlacklist)) {
+          && !StackTraceCompressor.isFrameworkFrame(l, stackFrameWhitelist, stackFrameBlacklist)) {
         if (firstProjectFrame == null) {
           firstProjectFrame = l;
         }
@@ -272,57 +238,6 @@ public final class SurefireParser {
         stackTrace,
         duration,
         testLogs);
-  }
-
-  private static boolean isFrameworkFrame(
-      String line, List<String> stackFrameWhitelist, List<String> stackFrameBlacklist) {
-    String trimmed = line.trim();
-    if (!trimmed.startsWith("at ")) {
-      return false;
-    }
-
-    // Explicit inclusion overrides framework detection
-    if (stackFrameWhitelist != null) {
-      for (String pkg : stackFrameWhitelist) {
-        if (trimmed.contains("at " + pkg)) {
-          return false; // It's not a framework frame (we want to keep it)
-        }
-      }
-    }
-
-    // Explicit exclusion - if in blacklist, treat as framework frame (filter it)
-    if (stackFrameBlacklist != null) {
-      for (String pkg : stackFrameBlacklist) {
-        if (trimmed.contains("at " + pkg)) {
-          return true; // Treat as framework frame to filter it out
-        }
-      }
-    }
-
-    String[] frameworkPrefixes = {
-      "org.junit.",
-      "org.opentest4j.",
-      "java.",
-      "javax.",
-      "sun.",
-      "com.sun.",
-      "jdk.",
-      "org.apache.maven.",
-      "org.gradle.",
-      "org.springframework.",
-      "org.hibernate.",
-      "io.projectreactor.",
-      "reactor.core.",
-      "io.micronaut.",
-      "io.netty."
-    };
-
-    for (String prefix : frameworkPrefixes) {
-      if (trimmed.contains("at " + prefix)) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private SurefireParser() {}

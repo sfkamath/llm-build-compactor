@@ -35,7 +35,7 @@ public class BuildError {
   }
 
   public BuildError(String type, String file, int line, String message, String stackTrace) {
-    this(type, file, Collections.singletonList(line), message, stackTrace, 0.0, null);
+    this(type, file, toLinesList(line), message, stackTrace, 0.0, null);
   }
 
   public BuildError(
@@ -46,7 +46,11 @@ public class BuildError {
       String stackTrace,
       double testDuration,
       String testLogs) {
-    this(type, file, Collections.singletonList(line), message, stackTrace, testDuration, testLogs);
+    this(type, file, toLinesList(line), message, stackTrace, testDuration, testLogs);
+  }
+
+  private static List<Integer> toLinesList(int line) {
+    return line >= 0 ? Collections.singletonList(line) : Collections.emptyList();
   }
 
   @JsonIgnore

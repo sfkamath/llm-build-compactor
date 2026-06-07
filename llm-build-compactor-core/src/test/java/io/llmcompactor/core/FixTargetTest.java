@@ -51,6 +51,15 @@ class FixTargetTest {
   }
 
   @Test
+  void equalsHandlesEdgeCases() {
+    FixTarget target = new FixTarget("File.java", 5, "Reason", "snippet");
+
+    assertThat(target.equals(target)).isTrue();
+    assertThat(target.equals(null)).isFalse();
+    assertThat(target.equals("wrong type")).isFalse();
+  }
+
+  @Test
   void shouldToString() {
     FixTarget target = new FixTarget("File.java", 5, "Reason", null);
 

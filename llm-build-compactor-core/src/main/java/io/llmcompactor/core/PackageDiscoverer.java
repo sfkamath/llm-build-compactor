@@ -35,5 +35,27 @@ public final class PackageDiscoverer {
     return packages;
   }
 
+  /**
+   * Resolves a package and file name back to a physical source path using provided source roots.
+   *
+   * @param packageName the package name (e.g., "io.llmcompactor.core")
+   * @param fileName the source file name (e.g., "PackageDiscoverer.java")
+   * @param roots the list of source roots to search (e.g., ["src/main/java", "src/test/java"])
+   * @return the absolute path to the source file, or null if not found
+   */
+  public static String resolveSourceFile(String packageName, String fileName, List<Path> roots) {
+    if (packageName == null || fileName == null || roots == null) {
+      return null;
+    }
+    String relativePath = packageName.replace('.', File.separatorChar) + File.separator + fileName;
+    for (Path root : roots) {
+      Path filePath = root.resolve(relativePath);
+      if (Files.exists(filePath)) {
+        return filePath.toString();
+      }
+    }
+    return null;
+  }
+
   private PackageDiscoverer() {}
 }

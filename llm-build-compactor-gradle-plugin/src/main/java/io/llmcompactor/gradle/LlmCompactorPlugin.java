@@ -4,6 +4,7 @@ import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.CompactorConfig;
 import io.llmcompactor.core.CompactorDefaults;
+import io.llmcompactor.core.DefaultCompactorConfig;
 import io.llmcompactor.core.PackageDiscoverer;
 import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
@@ -11,6 +12,7 @@ import io.llmcompactor.core.extract.CompilationErrorExtractor;
 import io.llmcompactor.core.parser.GradleParser;
 import io.llmcompactor.core.parser.ParserUtils;
 import io.llmcompactor.core.parser.TestResultAggregator;
+import io.llmcompactor.core.util.ConfigAccessor;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -552,17 +554,20 @@ public class LlmCompactorPlugin implements Plugin<Project> {
       Project project, LlmCompactorExtension extension, long sessionStartTime) {
     CompactorConfig config = toConfig(extension).resolved();
 
-    List<String> whitelist = new ArrayList<>(config.stackFrameWhitelist());
+    List<List<String>> scanResults = new ArrayList<>();
     for (Project p : project.getAllprojects()) {
-      whitelist.addAll(scanProjectPackages(p));
+      scanResults.add(scanProjectPackages(p));
     }
+    List<String> whitelist =
+        DefaultCompactorConfig.mergeWhitelist(config.stackFrameWhitelist(), scanResults);
     List<String> blacklist = config.stackFrameBlacklist();
 
-    List<String> stringLogLines =
+    String fullOutput =
         logLines.stream()
             .map(line -> CompilationErrorExtractor.stripAnsi(line.toString()))
-            .collect(Collectors.toList());
-    List<BuildError> compilationErrors = CompilationErrorExtractor.extract(stringLogLines);
+            .collect(Collectors.joining("\n"));
+    List<BuildError> compilationErrors =
+        CompilationErrorExtractor.extractOrWrap(fullOutput, "build.gradle");
 
     TestResultAggregator testResults = new TestResultAggregator();
     for (Project p : project.getAllprojects()) {
@@ -613,79 +618,22 @@ public class LlmCompactorPlugin implements Plugin<Project> {
   }
 
   private static CompactorConfig toConfig(LlmCompactorExtension ext) {
-    final boolean enabled = Boolean.TRUE.equals(ext.getEnabled().get());
-    final String outputPath = ext.getOutputPath().getOrNull();
-    final String mode = ext.getMode().getOrNull();
-    final boolean outputAsJson = ext.getOutputAsJson().get();
-    final boolean compressStackFrames = ext.getCompressStackFrames().get();
-    final boolean showFixTargets = ext.getShowFixTargets().get();
-    final boolean showRecentChanges = ext.getShowRecentChanges().get();
-    final boolean showSlowTests = Boolean.TRUE.equals(ext.getShowSlowTests().get());
-    final boolean showTotalDuration = Boolean.TRUE.equals(ext.getShowTotalDuration().get());
-    final boolean showDurationReport = Boolean.TRUE.equals(ext.getShowDurationReport().get());
-    final boolean showFailedTestLogs = ext.getShowFailedTestLogs().get();
-    final double testDurationThresholdMs = ext.getTestDurationThresholdMs().get();
-    final List<String> whitelist =
-        new ArrayList<>(ext.getStackFrameWhitelist().getOrElse(Collections.emptyList()));
-    final List<String> blacklist =
-        new ArrayList<>(ext.getStackFrameBlacklist().getOrElse(Collections.emptyList()));
-    return new CompactorConfig() {
-      public boolean enabled() {
-        return enabled;
-      }
-
-      public String outputPath() {
-        return outputPath;
-      }
-
-      public String mode() {
-        return mode;
-      }
-
-      public boolean outputAsJson() {
-        return outputAsJson;
-      }
-
-      public boolean compressStackFrames() {
-        return compressStackFrames;
-      }
-
-      public boolean showFixTargets() {
-        return showFixTargets;
-      }
-
-      public boolean showRecentChanges() {
-        return showRecentChanges;
-      }
-
-      public boolean showSlowTests() {
-        return showSlowTests;
-      }
-
-      public boolean showTotalDuration() {
-        return showTotalDuration;
-      }
-
-      public boolean showDurationReport() {
-        return showDurationReport;
-      }
-
-      public boolean showFailedTestLogs() {
-        return showFailedTestLogs;
-      }
-
-      public double testDurationThresholdMs() {
-        return testDurationThresholdMs;
-      }
-
-      public List<String> stackFrameWhitelist() {
-        return whitelist;
-      }
-
-      public List<String> stackFrameBlacklist() {
-        return blacklist;
-      }
-    };
+    return DefaultCompactorConfig.builder()
+        .enabled(Boolean.TRUE.equals(ext.getEnabled().get()))
+        .outputPath(ext.getOutputPath().getOrNull())
+        .mode(ext.getMode().getOrNull())
+        .outputAsJson(ext.getOutputAsJson().get())
+        .compressStackFrames(ext.getCompressStackFrames().get())
+        .showFixTargets(ext.getShowFixTargets().get())
+        .showRecentChanges(ext.getShowRecentChanges().get())
+        .showSlowTests(Boolean.TRUE.equals(ext.getShowSlowTests().get()))
+        .showTotalDuration(Boolean.TRUE.equals(ext.getShowTotalDuration().get()))
+        .showDurationReport(Boolean.TRUE.equals(ext.getShowDurationReport().get()))
+        .showFailedTestLogs(ext.getShowFailedTestLogs().get())
+        .testDurationThresholdMs(ext.getTestDurationThresholdMs().get())
+        .stackFrameWhitelist(ext.getStackFrameWhitelist().getOrElse(Collections.emptyList()))
+        .stackFrameBlacklist(ext.getStackFrameBlacklist().getOrElse(Collections.emptyList()))
+        .build();
   }
 
   private void applyQuietTaskLogging(Task task) {
@@ -757,7 +705,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     return providers
         .gradleProperty("llmCompactor." + name)
         .orElse(providers.systemProperty("llmCompactor." + name))
-        .map(Boolean::parseBoolean)
+        .map(v -> ConfigAccessor.parseBoolean(v))
         .orElse(defaultValue);
   }
 
@@ -766,7 +714,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     return providers
         .gradleProperty("llmCompactor." + name)
         .orElse(providers.systemProperty("llmCompactor." + name))
-        .map(Double::parseDouble)
+        .map(v -> ConfigAccessor.parseDouble(v, defaultValue))
         .orElse(defaultValue);
   }
 

@@ -57,20 +57,11 @@ public final class GradleParser {
                     // In Gradle, the test case name and class are in the parent element
                     Element testCase = (Element) node.getParentNode();
                     String className = testCase.getAttribute("classname");
-                    String timeAttr = testCase.getAttribute("time");
-                    double duration = 0.0;
-                    if (!timeAttr.isEmpty()) {
-                      try {
-                        // JUnit XML time attribute is in seconds; convert to milliseconds
-                        duration = Double.parseDouble(timeAttr) * 1000;
-                      } catch (NumberFormatException e) {
-                        // Ignore
-                      }
-                    }
+                    double duration = XmlParserUtils.parseDurationSecToMs(testCase);
 
                     String testLogs = null;
                     if (showFailedTestLogs) {
-                      testLogs = readTestLogs(testCase);
+                      testLogs = TestLogReader.read(testCase, true, "[%s]");
                     }
 
                     String sourceFile = null;
@@ -149,35 +140,6 @@ public final class GradleParser {
     }
 
     return new TestResult(totalTests.get(), testFailures.get(), failures, allDurations, slowTests);
-  }
-
-  private static String readTestLogs(Element testCase) {
-    StringBuilder logs = new StringBuilder();
-    appendOutputNodes(testCase.getChildNodes(), logs);
-    // Gradle places system-out/system-err at the suite level, not per testcase.
-    // Fall back to suite output when no testcase-level output is present.
-    if (logs.length() == 0) {
-      Node parent = testCase.getParentNode();
-      if (parent instanceof Element) {
-        appendOutputNodes(parent.getChildNodes(), logs);
-      }
-    }
-    return logs.length() > 0 ? logs.toString() : null;
-  }
-
-  private static void appendOutputNodes(NodeList nodes, StringBuilder logs) {
-    for (int i = 0; i < nodes.getLength(); i++) {
-      Node child = nodes.item(i);
-      if ("system-out".equals(child.getNodeName()) || "system-err".equals(child.getNodeName())) {
-        String content = child.getTextContent();
-        if (content != null && !content.trim().isEmpty()) {
-          if (logs.length() > 0) {
-            logs.append("\n");
-          }
-          logs.append("[").append(child.getNodeName()).append("]\n").append(content);
-        }
-      }
-    }
   }
 
   private GradleParser() {}

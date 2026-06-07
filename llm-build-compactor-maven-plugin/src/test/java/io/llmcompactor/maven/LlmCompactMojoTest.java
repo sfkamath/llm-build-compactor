@@ -1,6 +1,5 @@
 package io.llmcompactor.maven;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import java.lang.reflect.Field;
@@ -37,13 +36,6 @@ class LlmCompactMojoTest {
     LlmCompactMojo mojo = new LlmCompactMojo();
     setField(mojo, "enabled", true);
     assertThatCode(mojo::execute).doesNotThrowAnyException();
-  }
-
-  @Test
-  void modeEnumContainsExpectedValues() {
-    assertThat(LlmCompactMojo.Mode.values())
-        .extracting(Enum::name)
-        .containsExactlyInAnyOrder("agent", "debug", "human");
   }
 
   private static void setField(Object target, String name, Object value) throws Exception {

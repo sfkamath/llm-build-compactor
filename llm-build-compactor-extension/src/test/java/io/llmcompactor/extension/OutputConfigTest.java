@@ -10,7 +10,7 @@ class OutputConfigTest {
 
   @Test
   void defaultsMatchCompactorDefaults() {
-    OutputConfig config = OutputConfig.resolve(new PropertyResolver(null, null));
+    CompactorConfig config = OutputConfig.resolve(new PropertyResolver(null, null));
     assertThat(config.outputAsJson()).isEqualTo(CompactorConfig.DEFAULT_OUTPUT_AS_JSON);
     assertThat(config.compressStackFrames())
         .isEqualTo(CompactorConfig.DEFAULT_COMPRESS_STACK_FRAMES);
@@ -60,7 +60,7 @@ class OutputConfigTest {
   void propOverridesDefaultWhenNoMode() {
     Properties props = new Properties();
     props.setProperty("llmCompactor.outputAsJson", "false");
-    OutputConfig config = OutputConfig.resolve(new PropertyResolver(null, props));
+    CompactorConfig config = OutputConfig.resolve(new PropertyResolver(null, props));
     assertThat(config.outputAsJson()).isFalse();
   }
 }

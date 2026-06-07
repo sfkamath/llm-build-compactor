@@ -10,6 +10,7 @@
  */
 package io.llmcompactor.extension;
 
+import io.llmcompactor.core.util.ConfigAccessor;
 import java.util.Properties;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.model.Plugin;
@@ -74,16 +75,11 @@ final class PropertyResolver {
   }
 
   boolean getBoolean(String key, boolean defaultValue) {
-    return "true".equalsIgnoreCase(getString(key, String.valueOf(defaultValue)));
+    return ConfigAccessor.parseBoolean(getString(key, null), defaultValue);
   }
 
   double getDouble(String key, double defaultValue) {
-    String value = getString(key, String.valueOf(defaultValue));
-    try {
-      return Double.parseDouble(value);
-    } catch (NumberFormatException e) {
-      return defaultValue;
-    }
+    return ConfigAccessor.parseDouble(getString(key, null), defaultValue);
   }
 
   // -------------------------------------------------------------------------
