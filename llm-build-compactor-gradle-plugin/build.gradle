@@ -18,7 +18,7 @@ repositories {
 
 dependencies {
     implementation "io.github.sfkamath:llm-build-compactor-core:${version}"
-    compileOnly 'com.fasterxml.jackson.core:jackson-databind:2.21.4'
+    compileOnly "com.fasterxml.jackson.core:jackson-databind:${rootProps['jacksonVersion']}"
 }
 
 gradlePlugin {
