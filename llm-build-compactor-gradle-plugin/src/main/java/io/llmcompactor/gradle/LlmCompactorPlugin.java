@@ -178,21 +178,20 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     LlmCompactorExtension extension =
         project.getExtensions().create("llmCompactor", LlmCompactorExtension.class);
 
-    // Read enabled from system property or gradle property; llmce is an alias for enabled=false
-    boolean llmceAlias =
+    // llmce is a kill-switch alias; llmCompactor.enabled=false also disables
+    boolean llmcePresent =
         System.getProperty("llmce") != null
             || project.getProviders().gradleProperty("llmce").isPresent();
-    String sysProp = System.getProperty("llmCompactor.enabled");
-    Boolean enabledValue =
-        llmceAlias
-            ? false
-            : sysProp != null
-                ? Boolean.parseBoolean(sysProp)
-                : project.getProviders().gradleProperty("llmCompactor.enabled").isPresent()
-                    ? Boolean.parseBoolean(
-                        project.getProviders().gradleProperty("llmCompactor.enabled").get())
-                    : true;
-    project.getLogger().debug("[LLM Compactor] sysProp={} enabledValue={}", sysProp, enabledValue);
+    String enabledProp =
+        System.getProperty("llmCompactor.enabled") != null
+            ? System.getProperty("llmCompactor.enabled")
+            : project.getProviders().gradleProperty("llmCompactor.enabled").isPresent()
+                ? project.getProviders().gradleProperty("llmCompactor.enabled").get()
+                : null;
+    boolean enabledValue = CompactorDefaults.resolveEnabled(llmcePresent, enabledProp);
+    project
+        .getLogger()
+        .debug("[LLM Compactor] llmcePresent={} enabledValue={}", llmcePresent, enabledValue);
     extension.getEnabled().set(enabledValue);
 
     // Bind extension properties to gradle properties with defaults

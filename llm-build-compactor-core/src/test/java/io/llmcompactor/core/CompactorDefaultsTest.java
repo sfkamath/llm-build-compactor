@@ -38,4 +38,25 @@ class CompactorDefaultsTest {
     // Verify the class cannot be instantiated via reflection
     assertThat(CompactorDefaults.class.getDeclaredConstructors().length).isEqualTo(1);
   }
+
+  @Test
+  void resolveEnabledReturnsTrueWhenNeitherFlagSet() {
+    assertThat(CompactorDefaults.resolveEnabled(false, null)).isTrue();
+    assertThat(CompactorDefaults.resolveEnabled(false, "true")).isTrue();
+    assertThat(CompactorDefaults.resolveEnabled(false, "TRUE")).isTrue();
+  }
+
+  @Test
+  void resolveEnabledReturnsFalseWhenLlmcePresent() {
+    assertThat(CompactorDefaults.resolveEnabled(true, null)).isFalse();
+    assertThat(CompactorDefaults.resolveEnabled(true, "true")).isFalse();
+    assertThat(CompactorDefaults.resolveEnabled(true, "false")).isFalse();
+  }
+
+  @Test
+  void resolveEnabledReturnsFalseWhenEnabledPropertyIsFalse() {
+    assertThat(CompactorDefaults.resolveEnabled(false, "false")).isFalse();
+    assertThat(CompactorDefaults.resolveEnabled(false, "FALSE")).isFalse();
+    assertThat(CompactorDefaults.resolveEnabled(false, "False")).isFalse();
+  }
 }

@@ -40,7 +40,8 @@ public final class CompilationErrorExtractor {
     }
     String clean = stripAnsi(output);
     return Collections.singletonList(
-        new BuildError("COMPILATION_ERROR", fallbackFile, 1, ParserUtils.extractFirstLine(clean), clean));
+        new BuildError(
+            "COMPILATION_ERROR", fallbackFile, 1, ParserUtils.extractFirstLine(clean), clean));
   }
 
   public static List<BuildError> extract(List<String> logs) {

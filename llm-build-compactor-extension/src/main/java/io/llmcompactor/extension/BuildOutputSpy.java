@@ -306,10 +306,9 @@ public class BuildOutputSpy extends AbstractEventSpy {
     MavenProject topProject = session != null ? session.getTopLevelProject() : null;
     Properties props = topProject != null ? topProject.getProperties() : new Properties();
     PropertyResolver resolver = new PropertyResolver(session, props);
-    if (resolver.getString("llmce", null) != null) {
-      return true;
-    }
-    return "false".equalsIgnoreCase(resolver.getString("llmCompactor.enabled", "true"));
+    boolean llmcePresent = resolver.getString("llmce", null) != null;
+    String enabledValue = resolver.getString("llmCompactor.enabled", null);
+    return !CompactorDefaults.resolveEnabled(llmcePresent, enabledValue);
   }
 
   private boolean isInteractiveGoal(MavenSession session) {

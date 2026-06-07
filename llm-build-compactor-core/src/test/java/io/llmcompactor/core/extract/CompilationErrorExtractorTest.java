@@ -108,8 +108,7 @@ class CompilationErrorExtractorTest {
 
   @Test
   void extractOrWrapReturnsExtractedErrorsWhenPresent() {
-    String output =
-        "[ERROR] /path/to/Foo.java:[10,5] error: cannot find symbol\n[INFO] 1 error";
+    String output = "[ERROR] /path/to/Foo.java:[10,5] error: cannot find symbol\n[INFO] 1 error";
     List<BuildError> result = CompilationErrorExtractor.extractOrWrap(output, "pom.xml");
     assertThat(result).hasSize(1);
     assertThat(result.get(0).file()).isEqualTo("/path/to/Foo.java");

@@ -74,6 +74,20 @@ public final class CompactorDefaults {
   // Utilities
   // ========================================================================
 
+  /**
+   * Returns {@code true} when the compactor should run.
+   *
+   * <p>{@code llmcePresent} — any source found the {@code llmce} kill-switch property. {@code
+   * enabledPropertyValue} — raw string value of {@code llmCompactor.enabled}, or {@code null} if
+   * not set (treated as enabled).
+   */
+  public static boolean resolveEnabled(boolean llmcePresent, String enabledPropertyValue) {
+    if (llmcePresent) {
+      return false;
+    }
+    return !"false".equalsIgnoreCase(enabledPropertyValue);
+  }
+
   /** Returns a {@link PrintStream} that silently discards all output. */
   public static PrintStream nullPrintStream() {
     OutputStream nullOut =

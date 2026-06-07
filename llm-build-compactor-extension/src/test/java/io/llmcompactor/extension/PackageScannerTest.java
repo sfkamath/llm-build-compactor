@@ -32,7 +32,7 @@ class PackageScannerTest {
 
   @Test
   void discoversMultiplePackages(@TempDir Path tmpDir) throws IOException {
-    for (String pkg : new String[] {"com.example.a", "com.example.b"}) {
+    for (String pkg : new String[]{"com.example.a", "com.example.b"}) {
       Path dir = tmpDir.resolve(pkg.replace('.', '/'));
       Files.createDirectories(dir);
       Files.createFile(dir.resolve("X.java"));

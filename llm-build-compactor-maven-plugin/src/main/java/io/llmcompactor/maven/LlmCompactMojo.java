@@ -1,6 +1,7 @@
 package io.llmcompactor.maven;
 
 import io.llmcompactor.core.BuildSummary;
+import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.ModePreset;
 import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
@@ -107,24 +108,21 @@ public class LlmCompactMojo extends AbstractMojo {
 
   public void execute() throws MojoExecutionException {
 
-    // Check system/user properties (handles -Dllmce, -DllmCompactor.enabled=false)
-    if (session != null && session.getUserProperties().getProperty("llmce") != null
-        || System.getProperty("llmce") != null) {
-      enabled = false;
-    }
-    // Also check project <properties> (handles <llmCompactor.enabled>false</llmCompactor.enabled>
-    // in pom.xml) — @Parameter only reads from system/user properties, not project properties
-    if (session != null && session.getCurrentProject() != null) {
-      Properties projectProps = session.getCurrentProject().getProperties();
-      if (projectProps.getProperty("llmce") != null) {
-        enabled = false;
-      }
-      String fromProject = projectProps.getProperty("llmCompactor.enabled");
-      if ("false".equalsIgnoreCase(fromProject)) {
-        enabled = false;
-      }
-    }
-    if (!enabled) {
+    // @Parameter already applied system/user props to `enabled`; supplement with project
+    // properties which @Parameter does not read (e.g. <llmCompactor.enabled> in pom.xml)
+    Properties projectProps =
+        session != null && session.getCurrentProject() != null
+            ? session.getCurrentProject().getProperties()
+            : new Properties();
+    boolean llmcePresent =
+        (session != null && session.getUserProperties().getProperty("llmce") != null)
+            || System.getProperty("llmce") != null
+            || projectProps.getProperty("llmce") != null;
+    String enabledValue =
+        projectProps.containsKey("llmCompactor.enabled")
+            ? projectProps.getProperty("llmCompactor.enabled")
+            : String.valueOf(enabled);
+    if (!CompactorDefaults.resolveEnabled(llmcePresent, enabledValue)) {
       return;
     }
 

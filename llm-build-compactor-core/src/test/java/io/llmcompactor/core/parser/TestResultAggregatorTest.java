@@ -59,9 +59,11 @@ class TestResultAggregatorTest {
   @Test
   void durationsAccumulate() {
     TestResult r1 =
-        new TestResult(1, 0, Collections.emptyList(), Arrays.asList(100.0, 200.0), Collections.emptyList());
+        new TestResult(
+            1, 0, Collections.emptyList(), Arrays.asList(100.0, 200.0), Collections.emptyList());
     TestResult r2 =
-        new TestResult(1, 0, Collections.emptyList(), Arrays.asList(300.0), Collections.emptyList());
+        new TestResult(
+            1, 0, Collections.emptyList(), Arrays.asList(300.0), Collections.emptyList());
     TestResultAggregator agg = new TestResultAggregator();
     agg.add(r1);
     agg.add(r2);
@@ -73,9 +75,11 @@ class TestResultAggregatorTest {
     SlowTest s1 = new SlowTest("A", "test1", 500.0);
     SlowTest s2 = new SlowTest("B", "test2", 600.0);
     TestResult r1 =
-        new TestResult(1, 0, Collections.emptyList(), Collections.emptyList(), Collections.singletonList(s1));
+        new TestResult(
+            1, 0, Collections.emptyList(), Collections.emptyList(), Collections.singletonList(s1));
     TestResult r2 =
-        new TestResult(1, 0, Collections.emptyList(), Collections.emptyList(), Collections.singletonList(s2));
+        new TestResult(
+            1, 0, Collections.emptyList(), Collections.emptyList(), Collections.singletonList(s2));
     TestResultAggregator agg = new TestResultAggregator();
     agg.add(r1);
     agg.add(r2);
