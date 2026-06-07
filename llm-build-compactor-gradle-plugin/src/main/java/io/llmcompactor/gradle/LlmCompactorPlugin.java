@@ -4,15 +4,11 @@ import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.ModePreset;
-import io.llmcompactor.core.parser.ParserUtils;
-import io.llmcompactor.core.CompactorDefaults;
-import io.llmcompactor.core.FixTarget;
-import io.llmcompactor.core.SlowTest;
+import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
-import io.llmcompactor.core.extract.FixTargetGenerator;
-import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.GradleParser;
+import io.llmcompactor.core.parser.ParserUtils;
 import io.llmcompactor.core.parser.TestResult;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -27,7 +23,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -627,18 +622,12 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
   private void emitSummary(
       Project project, LlmCompactorExtension extension, long sessionStartTime) {
-    // Apply mode preset if specified (overrides individual flags)
     ModePreset preset = ModePreset.from(extension.getMode().getOrNull());
     boolean outputAsJson = preset.overrideOutputAsJson(extension.getOutputAsJson().get());
     boolean showFixTargets = preset.overrideShowFixTargets(extension.getShowFixTargets().get());
-    boolean showFailedTestLogs = preset.overrideShowFailedTestLogs(extension.getShowFailedTestLogs().get());
+    boolean showFailedTestLogs =
+        preset.overrideShowFailedTestLogs(extension.getShowFailedTestLogs().get());
     boolean showRecentChanges = extension.getShowRecentChanges().get();
-
-    List<BuildError> allErrors = new ArrayList<>();
-    List<Double> allDurations = new ArrayList<>();
-    List<SlowTest> allSlowTests = new ArrayList<>();
-    int totalTestsRun = 0;
-    int totalTestFailures = 0;
 
     List<String> stackFrameWhitelist =
         new ArrayList<>(extension.getStackFrameWhitelist().getOrElse(Collections.emptyList()));
@@ -652,9 +641,19 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         logLines.stream()
             .map(line -> CompilationErrorExtractor.stripAnsi(line.toString()))
             .collect(Collectors.toList());
-
     List<BuildError> compilationErrors = CompilationErrorExtractor.extract(stringLogLines);
-    allErrors.addAll(compilationErrors);
+
+    SummaryBuilder builder =
+        new SummaryBuilder()
+            .addErrors(compilationErrors)
+            .withBuildFailed(buildFailed.get())
+            .withSessionStartTime(sessionStartTime)
+            .withShowFixTargets(showFixTargets)
+            .withShowRecentChanges(showRecentChanges)
+            .withShowTotalDuration(Boolean.TRUE.equals(extension.getShowTotalDuration().get()))
+            .withShowDurationReport(Boolean.TRUE.equals(extension.getShowDurationReport().get()))
+            .withShowSlowTests(Boolean.TRUE.equals(extension.getShowSlowTests().get()))
+            .withTestDurationThresholdMs(extension.getTestDurationThresholdMs().get());
 
     for (Project p : project.getAllprojects()) {
       try {
@@ -669,53 +668,19 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                   stackFrameBlacklist,
                   sessionStartTime,
                   showFailedTestLogs);
-          totalTestsRun += result.testsRun();
-          totalTestFailures += result.failures();
-          allErrors.addAll(result.errors());
-          allDurations.addAll(result.allDurations());
-          allSlowTests.addAll(result.slowTests());
+          builder
+              .addErrors(result.errors())
+              .addDurations(result.allDurations())
+              .addSlowTests(result.slowTests())
+              .withTestsRun(result.testsRun())
+              .withFailures(result.failures());
         }
       } catch (Exception e) {
         // Ignore
       }
     }
 
-    Long totalBuildDurationMs = null;
-    if (Boolean.TRUE.equals(extension.getShowTotalDuration().get())) {
-      totalBuildDurationMs = System.currentTimeMillis() - sessionStartTime;
-    }
-
-    Map<String, Double> testDurationPercentiles = null;
-    if (Boolean.TRUE.equals(extension.getShowDurationReport().get()) && !allDurations.isEmpty()) {
-      testDurationPercentiles = BuildSummary.computePercentiles(allDurations);
-    }
-
-    allErrors = BuildSummary.aggregateErrors(allErrors);
-
-    List<FixTarget> targets =
-        showFixTargets ? FixTargetGenerator.generate(allErrors) : Collections.emptyList();
-
-    List<String> recentChanges =
-        showRecentChanges ? GitDiffExtractor.changedFiles() : Collections.emptyList();
-
-    boolean showSlowTestsValue = Boolean.TRUE.equals(extension.getShowSlowTests().get());
-    double thresholdMs = extension.getTestDurationThresholdMs().get();
-    List<SlowTest> slowTestList =
-        showSlowTestsValue
-            ? BuildSummary.filterSlowTests(allSlowTests, thresholdMs)
-            : Collections.<SlowTest>emptyList();
-
-    BuildSummary summary =
-        new BuildSummary(
-            allErrors.isEmpty() && !buildFailed.get() ? "SUCCESS" : "FAILED",
-            totalTestsRun,
-            totalTestFailures,
-            allErrors,
-            targets,
-            recentChanges,
-            totalBuildDurationMs,
-            testDurationPercentiles,
-            slowTestList);
+    BuildSummary summary = builder.build();
 
     if (extension.getOutputPath().isPresent()) {
       SummaryWriter.write(summary, Paths.get(extension.getOutputPath().get()));

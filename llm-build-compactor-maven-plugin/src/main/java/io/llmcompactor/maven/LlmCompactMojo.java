@@ -1,24 +1,17 @@
 package io.llmcompactor.maven;
 
-import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
-import io.llmcompactor.core.FixTarget;
-import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.ModePreset;
+import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.parser.ParserUtils;
-import io.llmcompactor.core.extract.FixTargetGenerator;
-import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResult;
 import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
@@ -149,7 +142,6 @@ public class LlmCompactMojo extends AbstractMojo {
     List<String> stackFrameWhitelistList = ParserUtils.splitCsv(stackFrameWhitelist);
     List<String> stackFrameBlacklistList = ParserUtils.splitCsv(stackFrameBlacklist);
 
-    // Parse test results from existing reports
     long sessionStartTime =
         session != null && session.getStartTime() != null ? session.getStartTime().getTime() : 0L;
     Path targetDir = buildDirectory != null ? buildDirectory.toPath() : Paths.get("target");
@@ -161,54 +153,25 @@ public class LlmCompactMojo extends AbstractMojo {
             stackFrameBlacklistList,
             sessionStartTime,
             showFailedTestLogs);
-    List<BuildError> testFailures = testResult.errors();
-    List<Double> allDurations = testResult.allDurations();
-    List<SlowTest> slowTestList =
-        showSlowTests
-            ? BuildSummary.filterSlowTests(testResult.slowTests(), testDurationThresholdMs)
-            : Collections.<SlowTest>emptyList();
-
-    // Get compilation errors (currently empty, can be populated from EventSpy)
-    List<BuildError> compileErrors = new ArrayList<>();
-
-    List<BuildError> allErrors = new ArrayList<>();
-    allErrors.addAll(compileErrors);
-    allErrors.addAll(testFailures);
-
-    allErrors = BuildSummary.aggregateErrors(allErrors);
-
-    List<FixTarget> targets =
-        showFixTargets
-            ? FixTargetGenerator.generate(allErrors)
-            : Collections.<FixTarget>emptyList();
-
-    List<String> recentChanges =
-        showRecentChanges ? GitDiffExtractor.changedFiles() : Collections.<String>emptyList();
-
-    Long totalBuildDurationMs = null;
-    if (showTotalDuration) {
-      // Mojo doesn't have session start time, use 0 as fallback or estimate
-      totalBuildDurationMs = 0L;
-    }
-
-    Map<String, Double> testDurationPercentiles = null;
-    if (showDurationReport && !allDurations.isEmpty()) {
-      testDurationPercentiles = BuildSummary.computePercentiles(allDurations);
-    }
 
     boolean sessionHasErrors =
         session != null && session.getResult() != null && session.getResult().hasExceptions();
     BuildSummary summary =
-        new BuildSummary(
-            allErrors.isEmpty() && !sessionHasErrors ? "SUCCESS" : "FAILED",
-            testResult.testsRun(),
-            testResult.failures(),
-            allErrors,
-            targets,
-            recentChanges,
-            totalBuildDurationMs,
-            testDurationPercentiles,
-            slowTestList);
+        new SummaryBuilder()
+            .addErrors(testResult.errors())
+            .addDurations(testResult.allDurations())
+            .addSlowTests(testResult.slowTests())
+            .withTestsRun(testResult.testsRun())
+            .withFailures(testResult.failures())
+            .withBuildFailed(sessionHasErrors)
+            .withSessionStartTime(sessionStartTime)
+            .withShowFixTargets(showFixTargets)
+            .withShowRecentChanges(showRecentChanges)
+            .withShowTotalDuration(showTotalDuration)
+            .withShowDurationReport(showDurationReport)
+            .withShowSlowTests(showSlowTests)
+            .withTestDurationThresholdMs(testDurationThresholdMs)
+            .build();
 
     Path resolvedOutputPath = Paths.get(outputPath);
     if (!resolvedOutputPath.isAbsolute() && basedir != null) {

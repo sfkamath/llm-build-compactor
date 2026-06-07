@@ -129,5 +129,4 @@ final class TestResultCollector {
     MavenProject top = session.getTopLevelProject();
     return new PropertyResolver(session, top != null ? top.getProperties() : null);
   }
-
 }

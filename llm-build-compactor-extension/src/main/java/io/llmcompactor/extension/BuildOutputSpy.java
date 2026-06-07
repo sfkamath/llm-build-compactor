@@ -12,14 +12,11 @@ package io.llmcompactor.extension;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.llmcompactor.core.BuildError;
-import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.BuildSummary;
-import io.llmcompactor.core.FixTarget;
-import io.llmcompactor.core.SlowTest;
+import io.llmcompactor.core.CompactorDefaults;
+import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
-import io.llmcompactor.core.extract.FixTargetGenerator;
-import io.llmcompactor.core.git.GitDiffExtractor;
 import io.llmcompactor.core.parser.ParserUtils;
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
@@ -29,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 import javax.inject.Inject;
 import javax.inject.Named;
@@ -222,7 +218,8 @@ public class BuildOutputSpy extends AbstractEventSpy {
     String file =
         project != null && project.getFile() != null ? project.getFile().getPath() : "pom.xml";
     String cleanOutput = CompilationErrorExtractor.stripAnsi(output);
-    return new BuildError("COMPILATION_ERROR", file, 1, ParserUtils.extractFirstLine(cleanOutput), cleanOutput);
+    return new BuildError(
+        "COMPILATION_ERROR", file, 1, ParserUtils.extractFirstLine(cleanOutput), cleanOutput);
   }
 
   private String extractFailureOutput(ExecutionEvent ee) {
@@ -267,60 +264,28 @@ public class BuildOutputSpy extends AbstractEventSpy {
     TestResultCollector collector = new TestResultCollector();
     collector.collectFrom(session, config, sessionStartTime);
 
-    List<BuildError> allErrors = mergeErrors(collector);
-    BuildSummary summary = buildSummary(config, collector, allErrors, sessionStartTime);
+    List<BuildError> allErrors = new ArrayList<>(compileErrors);
+    allErrors.addAll(collector.errors());
+
+    BuildSummary summary =
+        new SummaryBuilder()
+            .addErrors(allErrors)
+            .addDurations(collector.durations())
+            .addSlowTests(collector.slowTests())
+            .withTestsRun(collector.testsRun())
+            .withFailures(collector.failures())
+            .withBuildFailed(buildFailed)
+            .withSessionStartTime(sessionStartTime)
+            .withShowFixTargets(config.showFixTargets)
+            .withShowRecentChanges(config.showRecentChanges)
+            .withShowTotalDuration(config.showTotalDuration)
+            .withShowDurationReport(config.showDurationReport)
+            .withShowSlowTests(config.showSlowTests)
+            .withTestDurationThresholdMs(config.testDurationThresholdMs)
+            .build();
 
     writeToOutputPath(props, summary);
     printSummary(config, summary);
-  }
-
-  private List<BuildError> mergeErrors(TestResultCollector collector) {
-    List<BuildError> all = new ArrayList<>(compileErrors);
-    all.addAll(collector.errors());
-    return BuildSummary.aggregateErrors(all);
-  }
-
-  private BuildSummary buildSummary(
-      OutputConfig config,
-      TestResultCollector collector,
-      List<BuildError> allErrors,
-      long sessionStartTime) {
-
-    List<FixTarget> targets =
-        config.showFixTargets
-            ? FixTargetGenerator.generate(allErrors)
-            : Collections.<FixTarget>emptyList();
-
-    List<String> recentChanges =
-        config.showRecentChanges
-            ? GitDiffExtractor.changedFiles()
-            : Collections.<String>emptyList();
-
-    Long totalBuildDurationMs =
-        config.showTotalDuration ? System.currentTimeMillis() - sessionStartTime : null;
-
-    Map<String, Double> testDurationPercentiles =
-        config.showDurationReport && !collector.durations().isEmpty()
-            ? BuildSummary.computePercentiles(collector.durations())
-            : null;
-
-    String status = allErrors.isEmpty() && !buildFailed ? "SUCCESS" : "FAILED";
-
-    List<SlowTest> slowTestList =
-        config.showSlowTests
-            ? BuildSummary.filterSlowTests(collector.slowTests(), config.testDurationThresholdMs)
-            : Collections.<SlowTest>emptyList();
-
-    return new BuildSummary(
-        status,
-        collector.testsRun(),
-        collector.failures(),
-        allErrors,
-        targets,
-        recentChanges,
-        totalBuildDurationMs,
-        testDurationPercentiles,
-        slowTestList);
   }
 
   private void writeToOutputPath(PropertyResolver props, BuildSummary summary) {
