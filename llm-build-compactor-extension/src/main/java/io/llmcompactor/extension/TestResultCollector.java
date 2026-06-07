@@ -14,11 +14,10 @@ import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.parser.ParserUtils;
 import io.llmcompactor.core.parser.SurefireParser;
-import io.llmcompactor.core.parser.TestResult;
+import io.llmcompactor.core.parser.TestResultAggregator;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.project.MavenProject;
@@ -26,11 +25,7 @@ import org.apache.maven.project.MavenProject;
 /** Aggregates Surefire test results across all projects in a Maven session. */
 final class TestResultCollector {
 
-  private int testsRun;
-  private int failures;
-  private final List<BuildError> errors = new ArrayList<>();
-  private final List<Double> durations = new ArrayList<>();
-  private final List<SlowTest> slowTests = new ArrayList<>();
+  private final TestResultAggregator aggregator = new TestResultAggregator();
 
   // -------------------------------------------------------------------------
   // Collection
@@ -41,15 +36,19 @@ final class TestResultCollector {
     if (projects == null) {
       return;
     }
+    List<String> whitelist = buildStackFrameWhitelist(session, config);
+    List<String> blacklist = buildStackFrameBlacklist(session);
     for (MavenProject project : projects) {
       Path targetDir = project.getBasedir().toPath().resolve("target");
       if (Files.exists(targetDir)) {
-        collectFromProject(
-            targetDir,
-            config,
-            buildStackFrameWhitelist(session, config),
-            buildStackFrameBlacklist(session),
-            sessionStartTime);
+        aggregator.add(
+            SurefireParser.parse(
+                targetDir,
+                config.compress,
+                whitelist,
+                blacklist,
+                sessionStartTime,
+                config.showFailedTestLogs));
       }
     }
   }
@@ -59,48 +58,23 @@ final class TestResultCollector {
   // -------------------------------------------------------------------------
 
   int testsRun() {
-    return testsRun;
+    return aggregator.testsRun();
   }
 
   int failures() {
-    return failures;
+    return aggregator.failures();
   }
 
   List<BuildError> errors() {
-    return Collections.unmodifiableList(errors);
+    return aggregator.errors();
   }
 
   List<Double> durations() {
-    return Collections.unmodifiableList(durations);
+    return aggregator.allDurations();
   }
 
   List<SlowTest> slowTests() {
-    return Collections.unmodifiableList(slowTests);
-  }
-
-  // -------------------------------------------------------------------------
-  // Private helpers
-  // -------------------------------------------------------------------------
-
-  private void collectFromProject(
-      Path targetDir,
-      OutputConfig config,
-      List<String> whitelist,
-      List<String> blacklist,
-      long sessionStartTime) {
-    TestResult result =
-        SurefireParser.parse(
-            targetDir,
-            config.compress,
-            whitelist,
-            blacklist,
-            sessionStartTime,
-            config.showFailedTestLogs);
-    testsRun += result.testsRun();
-    failures += result.failures();
-    errors.addAll(result.errors());
-    durations.addAll(result.allDurations());
-    slowTests.addAll(result.slowTests());
+    return aggregator.slowTests();
   }
 
   private static List<String> buildStackFrameWhitelist(MavenSession session, OutputConfig config) {

@@ -1,7 +1,10 @@
 package io.llmcompactor.core.extract;
 
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.parser.ParserUtils;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,6 +31,16 @@ public final class CompilationErrorExtractor {
     line = ANSI_PATTERN.matcher(line).replaceAll("");
     line = UNICODE_ESCAPE_PATTERN.matcher(line).replaceAll("");
     return HTML_ENCODED_ANSI_PATTERN.matcher(line).replaceAll("");
+  }
+
+  public static List<BuildError> extractOrWrap(String output, String fallbackFile) {
+    List<BuildError> extracted = extract(Arrays.asList(output.split("\n")));
+    if (!extracted.isEmpty()) {
+      return extracted;
+    }
+    String clean = stripAnsi(output);
+    return Collections.singletonList(
+        new BuildError("COMPILATION_ERROR", fallbackFile, 1, ParserUtils.extractFirstLine(clean), clean));
   }
 
   public static List<BuildError> extract(List<String> logs) {

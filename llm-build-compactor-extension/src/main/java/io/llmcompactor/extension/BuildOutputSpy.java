@@ -17,14 +17,12 @@ import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
-import io.llmcompactor.core.parser.ParserUtils;
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import javax.inject.Inject;
@@ -200,26 +198,11 @@ public class BuildOutputSpy extends AbstractEventSpy {
     }
   }
 
-  /**
-   * Parses structured compilation errors from {@code output}, falling back to a single generic
-   * error if no structured errors are found.
-   */
   private List<BuildError> extractOrWrap(ExecutionEvent ee, String output) {
-    List<BuildError> extracted =
-        CompilationErrorExtractor.extract(Arrays.asList(output.split("\n")));
-    if (!extracted.isEmpty()) {
-      return extracted;
-    }
-    return Collections.singletonList(genericError(ee, output));
-  }
-
-  private BuildError genericError(ExecutionEvent ee, String output) {
     MavenProject project = ee.getProject();
     String file =
         project != null && project.getFile() != null ? project.getFile().getPath() : "pom.xml";
-    String cleanOutput = CompilationErrorExtractor.stripAnsi(output);
-    return new BuildError(
-        "COMPILATION_ERROR", file, 1, ParserUtils.extractFirstLine(cleanOutput), cleanOutput);
+    return CompilationErrorExtractor.extractOrWrap(output, file);
   }
 
   private String extractFailureOutput(ExecutionEvent ee) {

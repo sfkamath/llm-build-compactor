@@ -105,4 +105,33 @@ class CompilationErrorExtractorTest {
 
     assertThat(result).isEqualTo(expected);
   }
+
+  @Test
+  void extractOrWrapReturnsExtractedErrorsWhenPresent() {
+    String output =
+        "[ERROR] /path/to/Foo.java:[10,5] error: cannot find symbol\n[INFO] 1 error";
+    List<BuildError> result = CompilationErrorExtractor.extractOrWrap(output, "pom.xml");
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).file()).isEqualTo("/path/to/Foo.java");
+    assertThat(result.get(0).lines()).containsExactly(10);
+  }
+
+  @Test
+  void extractOrWrapFallsBackToWrappedErrorWhenNoneExtracted() {
+    String output = "Some unexpected build failure message";
+    List<BuildError> result = CompilationErrorExtractor.extractOrWrap(output, "my/pom.xml");
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).type()).isEqualTo("COMPILATION_ERROR");
+    assertThat(result.get(0).file()).isEqualTo("my/pom.xml");
+    assertThat(result.get(0).lines()).containsExactly(1);
+    assertThat(result.get(0).message()).isEqualTo("Some unexpected build failure message");
+  }
+
+  @Test
+  void extractOrWrapStripsAnsiInFallback() {
+    String output = "[31mBuild failure: missing dependency[m";
+    List<BuildError> result = CompilationErrorExtractor.extractOrWrap(output, "pom.xml");
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).message()).isEqualTo("Build failure: missing dependency");
+  }
 }

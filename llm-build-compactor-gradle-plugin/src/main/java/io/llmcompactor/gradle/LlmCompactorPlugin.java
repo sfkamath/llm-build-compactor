@@ -9,7 +9,7 @@ import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
 import io.llmcompactor.core.parser.GradleParser;
 import io.llmcompactor.core.parser.ParserUtils;
-import io.llmcompactor.core.parser.TestResult;
+import io.llmcompactor.core.parser.TestResultAggregator;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
@@ -643,9 +643,34 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             .collect(Collectors.toList());
     List<BuildError> compilationErrors = CompilationErrorExtractor.extract(stringLogLines);
 
-    SummaryBuilder builder =
+    TestResultAggregator testResults = new TestResultAggregator();
+    for (Project p : project.getAllprojects()) {
+      try {
+        Path testResultsDir =
+            p.getLayout().getBuildDirectory().getAsFile().get().toPath().resolve("test-results");
+        if (testResultsDir.toFile().exists()) {
+          testResults.add(
+              GradleParser.parse(
+                  testResultsDir,
+                  extension.getCompressStackFrames().get(),
+                  stackFrameWhitelist,
+                  stackFrameBlacklist,
+                  sessionStartTime,
+                  showFailedTestLogs));
+        }
+      } catch (Exception e) {
+        // Ignore
+      }
+    }
+
+    BuildSummary summary =
         new SummaryBuilder()
             .addErrors(compilationErrors)
+            .addErrors(testResults.errors())
+            .addDurations(testResults.allDurations())
+            .addSlowTests(testResults.slowTests())
+            .withTestsRun(testResults.testsRun())
+            .withFailures(testResults.failures())
             .withBuildFailed(buildFailed.get())
             .withSessionStartTime(sessionStartTime)
             .withShowFixTargets(showFixTargets)
@@ -653,34 +678,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             .withShowTotalDuration(Boolean.TRUE.equals(extension.getShowTotalDuration().get()))
             .withShowDurationReport(Boolean.TRUE.equals(extension.getShowDurationReport().get()))
             .withShowSlowTests(Boolean.TRUE.equals(extension.getShowSlowTests().get()))
-            .withTestDurationThresholdMs(extension.getTestDurationThresholdMs().get());
-
-    for (Project p : project.getAllprojects()) {
-      try {
-        Path testResultsDir =
-            p.getLayout().getBuildDirectory().getAsFile().get().toPath().resolve("test-results");
-        if (testResultsDir.toFile().exists()) {
-          TestResult result =
-              GradleParser.parse(
-                  testResultsDir,
-                  extension.getCompressStackFrames().get(),
-                  stackFrameWhitelist,
-                  stackFrameBlacklist,
-                  sessionStartTime,
-                  showFailedTestLogs);
-          builder
-              .addErrors(result.errors())
-              .addDurations(result.allDurations())
-              .addSlowTests(result.slowTests())
-              .withTestsRun(result.testsRun())
-              .withFailures(result.failures());
-        }
-      } catch (Exception e) {
-        // Ignore
-      }
-    }
-
-    BuildSummary summary = builder.build();
+            .withTestDurationThresholdMs(extension.getTestDurationThresholdMs().get())
+            .build();
 
     if (extension.getOutputPath().isPresent()) {
       SummaryWriter.write(summary, Paths.get(extension.getOutputPath().get()));
