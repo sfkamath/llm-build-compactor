@@ -19,10 +19,10 @@ public final class SummaryWriter {
   private static final ObjectMapper mapper =
       new ObjectMapper()
           .enable(SerializationFeature.INDENT_OUTPUT)
-          .setSerializationInclusion(JsonInclude.Include.NON_NULL);
+          .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
 
   private static final double DEFAULT_TEST_DURATION_THRESHOLD_MS =
-      CompactorDefaults.TEST_DURATION_THRESHOLD_MS;
+      CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS;
 
   /**
    * Normalizes a BuildSummary for output by applying all message/stack trace cleaning once. This
@@ -296,8 +296,7 @@ public final class SummaryWriter {
           sb.append(error.file());
           if (error.lines() != null && !error.lines().isEmpty()) {
             sb.append(":")
-                .append(
-                    error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+                .append(error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
           }
         } else {
           sb.append(error.type());

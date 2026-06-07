@@ -2,8 +2,8 @@ package io.llmcompactor.gradle;
 
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
+import io.llmcompactor.core.CompactorConfig;
 import io.llmcompactor.core.CompactorDefaults;
-import io.llmcompactor.core.ModePreset;
 import io.llmcompactor.core.PackageDiscoverer;
 import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
@@ -200,40 +200,44 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     ProviderFactory providers = project.getProviders();
     extension
         .getOutputAsJson()
-        .convention(boolProp(providers, "outputAsJson", CompactorDefaults.OUTPUT_AS_JSON));
+        .convention(boolProp(providers, "outputAsJson", CompactorConfig.DEFAULT_OUTPUT_AS_JSON));
     extension
         .getCompressStackFrames()
         .convention(
-            boolProp(providers, "compressStackFrames", CompactorDefaults.COMPRESS_STACK_FRAMES));
+            boolProp(
+                providers, "compressStackFrames", CompactorConfig.DEFAULT_COMPRESS_STACK_FRAMES));
     extension
         .getShowFixTargets()
-        .convention(boolProp(providers, "showFixTargets", CompactorDefaults.SHOW_FIX_TARGETS));
+        .convention(
+            boolProp(providers, "showFixTargets", CompactorConfig.DEFAULT_SHOW_FIX_TARGETS));
     extension
         .getShowRecentChanges()
         .convention(
-            boolProp(providers, "showRecentChanges", CompactorDefaults.SHOW_RECENT_CHANGES));
+            boolProp(providers, "showRecentChanges", CompactorConfig.DEFAULT_SHOW_RECENT_CHANGES));
     extension
         .getShowSlowTests()
-        .convention(boolProp(providers, "showSlowTests", CompactorDefaults.SHOW_SLOW_TESTS));
+        .convention(boolProp(providers, "showSlowTests", CompactorConfig.DEFAULT_SHOW_SLOW_TESTS));
     extension
         .getShowTotalDuration()
         .convention(
-            boolProp(providers, "showTotalDuration", CompactorDefaults.SHOW_TOTAL_DURATION));
+            boolProp(providers, "showTotalDuration", CompactorConfig.DEFAULT_SHOW_TOTAL_DURATION));
     extension
         .getShowDurationReport()
         .convention(
-            boolProp(providers, "showDurationReport", CompactorDefaults.SHOW_DURATION_REPORT));
+            boolProp(
+                providers, "showDurationReport", CompactorConfig.DEFAULT_SHOW_DURATION_REPORT));
     extension
         .getShowFailedTestLogs()
         .convention(
-            boolProp(providers, "showFailedTestLogs", CompactorDefaults.SHOW_FAILED_TEST_LOGS));
+            boolProp(
+                providers, "showFailedTestLogs", CompactorConfig.DEFAULT_SHOW_FAILED_TEST_LOGS));
     extension
         .getTestDurationThresholdMs()
         .convention(
             doubleProp(
                 providers,
                 "testDurationThresholdMs",
-                CompactorDefaults.TEST_DURATION_THRESHOLD_MS));
+                CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS));
     extension.getStackFrameWhitelist().convention(listProp(providers, "stackFrameWhitelist"));
     extension.getStackFrameBlacklist().convention(listProp(providers, "stackFrameBlacklist"));
 
@@ -546,20 +550,13 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
   private void emitSummary(
       Project project, LlmCompactorExtension extension, long sessionStartTime) {
-    ModePreset preset = ModePreset.from(extension.getMode().getOrNull());
-    boolean outputAsJson = preset.overrideOutputAsJson(extension.getOutputAsJson().get());
-    boolean showFixTargets = preset.overrideShowFixTargets(extension.getShowFixTargets().get());
-    boolean showFailedTestLogs =
-        preset.overrideShowFailedTestLogs(extension.getShowFailedTestLogs().get());
-    boolean showRecentChanges = extension.getShowRecentChanges().get();
+    CompactorConfig config = toConfig(extension).resolved();
 
-    List<String> stackFrameWhitelist =
-        new ArrayList<>(extension.getStackFrameWhitelist().getOrElse(Collections.emptyList()));
+    List<String> whitelist = new ArrayList<>(config.stackFrameWhitelist());
     for (Project p : project.getAllprojects()) {
-      stackFrameWhitelist.addAll(scanProjectPackages(p));
+      whitelist.addAll(scanProjectPackages(p));
     }
-    List<String> stackFrameBlacklist =
-        new ArrayList<>(extension.getStackFrameBlacklist().getOrElse(Collections.emptyList()));
+    List<String> blacklist = config.stackFrameBlacklist();
 
     List<String> stringLogLines =
         logLines.stream()
@@ -576,11 +573,11 @@ public class LlmCompactorPlugin implements Plugin<Project> {
           testResults.add(
               GradleParser.parse(
                   testResultsDir,
-                  extension.getCompressStackFrames().get(),
-                  stackFrameWhitelist,
-                  stackFrameBlacklist,
+                  config.compressStackFrames(),
+                  whitelist,
+                  blacklist,
                   sessionStartTime,
-                  showFailedTestLogs));
+                  config.showFailedTestLogs()));
         }
       } catch (Exception e) {
         // Ignore
@@ -597,29 +594,98 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             .withFailures(testResults.failures())
             .withBuildFailed(buildFailed.get())
             .withSessionStartTime(sessionStartTime)
-            .withShowFixTargets(showFixTargets)
-            .withShowRecentChanges(showRecentChanges)
-            .withShowTotalDuration(Boolean.TRUE.equals(extension.getShowTotalDuration().get()))
-            .withShowDurationReport(Boolean.TRUE.equals(extension.getShowDurationReport().get()))
-            .withShowSlowTests(Boolean.TRUE.equals(extension.getShowSlowTests().get()))
-            .withTestDurationThresholdMs(extension.getTestDurationThresholdMs().get())
+            .withConfig(config)
             .build();
 
-    if (extension.getOutputPath().isPresent()) {
-      SummaryWriter.write(summary, Paths.get(extension.getOutputPath().get()));
+    if (config.outputPath() != null) {
+      SummaryWriter.write(summary, Paths.get(config.outputPath()));
     }
 
     String renderedSummary;
-    if (outputAsJson) {
-      renderedSummary = SummaryWriter.toJson(summary, extension.getTestDurationThresholdMs().get());
+    if (config.outputAsJson()) {
+      renderedSummary = SummaryWriter.toJson(summary, config.testDurationThresholdMs());
     } else {
       renderedSummary =
           SummaryWriter.toHumanReadable(
-              summary,
-              extension.getShowSlowTests().get(),
-              extension.getTestDurationThresholdMs().get());
+              summary, config.showSlowTests(), config.testDurationThresholdMs());
     }
     project.getLogger().quiet(renderedSummary);
+  }
+
+  private static CompactorConfig toConfig(LlmCompactorExtension ext) {
+    final boolean enabled = Boolean.TRUE.equals(ext.getEnabled().get());
+    final String outputPath = ext.getOutputPath().getOrNull();
+    final String mode = ext.getMode().getOrNull();
+    final boolean outputAsJson = ext.getOutputAsJson().get();
+    final boolean compressStackFrames = ext.getCompressStackFrames().get();
+    final boolean showFixTargets = ext.getShowFixTargets().get();
+    final boolean showRecentChanges = ext.getShowRecentChanges().get();
+    final boolean showSlowTests = Boolean.TRUE.equals(ext.getShowSlowTests().get());
+    final boolean showTotalDuration = Boolean.TRUE.equals(ext.getShowTotalDuration().get());
+    final boolean showDurationReport = Boolean.TRUE.equals(ext.getShowDurationReport().get());
+    final boolean showFailedTestLogs = ext.getShowFailedTestLogs().get();
+    final double testDurationThresholdMs = ext.getTestDurationThresholdMs().get();
+    final List<String> whitelist =
+        new ArrayList<>(ext.getStackFrameWhitelist().getOrElse(Collections.emptyList()));
+    final List<String> blacklist =
+        new ArrayList<>(ext.getStackFrameBlacklist().getOrElse(Collections.emptyList()));
+    return new CompactorConfig() {
+      public boolean enabled() {
+        return enabled;
+      }
+
+      public String outputPath() {
+        return outputPath;
+      }
+
+      public String mode() {
+        return mode;
+      }
+
+      public boolean outputAsJson() {
+        return outputAsJson;
+      }
+
+      public boolean compressStackFrames() {
+        return compressStackFrames;
+      }
+
+      public boolean showFixTargets() {
+        return showFixTargets;
+      }
+
+      public boolean showRecentChanges() {
+        return showRecentChanges;
+      }
+
+      public boolean showSlowTests() {
+        return showSlowTests;
+      }
+
+      public boolean showTotalDuration() {
+        return showTotalDuration;
+      }
+
+      public boolean showDurationReport() {
+        return showDurationReport;
+      }
+
+      public boolean showFailedTestLogs() {
+        return showFailedTestLogs;
+      }
+
+      public double testDurationThresholdMs() {
+        return testDurationThresholdMs;
+      }
+
+      public List<String> stackFrameWhitelist() {
+        return whitelist;
+      }
+
+      public List<String> stackFrameBlacklist() {
+        return blacklist;
+      }
+    };
   }
 
   private void applyQuietTaskLogging(Task task) {

@@ -1,8 +1,8 @@
 package io.llmcompactor.maven;
 
 import io.llmcompactor.core.BuildSummary;
+import io.llmcompactor.core.CompactorConfig;
 import io.llmcompactor.core.CompactorDefaults;
-import io.llmcompactor.core.ModePreset;
 import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.parser.ParserUtils;
@@ -22,15 +22,15 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
 @Mojo(name = "compact", defaultPhase = LifecyclePhase.VERIFY)
-public class LlmCompactMojo extends AbstractMojo {
+public class LlmCompactMojo extends AbstractMojo implements CompactorConfig {
   private static final String EXTENSION_ACTIVE_PROPERTY = "llmCompactor.extension.active";
 
-  @Parameter(property = "llmCompactor.enabled", defaultValue = "true") // CompactorDefaults.ENABLED
-  private boolean enabled = CompactorDefaults.ENABLED;
+  @Parameter(property = "llmCompactor.enabled", defaultValue = "true")
+  private boolean enabled = CompactorConfig.DEFAULT_ENABLED;
 
   @Parameter(
       property = "llmCompactor.outputPath",
-      defaultValue = "target/llm-summary.json") // CompactorDefaults.OUTPUT_PATH
+      defaultValue = "target/llm-summary.json") // CompactorConfig.OUTPUT_PATH
   private String outputPath;
 
   /** Output mode preset. Overrides individual flags when set. */
@@ -48,38 +48,38 @@ public class LlmCompactMojo extends AbstractMojo {
 
   @Parameter(
       property = "llmCompactor.outputAsJson",
-      defaultValue = "true") // CompactorDefaults.OUTPUT_AS_JSON
-  private boolean outputAsJson = CompactorDefaults.OUTPUT_AS_JSON;
+      defaultValue = "true") // CompactorConfig.DEFAULT_OUTPUT_AS_JSON
+  private boolean outputAsJson = CompactorConfig.DEFAULT_OUTPUT_AS_JSON;
 
   @Parameter(
       property = "llmCompactor.compressStackFrames",
-      defaultValue = "true") // CompactorDefaults.COMPRESS_STACK_FRAMES
-  private boolean compressStackFrames = CompactorDefaults.COMPRESS_STACK_FRAMES;
+      defaultValue = "true") // CompactorConfig.DEFAULT_COMPRESS_STACK_FRAMES
+  private boolean compressStackFrames = CompactorConfig.DEFAULT_COMPRESS_STACK_FRAMES;
 
   @Parameter(
       property = "llmCompactor.showFixTargets",
-      defaultValue = "true") // CompactorDefaults.SHOW_FIX_TARGETS
-  private boolean showFixTargets = CompactorDefaults.SHOW_FIX_TARGETS;
+      defaultValue = "true") // CompactorConfig.DEFAULT_SHOW_FIX_TARGETS
+  private boolean showFixTargets = CompactorConfig.DEFAULT_SHOW_FIX_TARGETS;
 
   @Parameter(
       property = "llmCompactor.showRecentChanges",
-      defaultValue = "false") // CompactorDefaults.SHOW_RECENT_CHANGES
-  private boolean showRecentChanges = CompactorDefaults.SHOW_RECENT_CHANGES;
+      defaultValue = "false") // CompactorConfig.DEFAULT_SHOW_RECENT_CHANGES
+  private boolean showRecentChanges = CompactorConfig.DEFAULT_SHOW_RECENT_CHANGES;
 
   @Parameter(
       property = "llmCompactor.showSlowTests",
-      defaultValue = "true") // CompactorDefaults.SHOW_SLOW_TESTS
-  private boolean showSlowTests = CompactorDefaults.SHOW_SLOW_TESTS;
+      defaultValue = "true") // CompactorConfig.DEFAULT_SHOW_SLOW_TESTS
+  private boolean showSlowTests = CompactorConfig.DEFAULT_SHOW_SLOW_TESTS;
 
   @Parameter(
       property = "llmCompactor.showTotalDuration",
-      defaultValue = "false") // CompactorDefaults.SHOW_TOTAL_DURATION
-  private boolean showTotalDuration = CompactorDefaults.SHOW_TOTAL_DURATION;
+      defaultValue = "false") // CompactorConfig.DEFAULT_SHOW_TOTAL_DURATION
+  private boolean showTotalDuration = CompactorConfig.DEFAULT_SHOW_TOTAL_DURATION;
 
   @Parameter(
       property = "llmCompactor.showDurationReport",
-      defaultValue = "false") // CompactorDefaults.SHOW_DURATION_REPORT
-  private boolean showDurationReport = CompactorDefaults.SHOW_DURATION_REPORT;
+      defaultValue = "false") // CompactorConfig.DEFAULT_SHOW_DURATION_REPORT
+  private boolean showDurationReport = CompactorConfig.DEFAULT_SHOW_DURATION_REPORT;
 
   @Parameter(property = "llmCompactor.stackFrameWhitelist")
   private String stackFrameWhitelist;
@@ -89,13 +89,13 @@ public class LlmCompactMojo extends AbstractMojo {
 
   @Parameter(
       property = "llmCompactor.showFailedTestLogs",
-      defaultValue = "true") // CompactorDefaults.SHOW_FAILED_TEST_LOGS
-  private boolean showFailedTestLogs = CompactorDefaults.SHOW_FAILED_TEST_LOGS;
+      defaultValue = "true") // CompactorConfig.DEFAULT_SHOW_FAILED_TEST_LOGS
+  private boolean showFailedTestLogs = CompactorConfig.DEFAULT_SHOW_FAILED_TEST_LOGS;
 
   @Parameter(
       property = "llmCompactor.testDurationThresholdMs",
-      defaultValue = "100") // CompactorDefaults.TEST_DURATION_THRESHOLD_MS
-  private double testDurationThresholdMs = CompactorDefaults.TEST_DURATION_THRESHOLD_MS;
+      defaultValue = "100") // CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS
+  private double testDurationThresholdMs = CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS;
 
   @Parameter(defaultValue = "${session}", readonly = true)
   private MavenSession session;
@@ -105,6 +105,76 @@ public class LlmCompactMojo extends AbstractMojo {
 
   @Parameter(defaultValue = "${project.basedir}", readonly = true)
   private File basedir;
+
+  @Override
+  public boolean enabled() {
+    return enabled;
+  }
+
+  @Override
+  public String outputPath() {
+    return outputPath;
+  }
+
+  @Override
+  public String mode() {
+    return mode != null ? mode.name() : null;
+  }
+
+  @Override
+  public boolean outputAsJson() {
+    return outputAsJson;
+  }
+
+  @Override
+  public boolean compressStackFrames() {
+    return compressStackFrames;
+  }
+
+  @Override
+  public boolean showFixTargets() {
+    return showFixTargets;
+  }
+
+  @Override
+  public boolean showRecentChanges() {
+    return showRecentChanges;
+  }
+
+  @Override
+  public boolean showSlowTests() {
+    return showSlowTests;
+  }
+
+  @Override
+  public boolean showTotalDuration() {
+    return showTotalDuration;
+  }
+
+  @Override
+  public boolean showDurationReport() {
+    return showDurationReport;
+  }
+
+  @Override
+  public boolean showFailedTestLogs() {
+    return showFailedTestLogs;
+  }
+
+  @Override
+  public double testDurationThresholdMs() {
+    return testDurationThresholdMs;
+  }
+
+  @Override
+  public List<String> stackFrameWhitelist() {
+    return ParserUtils.splitCsv(stackFrameWhitelist);
+  }
+
+  @Override
+  public List<String> stackFrameBlacklist() {
+    return ParserUtils.splitCsv(stackFrameBlacklist);
+  }
 
   public void execute() throws MojoExecutionException {
 
@@ -126,19 +196,13 @@ public class LlmCompactMojo extends AbstractMojo {
       return;
     }
 
-    // Apply mode preset if specified (overrides individual flags)
-    if (mode != null) {
-      applyMode(mode);
-    }
-
     // If BuildOutputSpy is active, it handles everything automatically via SessionEnded event.
     // This Mojo can be skipped when the extension is present to avoid double summaries.
     if (Boolean.getBoolean(EXTENSION_ACTIVE_PROPERTY)) {
       return;
     }
 
-    List<String> stackFrameWhitelistList = ParserUtils.splitCsv(stackFrameWhitelist);
-    List<String> stackFrameBlacklistList = ParserUtils.splitCsv(stackFrameBlacklist);
+    CompactorConfig config = this.resolved();
 
     long sessionStartTime =
         session != null && session.getStartTime() != null ? session.getStartTime().getTime() : 0L;
@@ -146,11 +210,11 @@ public class LlmCompactMojo extends AbstractMojo {
     TestResult testResult =
         SurefireParser.parse(
             targetDir,
-            compressStackFrames,
-            stackFrameWhitelistList,
-            stackFrameBlacklistList,
+            config.compressStackFrames(),
+            config.stackFrameWhitelist(),
+            config.stackFrameBlacklist(),
             sessionStartTime,
-            showFailedTestLogs);
+            config.showFailedTestLogs());
 
     boolean sessionHasErrors =
         session != null && session.getResult() != null && session.getResult().hasExceptions();
@@ -163,33 +227,22 @@ public class LlmCompactMojo extends AbstractMojo {
             .withFailures(testResult.failures())
             .withBuildFailed(sessionHasErrors)
             .withSessionStartTime(sessionStartTime)
-            .withShowFixTargets(showFixTargets)
-            .withShowRecentChanges(showRecentChanges)
-            .withShowTotalDuration(showTotalDuration)
-            .withShowDurationReport(showDurationReport)
-            .withShowSlowTests(showSlowTests)
-            .withTestDurationThresholdMs(testDurationThresholdMs)
+            .withConfig(config)
             .build();
 
-    Path resolvedOutputPath = Paths.get(outputPath);
+    Path resolvedOutputPath = Paths.get(config.outputPath());
     if (!resolvedOutputPath.isAbsolute() && basedir != null) {
       resolvedOutputPath = basedir.toPath().resolve(resolvedOutputPath);
     }
     SummaryWriter.write(summary, resolvedOutputPath);
 
     PrintStream out = System.out;
-
-    if (outputAsJson) {
-      out.print(SummaryWriter.toJson(summary, testDurationThresholdMs));
+    if (config.outputAsJson()) {
+      out.print(SummaryWriter.toJson(summary, config.testDurationThresholdMs()));
     } else {
-      out.println(SummaryWriter.toHumanReadable(summary, showSlowTests, testDurationThresholdMs));
+      out.println(
+          SummaryWriter.toHumanReadable(
+              summary, config.showSlowTests(), config.testDurationThresholdMs()));
     }
-  }
-
-  private void applyMode(Mode mode) {
-    ModePreset preset = ModePreset.from(mode.name());
-    outputAsJson = preset.overrideOutputAsJson(outputAsJson);
-    showFixTargets = preset.overrideShowFixTargets(showFixTargets);
-    showFailedTestLogs = preset.overrideShowFailedTestLogs(showFailedTestLogs);
   }
 }

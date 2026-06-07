@@ -11,8 +11,8 @@
 package io.llmcompactor.extension;
 
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.CompactorConfig;
 import io.llmcompactor.core.SlowTest;
-import io.llmcompactor.core.parser.ParserUtils;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResultAggregator;
 import java.nio.file.Files;
@@ -27,35 +27,26 @@ final class TestResultCollector {
 
   private final TestResultAggregator aggregator = new TestResultAggregator();
 
-  // -------------------------------------------------------------------------
-  // Collection
-  // -------------------------------------------------------------------------
-
-  void collectFrom(MavenSession session, OutputConfig config, long sessionStartTime) {
+  void collectFrom(MavenSession session, CompactorConfig config, long sessionStartTime) {
     List<MavenProject> projects = session.getProjects();
     if (projects == null) {
       return;
     }
-    List<String> whitelist = buildStackFrameWhitelist(session, config);
-    List<String> blacklist = buildStackFrameBlacklist(session);
+    List<String> whitelist = buildWhitelist(session, config);
     for (MavenProject project : projects) {
       Path targetDir = project.getBasedir().toPath().resolve("target");
       if (Files.exists(targetDir)) {
         aggregator.add(
             SurefireParser.parse(
                 targetDir,
-                config.compress,
+                config.compressStackFrames(),
                 whitelist,
-                blacklist,
+                config.stackFrameBlacklist(),
                 sessionStartTime,
-                config.showFailedTestLogs));
+                config.showFailedTestLogs()));
       }
     }
   }
-
-  // -------------------------------------------------------------------------
-  // Accessors
-  // -------------------------------------------------------------------------
 
   int testsRun() {
     return aggregator.testsRun();
@@ -77,13 +68,8 @@ final class TestResultCollector {
     return aggregator.slowTests();
   }
 
-  private static List<String> buildStackFrameWhitelist(MavenSession session, OutputConfig config) {
-    // Whitelist is seeded from the config property, then augmented with packages
-    // discovered by scanning each project's source roots.
-    PropertyResolver resolver = resolverFor(session);
-    String raw = resolver.getString("llmCompactor.stackFrameWhitelist", "");
-    List<String> packages = new ArrayList<>(ParserUtils.splitCsv(raw));
-
+  private static List<String> buildWhitelist(MavenSession session, CompactorConfig config) {
+    List<String> packages = new ArrayList<>(config.stackFrameWhitelist());
     List<MavenProject> projects = session.getProjects();
     if (projects != null) {
       for (MavenProject project : projects) {
@@ -91,16 +77,5 @@ final class TestResultCollector {
       }
     }
     return packages;
-  }
-
-  private static List<String> buildStackFrameBlacklist(MavenSession session) {
-    String raw = resolverFor(session).getString("llmCompactor.stackFrameBlacklist", "");
-    return ParserUtils.splitCsv(raw);
-  }
-
-  /** Thin helper so this class does not need its own session field for the whitelist build. */
-  private static PropertyResolver resolverFor(MavenSession session) {
-    MavenProject top = session.getTopLevelProject();
-    return new PropertyResolver(session, top != null ? top.getProperties() : null);
   }
 }

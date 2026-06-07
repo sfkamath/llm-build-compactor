@@ -16,12 +16,12 @@ public final class SummaryBuilder {
   private int failures;
   private boolean buildFailed;
   private long sessionStartTime;
-  private boolean showFixTargets = CompactorDefaults.SHOW_FIX_TARGETS;
-  private boolean showRecentChanges = CompactorDefaults.SHOW_RECENT_CHANGES;
-  private boolean showTotalDuration = CompactorDefaults.SHOW_TOTAL_DURATION;
-  private boolean showDurationReport = CompactorDefaults.SHOW_DURATION_REPORT;
-  private boolean showSlowTests = CompactorDefaults.SHOW_SLOW_TESTS;
-  private double testDurationThresholdMs = CompactorDefaults.TEST_DURATION_THRESHOLD_MS;
+  private boolean showFixTargets = CompactorConfig.DEFAULT_SHOW_FIX_TARGETS;
+  private boolean showRecentChanges = CompactorConfig.DEFAULT_SHOW_RECENT_CHANGES;
+  private boolean showTotalDuration = CompactorConfig.DEFAULT_SHOW_TOTAL_DURATION;
+  private boolean showDurationReport = CompactorConfig.DEFAULT_SHOW_DURATION_REPORT;
+  private boolean showSlowTests = CompactorConfig.DEFAULT_SHOW_SLOW_TESTS;
+  private double testDurationThresholdMs = CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS;
 
   public SummaryBuilder addErrors(List<BuildError> e) {
     if (e != null) {
@@ -93,6 +93,16 @@ public final class SummaryBuilder {
 
   public SummaryBuilder withTestDurationThresholdMs(double v) {
     this.testDurationThresholdMs = v;
+    return this;
+  }
+
+  public SummaryBuilder withConfig(CompactorConfig config) {
+    this.showFixTargets = config.showFixTargets();
+    this.showRecentChanges = config.showRecentChanges();
+    this.showTotalDuration = config.showTotalDuration();
+    this.showDurationReport = config.showDurationReport();
+    this.showSlowTests = config.showSlowTests();
+    this.testDurationThresholdMs = config.testDurationThresholdMs();
     return this;
   }
 

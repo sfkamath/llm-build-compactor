@@ -13,6 +13,7 @@ package io.llmcompactor.extension;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
+import io.llmcompactor.core.CompactorConfig;
 import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
@@ -241,7 +242,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
     }
 
     PropertyResolver props = propertyResolver();
-    OutputConfig config = OutputConfig.resolve(props);
+    CompactorConfig config = OutputConfig.resolve(props).resolved();
     long sessionStartTime = sessionStartTime();
 
     TestResultCollector collector = new TestResultCollector();
@@ -259,32 +260,27 @@ public class BuildOutputSpy extends AbstractEventSpy {
             .withFailures(collector.failures())
             .withBuildFailed(buildFailed)
             .withSessionStartTime(sessionStartTime)
-            .withShowFixTargets(config.showFixTargets)
-            .withShowRecentChanges(config.showRecentChanges)
-            .withShowTotalDuration(config.showTotalDuration)
-            .withShowDurationReport(config.showDurationReport)
-            .withShowSlowTests(config.showSlowTests)
-            .withTestDurationThresholdMs(config.testDurationThresholdMs)
+            .withConfig(config)
             .build();
 
-    writeToOutputPath(props, summary);
+    writeToOutputPath(config, summary);
     printSummary(config, summary);
   }
 
-  private void writeToOutputPath(PropertyResolver props, BuildSummary summary) {
-    String outputPath = props.getString("llmCompactor.outputPath", null);
+  private void writeToOutputPath(CompactorConfig config, BuildSummary summary) {
+    String outputPath = config.outputPath();
     if (outputPath != null) {
       SummaryWriter.write(summary, Paths.get(outputPath));
     }
   }
 
-  private void printSummary(OutputConfig config, BuildSummary summary) {
-    if (config.outputAsJson) {
-      REAL_OUT.print(SummaryWriter.toJson(summary, config.testDurationThresholdMs));
+  private void printSummary(CompactorConfig config, BuildSummary summary) {
+    if (config.outputAsJson()) {
+      REAL_OUT.print(SummaryWriter.toJson(summary, config.testDurationThresholdMs()));
     } else {
       REAL_OUT.println(
           SummaryWriter.toHumanReadable(
-              summary, config.showSlowTests, config.testDurationThresholdMs));
+              summary, config.showSlowTests(), config.testDurationThresholdMs()));
     }
   }
 
