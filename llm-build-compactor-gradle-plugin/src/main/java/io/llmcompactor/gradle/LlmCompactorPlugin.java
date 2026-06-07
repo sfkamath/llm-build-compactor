@@ -39,6 +39,7 @@ import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.api.tasks.testing.logging.TestLogEvent;
 
 /**
  * Gradle plugin that compacts build output for LLM-assisted development. Captures test results and
@@ -493,7 +494,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                     task -> {
                       if (isEnabled) {
                         task.systemProperty("slf4j.internal.verbosity", "ERROR");
-                        task.getTestLogging().setEvents(Collections.emptySet());
+                        task.getTestLogging().setEvents(java.util.EnumSet.noneOf(TestLogEvent.class));
                         task.getTestLogging().setShowStandardStreams(false);
                         task.getTestLogging().setShowExceptions(false);
                         task.getTestLogging().setShowCauses(false);

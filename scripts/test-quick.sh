@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Quick test script - runs tests for all Java versions
-# Outputs summary per version
+# Quick test script - runs tests for all Java versions, one line per result.
+# Usage: ./test-quick.sh [--verbose]
 #
 
 set -euo pipefail
@@ -9,7 +9,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-JAVA_VERSIONS=("temurin64-1.8.0.482" "11.0.17" "17.0.8" "21" "25")
+source "$SCRIPT_DIR/config.sh"
+parse_args "$@"
 
 echo "=========================================="
 echo "LLM Build Compactor - Quick Test Suite"
@@ -18,52 +19,36 @@ echo ""
 
 for java_version in "${JAVA_VERSIONS[@]}"; do
     echo "=== Java ${java_version} ==="
-    
-    export JAVA_HOME="/Users/sfk/.jenv/versions/${java_version}"
+
+    export JAVA_HOME
+    JAVA_HOME=$(get_java_home "$java_version")
     export PATH="$JAVA_HOME/bin:$PATH"
-    
+
     java -version 2>&1 | head -1
-    
-    # Main project tests
-    echo -n "  Main project tests: "
+
+    echo -n "  Main project: "
     cd "$PROJECT_ROOT"
-    if ./mvnw clean test -q 2>&1 | tail -1 | grep -q "BUILD SUCCESS"; then
-        echo "PASS"
+    if run_mvn ./mvnw clean install; then echo "PASS"; else echo "FAIL"; fi
+
+    if is_gradle_skip "$java_version"; then
+        echo "  Gradle plugin: SKIP (Java 8/11)"
+        echo "  Test-project-gradle: SKIP (Java 8/11)"
     else
-        echo "FAIL"
-    fi
-    
-    # Gradle plugin tests (Java 17+ only)
-    if [[ "$java_version" != "temurin64-1.8.0.482" && "$java_version" != "11.0.17" ]]; then
-        echo -n "  Gradle plugin tests: "
-        cd "$PROJECT_ROOT/gradle-plugin"
-        if ../gradlew clean test -q 2>&1 | tail -1 | grep -q "BUILD SUCCESS\|BUILD COMPLETED"; then
-            echo "PASS"
-        else
-            echo "FAIL"
-        fi
+        gradlew=$(get_gradlew "$java_version")
+
+        echo -n "  Gradle plugin: "
+        cd "$PROJECT_ROOT/$DIR_GRADLE_PLUGIN"
+        if run_gradle "$gradlew" clean build; then echo "PASS"; else echo "FAIL"; fi
 
         echo -n "  Test-project-gradle: "
-        cd "$PROJECT_ROOT/test-project-gradle"
-        if ../gradlew clean test -q 2>&1 | grep -qE '"status"\s*:\s*"(SUCCESS|FAILED)"|LLM Build Compactor Summary'; then
-            echo "PASS (plugin working)"
-        else
-            echo "FAIL"
-        fi
-    else
-        echo "  Gradle plugin tests: SKIP (Java 8/11 use Gradle 8.x, tests run on Java 17+)"
-        echo "  Test-project-gradle: SKIP (Java 8/11 use Gradle 8.x, tests run on Java 17+)"
+        cd "$PROJECT_ROOT/$DIR_TEST_GRADLE"
+        if run_gradle "$gradlew" clean test; then echo "PASS"; else echo "FAIL"; fi
     fi
 
-    # Maven test-project
     echo -n "  Test-project-maven: "
-    cd "$PROJECT_ROOT/test-project"
-    if mvn clean verify -q 2>&1 | grep -qE '"status"\s*:\s*"(SUCCESS|FAILED)"|LLM Build Compactor Summary'; then
-        echo "PASS (plugin working)"
-    else
-        echo "FAIL"
-    fi
-    
+    cd "$PROJECT_ROOT/$DIR_TEST_MAVEN"
+    if run_mvn mvn clean verify; then echo "PASS"; else echo "FAIL"; fi
+
     echo ""
 done
 

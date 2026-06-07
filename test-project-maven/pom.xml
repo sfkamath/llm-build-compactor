@@ -17,10 +17,10 @@
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <junit.version>5.10.0</junit.version>
-        <logback.version>1.4.11</logback.version>
-        <reactor.version>2023.0.0</reactor.version>
-        <log4j.version>2.20.0</log4j.version>
+        <junit.version>5.14.4</junit.version>
+        <logback.version>1.5.34</logback.version>
+        <reactor.version>2025.0.5</reactor.version>
+        <log4j.version>2.26.0</log4j.version>
     </properties>
 
     <dependencyManagement>
@@ -88,13 +88,13 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
+                <version>3.15.0</version>
             </plugin>
 
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
-                <version>3.4.0</version>
+                <version>3.6.1</version>
                 <executions>
                     <execution>
                         <id>add-integration-test-source</id>
