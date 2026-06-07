@@ -26,7 +26,7 @@ public class LlmCompactMojo extends AbstractMojo {
   private static final String EXTENSION_ACTIVE_PROPERTY = "llmCompactor.extension.active";
 
   @Parameter(property = "llmCompactor.enabled", defaultValue = "true") // CompactorDefaults.ENABLED
-  private boolean enabled;
+  private boolean enabled = CompactorDefaults.ENABLED;
 
   @Parameter(
       property = "llmCompactor.outputPath",
@@ -49,37 +49,37 @@ public class LlmCompactMojo extends AbstractMojo {
   @Parameter(
       property = "llmCompactor.outputAsJson",
       defaultValue = "true") // CompactorDefaults.OUTPUT_AS_JSON
-  private boolean outputAsJson;
+  private boolean outputAsJson = CompactorDefaults.OUTPUT_AS_JSON;
 
   @Parameter(
       property = "llmCompactor.compressStackFrames",
       defaultValue = "true") // CompactorDefaults.COMPRESS_STACK_FRAMES
-  private boolean compressStackFrames;
+  private boolean compressStackFrames = CompactorDefaults.COMPRESS_STACK_FRAMES;
 
   @Parameter(
       property = "llmCompactor.showFixTargets",
       defaultValue = "true") // CompactorDefaults.SHOW_FIX_TARGETS
-  private boolean showFixTargets;
+  private boolean showFixTargets = CompactorDefaults.SHOW_FIX_TARGETS;
 
   @Parameter(
       property = "llmCompactor.showRecentChanges",
       defaultValue = "false") // CompactorDefaults.SHOW_RECENT_CHANGES
-  private boolean showRecentChanges;
+  private boolean showRecentChanges = CompactorDefaults.SHOW_RECENT_CHANGES;
 
   @Parameter(
       property = "llmCompactor.showSlowTests",
       defaultValue = "true") // CompactorDefaults.SHOW_SLOW_TESTS
-  private boolean showSlowTests;
+  private boolean showSlowTests = CompactorDefaults.SHOW_SLOW_TESTS;
 
   @Parameter(
       property = "llmCompactor.showTotalDuration",
       defaultValue = "false") // CompactorDefaults.SHOW_TOTAL_DURATION
-  private boolean showTotalDuration;
+  private boolean showTotalDuration = CompactorDefaults.SHOW_TOTAL_DURATION;
 
   @Parameter(
       property = "llmCompactor.showDurationReport",
       defaultValue = "false") // CompactorDefaults.SHOW_DURATION_REPORT
-  private boolean showDurationReport;
+  private boolean showDurationReport = CompactorDefaults.SHOW_DURATION_REPORT;
 
   @Parameter(property = "llmCompactor.stackFrameWhitelist")
   private String stackFrameWhitelist;
@@ -89,13 +89,13 @@ public class LlmCompactMojo extends AbstractMojo {
 
   @Parameter(
       property = "llmCompactor.showFailedTestLogs",
-      defaultValue = "false") // CompactorDefaults.SHOW_FAILED_TEST_LOGS
-  private boolean showFailedTestLogs;
+      defaultValue = "true") // CompactorDefaults.SHOW_FAILED_TEST_LOGS
+  private boolean showFailedTestLogs = CompactorDefaults.SHOW_FAILED_TEST_LOGS;
 
   @Parameter(
       property = "llmCompactor.testDurationThresholdMs",
       defaultValue = "100") // CompactorDefaults.TEST_DURATION_THRESHOLD_MS
-  private double testDurationThresholdMs;
+  private double testDurationThresholdMs = CompactorDefaults.TEST_DURATION_THRESHOLD_MS;
 
   @Parameter(defaultValue = "${session}", readonly = true)
   private MavenSession session;

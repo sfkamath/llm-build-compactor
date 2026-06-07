@@ -4,6 +4,7 @@ import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.ModePreset;
+import io.llmcompactor.core.PackageDiscoverer;
 import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
@@ -25,7 +26,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -34,6 +34,8 @@ import org.gradle.api.logging.StandardOutputListener;
 import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.testing.Test;
@@ -195,128 +197,51 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     extension.getEnabled().set(enabledValue);
 
     // Bind extension properties to gradle properties with defaults
+    ProviderFactory providers = project.getProviders();
     extension
         .getOutputAsJson()
-        .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.outputAsJson")
-                .orElse(project.getProviders().systemProperty("llmCompactor.outputAsJson"))
-                .map(Boolean::parseBoolean)
-                .orElse(CompactorDefaults.OUTPUT_AS_JSON));
+        .convention(boolProp(providers, "outputAsJson", CompactorDefaults.OUTPUT_AS_JSON));
     extension
         .getCompressStackFrames()
         .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.compressStackFrames")
-                .orElse(project.getProviders().systemProperty("llmCompactor.compressStackFrames"))
-                .map(Boolean::parseBoolean)
-                .orElse(CompactorDefaults.COMPRESS_STACK_FRAMES));
+            boolProp(providers, "compressStackFrames", CompactorDefaults.COMPRESS_STACK_FRAMES));
     extension
         .getShowFixTargets()
-        .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.showFixTargets")
-                .orElse(project.getProviders().systemProperty("llmCompactor.showFixTargets"))
-                .map(Boolean::parseBoolean)
-                .orElse(CompactorDefaults.SHOW_FIX_TARGETS));
+        .convention(boolProp(providers, "showFixTargets", CompactorDefaults.SHOW_FIX_TARGETS));
     extension
         .getShowRecentChanges()
         .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.showRecentChanges")
-                .orElse(project.getProviders().systemProperty("llmCompactor.showRecentChanges"))
-                .map(Boolean::parseBoolean)
-                .orElse(CompactorDefaults.SHOW_RECENT_CHANGES));
-
-    // mode - only set if gradle or system property is provided
-    org.gradle.api.provider.Provider<String> modeProp =
-        project
-            .getProviders()
-            .gradleProperty("llmCompactor.mode")
-            .orElse(project.getProviders().systemProperty("llmCompactor.mode"));
-    if (modeProp.isPresent()) {
-      extension.getMode().set(modeProp.get());
-    }
-
+            boolProp(providers, "showRecentChanges", CompactorDefaults.SHOW_RECENT_CHANGES));
     extension
         .getShowSlowTests()
-        .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.showSlowTests")
-                .orElse(project.getProviders().systemProperty("llmCompactor.showSlowTests"))
-                .map(Boolean::parseBoolean)
-                .orElse(CompactorDefaults.SHOW_SLOW_TESTS));
+        .convention(boolProp(providers, "showSlowTests", CompactorDefaults.SHOW_SLOW_TESTS));
     extension
         .getShowTotalDuration()
         .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.showTotalDuration")
-                .orElse(project.getProviders().systemProperty("llmCompactor.showTotalDuration"))
-                .map(Boolean::parseBoolean)
-                .orElse(CompactorDefaults.SHOW_TOTAL_DURATION));
+            boolProp(providers, "showTotalDuration", CompactorDefaults.SHOW_TOTAL_DURATION));
     extension
         .getShowDurationReport()
         .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.showDurationReport")
-                .orElse(project.getProviders().systemProperty("llmCompactor.showDurationReport"))
-                .map(Boolean::parseBoolean)
-                .orElse(CompactorDefaults.SHOW_DURATION_REPORT));
+            boolProp(providers, "showDurationReport", CompactorDefaults.SHOW_DURATION_REPORT));
     extension
         .getShowFailedTestLogs()
         .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.showFailedTestLogs")
-                .orElse(project.getProviders().systemProperty("llmCompactor.showFailedTestLogs"))
-                .map(Boolean::parseBoolean)
-                .orElse(CompactorDefaults.SHOW_FAILED_TEST_LOGS));
+            boolProp(providers, "showFailedTestLogs", CompactorDefaults.SHOW_FAILED_TEST_LOGS));
     extension
         .getTestDurationThresholdMs()
         .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.testDurationThresholdMs")
-                .orElse(
-                    project.getProviders().systemProperty("llmCompactor.testDurationThresholdMs"))
-                .map(Double::parseDouble)
-                .orElse(CompactorDefaults.TEST_DURATION_THRESHOLD_MS));
+            doubleProp(
+                providers,
+                "testDurationThresholdMs",
+                CompactorDefaults.TEST_DURATION_THRESHOLD_MS));
+    extension.getStackFrameWhitelist().convention(listProp(providers, "stackFrameWhitelist"));
+    extension.getStackFrameBlacklist().convention(listProp(providers, "stackFrameBlacklist"));
 
-    // stackFrameWhitelist - comma-separated list
-    extension
-        .getStackFrameWhitelist()
-        .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.stackFrameWhitelist")
-                .orElse(project.getProviders().systemProperty("llmCompactor.stackFrameWhitelist"))
-                .map(ParserUtils::splitCsv)
-                .orElse(Collections.emptyList()));
-
-    // stackFrameBlacklist - comma-separated list
-    extension
-        .getStackFrameBlacklist()
-        .convention(
-            project
-                .getProviders()
-                .gradleProperty("llmCompactor.stackFrameBlacklist")
-                .orElse(project.getProviders().systemProperty("llmCompactor.stackFrameBlacklist"))
-                .map(ParserUtils::splitCsv)
-                .orElse(Collections.emptyList()));
-
-    // outputPath - only set if gradle or system property is provided
-    org.gradle.api.provider.Provider<String> outputPathProp =
-        project
-            .getProviders()
-            .gradleProperty("llmCompactor.outputPath")
-            .orElse(project.getProviders().systemProperty("llmCompactor.outputPath"));
+    Provider<String> modeProp = stringProp(providers, "mode");
+    if (modeProp.isPresent()) {
+      extension.getMode().set(modeProp.get());
+    }
+    Provider<String> outputPathProp = stringProp(providers, "outputPath");
     if (outputPathProp.isPresent()) {
       extension.getOutputPath().set(outputPathProp.get());
     }
@@ -744,39 +669,52 @@ public class LlmCompactorPlugin implements Plugin<Project> {
   }
 
   private List<String> scanProjectPackages(Project project) {
-    List<String> packages = new ArrayList<>();
     org.gradle.api.plugins.JavaPluginExtension javaExtension =
         project.getExtensions().findByType(org.gradle.api.plugins.JavaPluginExtension.class);
-
-    if (javaExtension != null) {
-      javaExtension
-          .getSourceSets()
-          .all(
-              sourceSet -> {
-                for (File root : sourceSet.getAllJava().getSrcDirs()) {
-                  if (root.exists()) {
-                    Path rootPath = root.toPath();
-                    try (Stream<Path> walk = Files.walk(rootPath)) {
-                      walk.filter(Files::isRegularFile)
-                          .filter(p -> p.toString().endsWith(".java"))
-                          .forEach(
-                              p -> {
-                                Path relative = rootPath.relativize(p);
-                                if (relative.getParent() != null) {
-                                  String pkg =
-                                      relative.getParent().toString().replace(File.separator, ".");
-                                  if (!packages.contains(pkg)) {
-                                    packages.add(pkg);
-                                  }
-                                }
-                              });
-                    } catch (IOException e) {
-                      // Ignore
-                    }
-                  }
-                }
-              });
+    if (javaExtension == null) {
+      return Collections.emptyList();
     }
-    return packages;
+    List<Path> roots = new ArrayList<>();
+    javaExtension
+        .getSourceSets()
+        .all(
+            sourceSet -> {
+              for (File root : sourceSet.getAllJava().getSrcDirs()) {
+                roots.add(root.toPath());
+              }
+            });
+    return PackageDiscoverer.discoverPackages(roots);
+  }
+
+  private static Provider<Boolean> boolProp(
+      ProviderFactory providers, String name, boolean defaultValue) {
+    return providers
+        .gradleProperty("llmCompactor." + name)
+        .orElse(providers.systemProperty("llmCompactor." + name))
+        .map(Boolean::parseBoolean)
+        .orElse(defaultValue);
+  }
+
+  private static Provider<Double> doubleProp(
+      ProviderFactory providers, String name, double defaultValue) {
+    return providers
+        .gradleProperty("llmCompactor." + name)
+        .orElse(providers.systemProperty("llmCompactor." + name))
+        .map(Double::parseDouble)
+        .orElse(defaultValue);
+  }
+
+  private static Provider<List<String>> listProp(ProviderFactory providers, String name) {
+    return providers
+        .gradleProperty("llmCompactor." + name)
+        .orElse(providers.systemProperty("llmCompactor." + name))
+        .map(ParserUtils::splitCsv)
+        .orElse(Collections.emptyList());
+  }
+
+  private static Provider<String> stringProp(ProviderFactory providers, String name) {
+    return providers
+        .gradleProperty("llmCompactor." + name)
+        .orElse(providers.systemProperty("llmCompactor." + name));
   }
 }

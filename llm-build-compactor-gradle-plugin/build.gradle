@@ -2,6 +2,7 @@ plugins {
     id 'java-gradle-plugin'
     id 'maven-publish'
     id 'com.gradle.plugin-publish' version '1.3.1'
+    id 'jacoco'
 }
 
 def rootProps = new Properties()
@@ -19,6 +20,30 @@ repositories {
 dependencies {
     implementation "io.github.sfkamath:llm-build-compactor-core:${version}"
     compileOnly "com.fasterxml.jackson.core:jackson-databind:${rootProps['jacksonVersion']}"
+    testImplementation gradleApi()
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${rootProps['junitVersion']}"
+    testImplementation "org.assertj:assertj-core:${rootProps['assertjVersion']}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${rootProps['junitVersion']}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${rootProps['junitPlatformVersion']}"
+}
+
+jacoco {
+    toolVersion = '0.8.15'
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    executionData.setFrom(files("${buildDir}/jacoco/test.exec"))
+    reports {
+        csv.required = true
+        xml.required = true
+        html.required = false
+    }
 }
 
 gradlePlugin {

@@ -10,13 +10,11 @@
  */
 package io.llmcompactor.extension;
 
-import java.io.IOException;
-import java.nio.file.Files;
+import io.llmcompactor.core.PackageDiscoverer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 import org.apache.maven.project.MavenProject;
 
 /**
@@ -30,42 +28,13 @@ final class PackageScanner {
   private PackageScanner() {}
 
   static List<String> scan(MavenProject project) {
-    List<String> packages = new ArrayList<>();
     List<String> sourceRoots = new ArrayList<>();
     sourceRoots.addAll(project.getCompileSourceRoots());
     sourceRoots.addAll(project.getTestCompileSourceRoots());
-
+    List<Path> roots = new ArrayList<>();
     for (String root : sourceRoots) {
-      Path rootPath = Paths.get(root);
-      if (Files.exists(rootPath)) {
-        packages.addAll(packagesUnder(rootPath));
-      }
+      roots.add(Paths.get(root));
     }
-    return packages;
-  }
-
-  // -------------------------------------------------------------------------
-  // Private helpers
-  // -------------------------------------------------------------------------
-
-  private static List<String> packagesUnder(Path rootPath) {
-    List<String> packages = new ArrayList<>();
-    try (Stream<Path> walk = Files.walk(rootPath)) {
-      walk.filter(Files::isRegularFile)
-          .filter(p -> p.toString().endsWith(".java"))
-          .forEach(
-              p -> {
-                Path parent = rootPath.relativize(p).getParent();
-                if (parent != null) {
-                  String pkg = parent.toString().replace("/", ".");
-                  if (!packages.contains(pkg)) {
-                    packages.add(pkg);
-                  }
-                }
-              });
-    } catch (IOException ignored) {
-      // Best-effort scan; a missing or unreadable root is not fatal.
-    }
-    return packages;
+    return PackageDiscoverer.discoverPackages(roots);
   }
 }
