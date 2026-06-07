@@ -54,3 +54,4 @@ test-project-mse/
 .classpath
 .settings/
 bin/
+.jvm-coverage-mcp/

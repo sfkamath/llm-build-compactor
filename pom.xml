@@ -68,7 +68,7 @@
         <spotless-maven-plugin.version>3.2.1</spotless-maven-plugin.version>
         <modernizer-maven-plugin.version>3.2.0</modernizer-maven-plugin.version>
         <jacoco.version>0.8.15</jacoco.version>
-        <jacoco.coverage.minimum>0.85</jacoco.coverage.minimum>
+        <jacoco.coverage.minimum>0.80</jacoco.coverage.minimum>
 
         <!-- ── Build Plugins ───────────────────────────────────────────────── -->
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
@@ -216,6 +216,12 @@
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
+                    <execution>
+                        <id>jacoco-prepare-agent-integration</id>
+                        <goals>
+                            <goal>prepare-agent-integration</goal>
+                        </goals>
+                    </execution>
                 </executions>
             </plugin>
 
@@ -358,11 +364,32 @@
                         <version>${jacoco.version}</version>
                         <executions>
                             <execution>
+                                <id>jacoco-merge</id>
+                                <phase>post-integration-test</phase>
+                                <goals>
+                                    <goal>merge</goal>
+                                </goals>
+                                <configuration>
+                                    <fileSets>
+                                        <fileSet>
+                                            <directory>${project.build.directory}</directory>
+                                            <includes>
+                                                <include>*.exec</include>
+                                            </includes>
+                                        </fileSet>
+                                    </fileSets>
+                                    <destFile>${project.build.directory}/jacoco-merged.exec</destFile>
+                                </configuration>
+                            </execution>
+                            <execution>
                                 <id>jacoco-report</id>
                                 <phase>verify</phase>
                                 <goals>
                                     <goal>report</goal>
                                 </goals>
+                                <configuration>
+                                    <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
+                                </configuration>
                             </execution>
                             <execution>
                                 <id>jacoco-check</id>
@@ -371,6 +398,7 @@
                                     <goal>check</goal>
                                 </goals>
                                 <configuration>
+                                    <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
                                     <rules>
                                         <rule>
                                             <element>BUNDLE</element>

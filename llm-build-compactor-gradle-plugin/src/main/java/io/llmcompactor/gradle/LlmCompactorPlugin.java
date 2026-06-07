@@ -23,6 +23,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -494,7 +495,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
                     task -> {
                       if (isEnabled) {
                         task.systemProperty("slf4j.internal.verbosity", "ERROR");
-                        task.getTestLogging().setEvents(java.util.EnumSet.noneOf(TestLogEvent.class));
+                        task.getTestLogging().setEvents(EnumSet.noneOf(TestLogEvent.class));
                         task.getTestLogging().setShowStandardStreams(false);
                         task.getTestLogging().setShowExceptions(false);
                         task.getTestLogging().setShowCauses(false);
