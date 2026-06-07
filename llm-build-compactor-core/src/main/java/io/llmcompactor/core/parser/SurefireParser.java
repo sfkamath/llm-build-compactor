@@ -14,8 +14,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -53,38 +51,9 @@ public final class SurefireParser {
               .forEach(
                   file -> {
                     try {
-                      DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                      DocumentBuilder builder = factory.newDocumentBuilder();
-                      Document doc = builder.parse(file.toFile());
-
-                      String tests = doc.getDocumentElement().getAttribute("tests");
-                      if (tests != null && !tests.isEmpty()) {
-                        totalTests.addAndGet(Integer.parseInt(tests));
-                      }
-
-                      // Collect all durations (convert from seconds to milliseconds)
-                      NodeList testCaseNodes = doc.getElementsByTagName("testcase");
-                      for (int i = 0; i < testCaseNodes.getLength(); i++) {
-                        Element testCase = (Element) testCaseNodes.item(i);
-                        String timeAttr = testCase.getAttribute("time");
-                        double durationMs = 0.0;
-                        if (timeAttr != null && !timeAttr.isEmpty()) {
-                          try {
-                            durationMs = Double.parseDouble(timeAttr) * 1000;
-                            allDurations.add(durationMs);
-                          } catch (NumberFormatException e) {
-                            // Ignore
-                          }
-                        }
-                        if (durationMs > 0
-                            && testCase.getElementsByTagName("failure").getLength() == 0
-                            && testCase.getElementsByTagName("error").getLength() == 0
-                            && testCase.getElementsByTagName("skipped").getLength() == 0) {
-                          String className = testCase.getAttribute("classname");
-                          String name = testCase.getAttribute("name");
-                          slowTests.add(new SlowTest(className, name, durationMs));
-                        }
-                      }
+                      Document doc = XmlParserUtils.parseDocument(file);
+                      totalTests.addAndGet(XmlParserUtils.extractTestCount(doc));
+                      XmlParserUtils.collectDurationsAndSlowTests(doc, allDurations, slowTests);
 
                       NodeList failureNodes = doc.getElementsByTagName("failure");
                       for (int i = 0; i < failureNodes.getLength(); i++) {

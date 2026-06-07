@@ -10,10 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -23,10 +20,6 @@ import org.xml.sax.SAXException;
 
 /** Parses Gradle test result XML files (typically in build/test-results/test/*.xml). */
 public final class GradleParser {
-
-  private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\\.java:(\\d+)");
-  private static final Pattern GROOVY_LINE_NUMBER_PATTERN = Pattern.compile("\\.groovy:(\\d+)");
-
   public static TestResult parse(
       Path testResultsDir,
       boolean compressStackFrames,
@@ -51,38 +44,9 @@ public final class GradleParser {
           .forEach(
               file -> {
                 try {
-                  DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                  DocumentBuilder builder = factory.newDocumentBuilder();
-                  Document doc = builder.parse(file.toFile());
-
-                  String tests = doc.getDocumentElement().getAttribute("tests");
-                  if (!tests.isEmpty()) {
-                    totalTests.addAndGet(Integer.parseInt(tests));
-                  }
-
-                  // Collect all durations (convert from seconds to milliseconds)
-                  NodeList testCaseNodes = doc.getElementsByTagName("testcase");
-                  for (int i = 0; i < testCaseNodes.getLength(); i++) {
-                    Element testCase = (Element) testCaseNodes.item(i);
-                    String timeAttr = testCase.getAttribute("time");
-                    double durationMs = 0.0;
-                    if (timeAttr != null && !timeAttr.isEmpty()) {
-                      try {
-                        durationMs = Double.parseDouble(timeAttr) * 1000;
-                        allDurations.add(durationMs);
-                      } catch (NumberFormatException e) {
-                        // Ignore
-                      }
-                    }
-                    if (durationMs > 0
-                        && testCase.getElementsByTagName("failure").getLength() == 0
-                        && testCase.getElementsByTagName("error").getLength() == 0
-                        && testCase.getElementsByTagName("skipped").getLength() == 0) {
-                      String className = testCase.getAttribute("classname");
-                      String name = testCase.getAttribute("name");
-                      slowTests.add(new SlowTest(className, name, durationMs));
-                    }
-                  }
+                  Document doc = XmlParserUtils.parseDocument(file);
+                  totalTests.addAndGet(XmlParserUtils.extractTestCount(doc));
+                  XmlParserUtils.collectDurationsAndSlowTests(doc, allDurations, slowTests);
 
                   NodeList failureNodes = doc.getElementsByTagName("failure");
                   for (int i = 0; i < failureNodes.getLength(); i++) {
@@ -95,7 +59,7 @@ public final class GradleParser {
                     String className = testCase.getAttribute("classname");
                     String timeAttr = testCase.getAttribute("time");
                     double duration = 0.0;
-                    if (timeAttr != null && !timeAttr.isEmpty()) {
+                    if (!timeAttr.isEmpty()) {
                       try {
                         // JUnit XML time attribute is in seconds; convert to milliseconds
                         duration = Double.parseDouble(timeAttr) * 1000;
@@ -189,11 +153,21 @@ public final class GradleParser {
 
   private static String readTestLogs(Element testCase) {
     StringBuilder logs = new StringBuilder();
+    appendOutputNodes(testCase.getChildNodes(), logs);
+    // Gradle places system-out/system-err at the suite level, not per testcase.
+    // Fall back to suite output when no testcase-level output is present.
+    if (logs.length() == 0) {
+      Node parent = testCase.getParentNode();
+      if (parent instanceof Element) {
+        appendOutputNodes(parent.getChildNodes(), logs);
+      }
+    }
+    return logs.length() > 0 ? logs.toString() : null;
+  }
 
-    // First check for system-out/system-err as direct children of testcase
-    NodeList children = testCase.getChildNodes();
-    for (int i = 0; i < children.getLength(); i++) {
-      Node child = children.item(i);
+  private static void appendOutputNodes(NodeList nodes, StringBuilder logs) {
+    for (int i = 0; i < nodes.getLength(); i++) {
+      Node child = nodes.item(i);
       if ("system-out".equals(child.getNodeName()) || "system-err".equals(child.getNodeName())) {
         String content = child.getTextContent();
         if (content != null && !content.trim().isEmpty()) {
@@ -204,31 +178,6 @@ public final class GradleParser {
         }
       }
     }
-
-    // Gradle places system-out/system-err at the suite level, not per testcase.
-    // Fall back to suite output when no testcase-level output is present.
-    if (logs.length() == 0) {
-      Node parent = testCase.getParentNode();
-      if (parent instanceof Element) {
-        Element testsuite = (Element) parent;
-        NodeList suiteChildren = testsuite.getChildNodes();
-        for (int i = 0; i < suiteChildren.getLength(); i++) {
-          Node child = suiteChildren.item(i);
-          if ("system-out".equals(child.getNodeName())
-              || "system-err".equals(child.getNodeName())) {
-            String content = child.getTextContent();
-            if (content != null && !content.trim().isEmpty()) {
-              if (logs.length() > 0) {
-                logs.append("\n");
-              }
-              logs.append("[").append(child.getNodeName()).append("]\n").append(content);
-            }
-          }
-        }
-      }
-    }
-
-    return logs.length() > 0 ? logs.toString() : null;
   }
 
   private GradleParser() {}
