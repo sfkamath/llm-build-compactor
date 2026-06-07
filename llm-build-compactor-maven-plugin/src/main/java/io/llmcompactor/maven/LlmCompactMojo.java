@@ -3,6 +3,7 @@ package io.llmcompactor.maven;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.FixTarget;
+import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.FixTargetGenerator;
 import io.llmcompactor.core.git.GitDiffExtractor;
@@ -18,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Collectors;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -125,7 +127,7 @@ public class LlmCompactMojo extends AbstractMojo {
         enabled = false;
       }
       String fromProject = projectProps.getProperty("llmCompactor.enabled");
-      if (fromProject != null && "false".equalsIgnoreCase(fromProject)) {
+      if ("false".equalsIgnoreCase(fromProject)) {
         enabled = false;
       }
     }
@@ -167,6 +169,12 @@ public class LlmCompactMojo extends AbstractMojo {
             showFailedTestLogs);
     List<BuildError> testFailures = testResult.errors();
     List<Double> allDurations = testResult.allDurations();
+    List<SlowTest> slowTestList =
+        showSlowTests
+            ? testResult.slowTests().stream()
+                .filter(e -> e.testDuration() >= testDurationThresholdMs)
+                .collect(Collectors.toList())
+            : Collections.<SlowTest>emptyList();
 
     // Get compilation errors (currently empty, can be populated from EventSpy)
     List<BuildError> compileErrors = new ArrayList<>();
@@ -207,7 +215,8 @@ public class LlmCompactMojo extends AbstractMojo {
             targets,
             recentChanges,
             totalBuildDurationMs,
-            testDurationPercentiles);
+            testDurationPercentiles,
+            slowTestList);
 
     Path resolvedOutputPath = Paths.get(outputPath);
     if (!resolvedOutputPath.isAbsolute() && basedir != null) {

@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.FixTarget;
+import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
 import io.llmcompactor.core.extract.FixTargetGenerator;
@@ -306,6 +307,11 @@ public class BuildOutputSpy extends AbstractEventSpy {
 
     String status = allErrors.isEmpty() && !buildFailed ? "SUCCESS" : "FAILED";
 
+    List<SlowTest> slowTestList =
+        config.showSlowTests
+            ? filterByThreshold(collector.slowTests(), config.testDurationThresholdMs)
+            : Collections.<SlowTest>emptyList();
+
     return new BuildSummary(
         status,
         collector.testsRun(),
@@ -314,7 +320,8 @@ public class BuildOutputSpy extends AbstractEventSpy {
         targets,
         recentChanges,
         totalBuildDurationMs,
-        testDurationPercentiles);
+        testDurationPercentiles,
+        slowTestList);
   }
 
   private void writeToOutputPath(PropertyResolver props, BuildSummary summary) {
@@ -375,6 +382,16 @@ public class BuildOutputSpy extends AbstractEventSpy {
       }
     }
     return false;
+  }
+
+  private static List<SlowTest> filterByThreshold(List<SlowTest> tests, double thresholdMs) {
+    List<SlowTest> result = new ArrayList<>();
+    for (SlowTest e : tests) {
+      if (e.testDuration() >= thresholdMs) {
+        result.add(e);
+      }
+    }
+    return result;
   }
 
   private static String firstLine(String message) {

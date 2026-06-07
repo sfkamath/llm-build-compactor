@@ -19,6 +19,7 @@ public class BuildSummary {
   private final List<String> recentChanges;
   private final Long totalBuildDurationMs;
   private final Map<String, Double> testDurationPercentiles;
+  private final List<SlowTest> slowTests;
 
   public BuildSummary(
       String status,
@@ -28,7 +29,8 @@ public class BuildSummary {
       List<FixTarget> fixTargets,
       List<String> recentChanges,
       Long totalBuildDurationMs,
-      Map<String, Double> testDurationPercentiles) {
+      Map<String, Double> testDurationPercentiles,
+      List<SlowTest> slowTests) {
     this.status = status;
     this.testsRun = testsRun;
     this.failures = failures;
@@ -44,8 +46,33 @@ public class BuildSummary {
     this.totalBuildDurationMs = totalBuildDurationMs;
     this.testDurationPercentiles =
         testDurationPercentiles != null
-            ? Collections.unmodifiableMap(new TreeMap<String, Double>(testDurationPercentiles))
+            ? Collections.unmodifiableMap(new TreeMap<>(testDurationPercentiles))
             : null;
+    this.slowTests =
+        slowTests != null
+            ? Collections.unmodifiableList(slowTests)
+            : Collections.<SlowTest>emptyList();
+  }
+
+  public BuildSummary(
+      String status,
+      int testsRun,
+      int failures,
+      List<BuildError> errors,
+      List<FixTarget> fixTargets,
+      List<String> recentChanges,
+      Long totalBuildDurationMs,
+      Map<String, Double> testDurationPercentiles) {
+    this(
+        status,
+        testsRun,
+        failures,
+        errors,
+        fixTargets,
+        recentChanges,
+        totalBuildDurationMs,
+        testDurationPercentiles,
+        Collections.emptyList());
   }
 
   public BuildSummary(
@@ -90,6 +117,10 @@ public class BuildSummary {
     return testDurationPercentiles;
   }
 
+  public List<SlowTest> slowTests() {
+    return slowTests;
+  }
+
   // Jackson getters
   public String getStatus() {
     return status;
@@ -123,6 +154,11 @@ public class BuildSummary {
 
   public Map<String, Double> getTestDurationPercentiles() {
     return testDurationPercentiles;
+  }
+
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
+  public List<SlowTest> getSlowTests() {
+    return slowTests;
   }
 
   /** Computes test duration percentiles (p50, p90, p95, p99, max) from a list of durations. */

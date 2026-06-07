@@ -10,8 +10,6 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 /** Integration tests for Gradle plugin configuration options. */
 @DisplayName("Gradle Plugin Options")
@@ -214,15 +212,69 @@ class GradleOptionTests {
     }
 
     @Test
-    @DisplayName("showSlowTests=false omits duration from output")
+    @DisplayName("showSlowTests=false omits duration from human-readable output")
     void testNoSlowTests() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.outputAsJson", "false")
+              .withProperty("llmCompactor.showSlowTests", "false")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
+              .execute();
+
+      assertThat(result.output()).contains("LLM Build Compactor Summary");
+      assertThat(result.output()).doesNotContain("ms)");
+    }
+
+    @Test
+    @DisplayName("showSlowTests=true with threshold=0 includes slowTests in JSON")
+    void testShowSlowTestsJson() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.showSlowTests", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
+              .execute();
+
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("slowTests")).isTrue();
+      JsonNode slowTests = tree.get("slowTests");
+      assertThat(slowTests.isArray()).isTrue();
+      assertThat(slowTests).isNotEmpty();
+      JsonNode first = slowTests.get(0);
+      assertThat(first.has("className")).isTrue();
+      assertThat(first.has("testName")).isTrue();
+      assertThat(first.has("testDuration")).isTrue();
+      assertThat(first.get("testDuration").asDouble()).isGreaterThanOrEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("showSlowTests=false omits slowTests from JSON")
+    void testSlowTestsHiddenInJson() throws Exception {
       BuildResult result =
           GradleBuild.inProject("gradle-test-project")
               .withTask("test")
               .withProperty("llmCompactor.showSlowTests", "false")
               .execute();
 
-      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("slowTests")).isFalse();
+    }
+
+    @Test
+    @DisplayName("showSlowTests=true with threshold=0 shows Slow Tests section in human-readable output")
+    void testShowSlowTestsHumanReadable() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.outputAsJson", "false")
+              .withProperty("llmCompactor.showSlowTests", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
+              .execute();
+
+      assertThat(result.output()).contains("Slow Tests:");
     }
 
     @Test
@@ -258,18 +310,55 @@ class GradleOptionTests {
   @DisplayName("Threshold Options")
   class ThresholdOptionsTests {
 
-    @ParameterizedTest
-    @ValueSource(strings = {"100", "500", "1000"})
-    @DisplayName("testDurationThresholdMs configures slow test threshold")
-    void testDurationThreshold(String thresholdMs) throws Exception {
+    @Test
+    @DisplayName("testDurationThresholdMs=0 includes testDuration in JSON errors")
+    void testDurationThresholdZero() throws Exception {
       BuildResult result =
           GradleBuild.inProject("gradle-test-project")
               .withTask("test")
-              .withProperty("llmCompactor.showSlowTests", "true")
-              .withProperty("llmCompactor.testDurationThresholdMs", thresholdMs)
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
               .execute();
 
-      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("errors")).isTrue();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors.isArray()).isTrue();
+      assertThat(errors).isNotEmpty();
+      boolean hasDuration = false;
+      for (JsonNode error : errors) {
+        if (error.has("testDuration") && error.get("testDuration").asDouble() > 0) {
+          hasDuration = true;
+          break;
+        }
+      }
+      assertThat(hasDuration)
+          .as("At least one error should have non-zero testDuration with threshold=0")
+          .isTrue();
+    }
+
+    @Test
+    @DisplayName("testDurationThresholdMs=100000 excludes all testDuration from JSON")
+    void testDurationThresholdHigh() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "100000")
+              .execute();
+
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("errors")).isTrue();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors.isArray()).isTrue();
+      assertThat(errors).isNotEmpty();
+      for (JsonNode error : errors) {
+        assertThat(error.has("testDuration"))
+            .as("Error should not have testDuration with threshold=100000")
+            .isFalse();
+      }
     }
   }
 

@@ -4,6 +4,7 @@ import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.FixTarget;
+import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
 import io.llmcompactor.core.extract.FixTargetGenerator;
@@ -202,6 +203,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.outputAsJson")
+                .orElse(project.getProviders().systemProperty("llmCompactor.outputAsJson"))
                 .map(Boolean::parseBoolean)
                 .orElse(CompactorDefaults.OUTPUT_AS_JSON));
     extension
@@ -210,6 +212,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.compressStackFrames")
+                .orElse(project.getProviders().systemProperty("llmCompactor.compressStackFrames"))
                 .map(Boolean::parseBoolean)
                 .orElse(CompactorDefaults.COMPRESS_STACK_FRAMES));
     extension
@@ -218,6 +221,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.showFixTargets")
+                .orElse(project.getProviders().systemProperty("llmCompactor.showFixTargets"))
                 .map(Boolean::parseBoolean)
                 .orElse(CompactorDefaults.SHOW_FIX_TARGETS));
     extension
@@ -226,12 +230,16 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.showRecentChanges")
+                .orElse(project.getProviders().systemProperty("llmCompactor.showRecentChanges"))
                 .map(Boolean::parseBoolean)
                 .orElse(CompactorDefaults.SHOW_RECENT_CHANGES));
 
-    // mode - only set if gradle property is provided
+    // mode - only set if gradle or system property is provided
     org.gradle.api.provider.Provider<String> modeProp =
-        project.getProviders().gradleProperty("llmCompactor.mode");
+        project
+            .getProviders()
+            .gradleProperty("llmCompactor.mode")
+            .orElse(project.getProviders().systemProperty("llmCompactor.mode"));
     if (modeProp.isPresent()) {
       extension.getMode().set(modeProp.get());
     }
@@ -242,6 +250,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.showSlowTests")
+                .orElse(project.getProviders().systemProperty("llmCompactor.showSlowTests"))
                 .map(Boolean::parseBoolean)
                 .orElse(CompactorDefaults.SHOW_SLOW_TESTS));
     extension
@@ -250,6 +259,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.showTotalDuration")
+                .orElse(project.getProviders().systemProperty("llmCompactor.showTotalDuration"))
                 .map(Boolean::parseBoolean)
                 .orElse(CompactorDefaults.SHOW_TOTAL_DURATION));
     extension
@@ -258,6 +268,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.showDurationReport")
+                .orElse(project.getProviders().systemProperty("llmCompactor.showDurationReport"))
                 .map(Boolean::parseBoolean)
                 .orElse(CompactorDefaults.SHOW_DURATION_REPORT));
     extension
@@ -266,6 +277,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.showFailedTestLogs")
+                .orElse(project.getProviders().systemProperty("llmCompactor.showFailedTestLogs"))
                 .map(Boolean::parseBoolean)
                 .orElse(CompactorDefaults.SHOW_FAILED_TEST_LOGS));
     extension
@@ -274,6 +286,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.testDurationThresholdMs")
+                .orElse(
+                    project.getProviders().systemProperty("llmCompactor.testDurationThresholdMs"))
                 .map(Double::parseDouble)
                 .orElse(CompactorDefaults.TEST_DURATION_THRESHOLD_MS));
 
@@ -284,6 +298,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.stackFrameWhitelist")
+                .orElse(project.getProviders().systemProperty("llmCompactor.stackFrameWhitelist"))
                 .map(s -> Arrays.asList(s.split(",")))
                 .orElse(Collections.emptyList()));
 
@@ -294,12 +309,16 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             project
                 .getProviders()
                 .gradleProperty("llmCompactor.stackFrameBlacklist")
+                .orElse(project.getProviders().systemProperty("llmCompactor.stackFrameBlacklist"))
                 .map(s -> Arrays.asList(s.split(",")))
                 .orElse(Collections.emptyList()));
 
-    // outputPath - only set if gradle property is provided
+    // outputPath - only set if gradle or system property is provided
     org.gradle.api.provider.Provider<String> outputPathProp =
-        project.getProviders().gradleProperty("llmCompactor.outputPath");
+        project
+            .getProviders()
+            .gradleProperty("llmCompactor.outputPath")
+            .orElse(project.getProviders().systemProperty("llmCompactor.outputPath"));
     if (outputPathProp.isPresent()) {
       extension.getOutputPath().set(outputPathProp.get());
     }
@@ -640,6 +659,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
     List<BuildError> allErrors = new ArrayList<>();
     List<Double> allDurations = new ArrayList<>();
+    List<SlowTest> allSlowTests = new ArrayList<>();
     int totalTestsRun = 0;
     int totalTestFailures = 0;
 
@@ -676,6 +696,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
           totalTestFailures += result.failures();
           allErrors.addAll(result.errors());
           allDurations.addAll(result.allDurations());
+          allSlowTests.addAll(result.slowTests());
         }
       } catch (Exception e) {
         // Ignore
@@ -700,6 +721,15 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     List<String> recentChanges =
         showRecentChanges ? GitDiffExtractor.changedFiles() : Collections.emptyList();
 
+    boolean showSlowTestsValue = Boolean.TRUE.equals(extension.getShowSlowTests().get());
+    double thresholdMs = extension.getTestDurationThresholdMs().get();
+    List<SlowTest> slowTestList =
+        showSlowTestsValue
+            ? allSlowTests.stream()
+                .filter(e -> e.testDuration() >= thresholdMs)
+                .collect(Collectors.toList())
+            : Collections.<SlowTest>emptyList();
+
     BuildSummary summary =
         new BuildSummary(
             allErrors.isEmpty() && !buildFailed.get() ? "SUCCESS" : "FAILED",
@@ -709,7 +739,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
             targets,
             recentChanges,
             totalBuildDurationMs,
-            testDurationPercentiles);
+            testDurationPercentiles,
+            slowTestList);
 
     if (extension.getOutputPath().isPresent()) {
       SummaryWriter.write(summary, Paths.get(extension.getOutputPath().get()));

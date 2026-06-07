@@ -44,7 +44,7 @@ class SurefireParserTest {
     assertThat(result.testsRun()).isEqualTo(1);
     assertThat(result.failures()).isEqualTo(1);
     assertThat(result.errors()).hasSize(1);
-    assertThat(result.allDurations()).containsExactly(0.05);
+    assertThat(result.allDurations()).containsExactly(50.0);
 
     BuildError error = result.errors().get(0);
     assertThat(error.type()).isEqualTo("java.lang.RuntimeException");
@@ -52,7 +52,7 @@ class SurefireParserTest {
     // File and line should both be from first project frame (where error originated)
     assertThat(error.file()).contains("OrderService.java");
     assertThat(error.lines()).containsExactly(15);
-    assertThat(error.testDuration()).isEqualTo(0.05);
+    assertThat(error.testDuration()).isEqualTo(50.0);
   }
 
   @Test

@@ -47,13 +47,13 @@ class GradleParserTest {
     assertThat(result.testsRun()).isEqualTo(1);
     assertThat(result.failures()).isEqualTo(1);
     assertThat(result.errors()).hasSize(1);
-    assertThat(result.allDurations()).containsExactly(0.05);
+    assertThat(result.allDurations()).containsExactly(50.0);
 
     BuildError error = result.errors().get(0);
     assertThat(error.type()).isEqualTo("java.lang.RuntimeException");
     assertThat(error.file()).contains("OrderServiceTest.java");
     assertThat(error.lines()).containsExactly(10);
-    assertThat(error.testDuration()).isEqualTo(0.05);
+    assertThat(error.testDuration()).isEqualTo(50.0);
   }
 
   @Test

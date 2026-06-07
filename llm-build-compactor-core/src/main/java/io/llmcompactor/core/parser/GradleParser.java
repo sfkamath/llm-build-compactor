@@ -1,6 +1,7 @@
 package io.llmcompactor.core.parser;
 
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.StackTraceCompressor;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,6 +40,7 @@ public final class GradleParser {
 
     List<BuildError> failures = new ArrayList<>();
     List<Double> allDurations = new ArrayList<>();
+    List<SlowTest> slowTests = new ArrayList<>();
     AtomicInteger totalTests = new AtomicInteger(0);
     AtomicInteger testFailures = new AtomicInteger(0);
 
@@ -58,17 +60,27 @@ public final class GradleParser {
                     totalTests.addAndGet(Integer.parseInt(tests));
                   }
 
-                  // Collect all durations
+                  // Collect all durations (convert from seconds to milliseconds)
                   NodeList testCaseNodes = doc.getElementsByTagName("testcase");
                   for (int i = 0; i < testCaseNodes.getLength(); i++) {
                     Element testCase = (Element) testCaseNodes.item(i);
                     String timeAttr = testCase.getAttribute("time");
+                    double durationMs = 0.0;
                     if (timeAttr != null && !timeAttr.isEmpty()) {
                       try {
-                        allDurations.add(Double.parseDouble(timeAttr));
+                        durationMs = Double.parseDouble(timeAttr) * 1000;
+                        allDurations.add(durationMs);
                       } catch (NumberFormatException e) {
                         // Ignore
                       }
+                    }
+                    if (durationMs > 0
+                        && testCase.getElementsByTagName("failure").getLength() == 0
+                        && testCase.getElementsByTagName("error").getLength() == 0
+                        && testCase.getElementsByTagName("skipped").getLength() == 0) {
+                      String className = testCase.getAttribute("classname");
+                      String name = testCase.getAttribute("name");
+                      slowTests.add(new SlowTest(className, name, durationMs));
                     }
                   }
 
@@ -85,7 +97,8 @@ public final class GradleParser {
                     double duration = 0.0;
                     if (timeAttr != null && !timeAttr.isEmpty()) {
                       try {
-                        duration = Double.parseDouble(timeAttr);
+                        // JUnit XML time attribute is in seconds; convert to milliseconds
+                        duration = Double.parseDouble(timeAttr) * 1000;
                       } catch (NumberFormatException e) {
                         // Ignore
                       }
@@ -106,7 +119,7 @@ public final class GradleParser {
                         className.substring(0, Math.max(0, className.lastIndexOf(".")));
 
                     for (String l : lines) {
-                      if ((l.contains(".java:") || l.contains(".groovy:"))) {
+                      if (l.contains(".java:") || l.contains(".groovy:")) {
                         // Skip framework frames, but accept frames from test's own package
                         boolean isFramework = StackTraceCompressor.isFrameworkFrame(l);
                         boolean isFromTestPackage =
@@ -119,13 +132,21 @@ public final class GradleParser {
 
                           if (lastColon > 0 && lastParen > lastColon) {
                             try {
-                              line = Integer.parseInt(l.substring(lastColon + 1, lastParen));
+                              int candidateLine =
+                                  Integer.parseInt(l.substring(lastColon + 1, lastParen));
                               // Find the opening paren before the colon
                               int openParen = l.lastIndexOf("(", lastColon);
                               if (openParen > 0) {
-                                sourceFile = l.substring(openParen + 1, lastColon);
-                                // Prefer test class frame, use first available frame
+                                String candidateFile = l.substring(openParen + 1, lastColon);
+                                if (sourceFile == null) {
+                                  // first valid frame — use as fallback
+                                  line = candidateLine;
+                                  sourceFile = candidateFile;
+                                }
                                 if (l.contains(className)) {
+                                  // prefer test class frame over any earlier frame
+                                  line = candidateLine;
+                                  sourceFile = candidateFile;
                                   break;
                                 }
                               }
@@ -163,7 +184,7 @@ public final class GradleParser {
       // Ignore IO errors
     }
 
-    return new TestResult(totalTests.get(), testFailures.get(), failures, allDurations);
+    return new TestResult(totalTests.get(), testFailures.get(), failures, allDurations, slowTests);
   }
 
   private static String readTestLogs(Element testCase) {

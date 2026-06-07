@@ -22,11 +22,12 @@ public final class CompilationErrorExtractor {
       Pattern.compile("(?:&amp)?#27;\\[[0-9;]*m");
 
   public static String stripAnsi(String line) {
-    if (line == null) return null;
+    if (line == null) {
+      return null;
+    }
     line = ANSI_PATTERN.matcher(line).replaceAll("");
     line = UNICODE_ESCAPE_PATTERN.matcher(line).replaceAll("");
-    line = HTML_ENCODED_ANSI_PATTERN.matcher(line).replaceAll("");
-    return line;
+    return HTML_ENCODED_ANSI_PATTERN.matcher(line).replaceAll("");
   }
 
   public static List<BuildError> extract(List<String> logs) {

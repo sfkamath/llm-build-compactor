@@ -51,12 +51,8 @@ public final class SummaryWriter {
         summary.fixTargets(),
         summary.recentChanges(),
         summary.totalBuildDurationMs(),
-        summary.testDurationPercentiles());
-  }
-
-  /** Normalizes a BuildSummary with default threshold. */
-  private static BuildSummary normalize(BuildSummary summary) {
-    return normalize(summary, DEFAULT_TEST_DURATION_THRESHOLD_MS);
+        summary.testDurationPercentiles(),
+        summary.slowTests());
   }
 
   /** SLF4J infrastructure noise patterns to filter */
@@ -117,7 +113,7 @@ public final class SummaryWriter {
     result = DATE_PATTERN.matcher(result).replaceFirst("");
 
     // Strip thread info
-    result = THREAD_PATTERN.matcher(result).replaceAll(" ");
+    result = THREAD_PATTERN.matcher(result).replaceFirst(" ");
 
     // Strip log level
     result = LEVEL_PATTERN.matcher(result).replaceAll("");
@@ -235,7 +231,8 @@ public final class SummaryWriter {
                   .collect(Collectors.toList()),
               summary.recentChanges(),
               summary.totalBuildDurationMs(),
-              summary.testDurationPercentiles());
+              summary.testDurationPercentiles(),
+              normalized.slowTests());
       return mapper.writeValueAsString(condensed);
     } catch (JsonProcessingException e) {
       throw new RuntimeException("Failed to serialize build summary to JSON", e);
@@ -261,7 +258,7 @@ public final class SummaryWriter {
   public static String toHumanReadable(
       BuildSummary summary, boolean showTestDuration, double testDurationThresholdMs) {
     // Normalize once before rendering (cleans messages, stack traces)
-    summary = normalize(summary);
+    summary = normalize(summary, testDurationThresholdMs);
 
     StringBuilder sb = new StringBuilder();
     sb.append("=== LLM Build Compactor Summary ===\n");
@@ -275,13 +272,14 @@ public final class SummaryWriter {
 
     if (summary.testDurationPercentiles() != null && !summary.testDurationPercentiles().isEmpty()) {
       sb.append("Test Duration Percentiles (ms):\n");
-      summary.testDurationPercentiles().entrySet().stream()
+      summary
+          .testDurationPercentiles()
           .forEach(
-              e ->
+              (key, value) ->
                   sb.append("  ")
-                      .append(e.getKey())
+                      .append(key)
                       .append(": ")
-                      .append(String.format("%.2f", e.getValue()))
+                      .append(String.format("%.2f", value))
                       .append("\n"));
     }
 
@@ -298,8 +296,7 @@ public final class SummaryWriter {
           sb.append(error.file());
           if (error.lines() != null && !error.lines().isEmpty()) {
             sb.append(":")
-                .append(
-                    error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+                .append(error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
           }
         } else {
           sb.append(error.type());
@@ -326,6 +323,14 @@ public final class SummaryWriter {
             }
           }
         }
+      }
+    }
+
+    if (!summary.slowTests().isEmpty()) {
+      sb.append("\nSlow Tests:\n");
+      for (SlowTest slow : summary.slowTests()) {
+        sb.append("  - ").append(slow.className()).append("#").append(slow.testName());
+        sb.append(" (").append(String.format("%.2f", slow.testDuration())).append("ms)\n");
       }
     }
 

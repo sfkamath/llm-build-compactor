@@ -88,7 +88,7 @@ public final class StackTraceCompressor {
         hasContent = true;
       } else if (!foundFirstFrame && !trimmed.isEmpty() && !isExceptionLine(trimmed)) {
         // Skip "Condition not satisfied:" header as it's already extracted as the message
-        if (!skippedConditionHeader && trimmed.equals("Condition not satisfied:")) {
+        if (!skippedConditionHeader && "Condition not satisfied:".equals(trimmed)) {
           skippedConditionHeader = true;
           continue;
         }

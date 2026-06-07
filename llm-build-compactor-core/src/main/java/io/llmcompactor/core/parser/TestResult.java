@@ -1,6 +1,7 @@
 package io.llmcompactor.core.parser;
 
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.SlowTest;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -10,9 +11,14 @@ public class TestResult {
   private final int failures;
   private final List<BuildError> errors;
   private final List<Double> allDurations;
+  private final List<SlowTest> slowTests;
 
   public TestResult(
-      int testsRun, int failures, List<BuildError> errors, List<Double> allDurations) {
+      int testsRun,
+      int failures,
+      List<BuildError> errors,
+      List<Double> allDurations,
+      List<SlowTest> slowTests) {
     this.testsRun = testsRun;
     this.failures = failures;
     this.errors =
@@ -21,6 +27,15 @@ public class TestResult {
         allDurations != null
             ? Collections.unmodifiableList(allDurations)
             : Collections.<Double>emptyList();
+    this.slowTests =
+        slowTests != null
+            ? Collections.unmodifiableList(slowTests)
+            : Collections.<SlowTest>emptyList();
+  }
+
+  public TestResult(
+      int testsRun, int failures, List<BuildError> errors, List<Double> allDurations) {
+    this(testsRun, failures, errors, allDurations, Collections.emptyList());
   }
 
   public TestResult(int testsRun, int failures, List<BuildError> errors) {
@@ -43,6 +58,10 @@ public class TestResult {
     return allDurations;
   }
 
+  public List<SlowTest> slowTests() {
+    return slowTests;
+  }
+
   // Jackson getters
   public int getTestsRun() {
     return testsRun;
@@ -60,6 +79,10 @@ public class TestResult {
     return allDurations;
   }
 
+  public List<SlowTest> getSlowTests() {
+    return slowTests;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
@@ -72,12 +95,13 @@ public class TestResult {
     return testsRun == that.testsRun
         && failures == that.failures
         && Objects.equals(errors, that.errors)
-        && Objects.equals(allDurations, that.allDurations);
+        && Objects.equals(allDurations, that.allDurations)
+        && Objects.equals(slowTests, that.slowTests);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(testsRun, failures, errors, allDurations);
+    return Objects.hash(testsRun, failures, errors, allDurations, slowTests);
   }
 
   @Override

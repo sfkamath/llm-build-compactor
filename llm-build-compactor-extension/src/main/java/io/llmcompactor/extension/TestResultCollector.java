@@ -11,6 +11,7 @@
 package io.llmcompactor.extension;
 
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResult;
 import java.nio.file.Files;
@@ -28,6 +29,7 @@ final class TestResultCollector {
   private int failures;
   private final List<BuildError> errors = new ArrayList<>();
   private final List<Double> durations = new ArrayList<>();
+  private final List<SlowTest> slowTests = new ArrayList<>();
 
   // -------------------------------------------------------------------------
   // Collection
@@ -71,6 +73,10 @@ final class TestResultCollector {
     return Collections.unmodifiableList(durations);
   }
 
+  List<SlowTest> slowTests() {
+    return Collections.unmodifiableList(slowTests);
+  }
+
   // -------------------------------------------------------------------------
   // Private helpers
   // -------------------------------------------------------------------------
@@ -93,6 +99,7 @@ final class TestResultCollector {
     failures += result.failures();
     errors.addAll(result.errors());
     durations.addAll(result.allDurations());
+    slowTests.addAll(result.slowTests());
   }
 
   private static List<String> buildStackFrameWhitelist(MavenSession session, OutputConfig config) {
