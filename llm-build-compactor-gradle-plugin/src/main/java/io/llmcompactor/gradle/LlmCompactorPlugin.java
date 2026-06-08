@@ -657,7 +657,6 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     for (Object arg : rawArgs) {
       compilerArgs.add(arg.toString());
     }
-    task.getOptions().setCompilerArgs(compilerArgs);
     compilerArgs.removeIf("-Amicronaut.processing.incremental=true"::equals);
     if (!containsCompilerArg(compilerArgs, "-nowarn")) {
       compilerArgs.add("-nowarn");
@@ -674,7 +673,11 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     if (!containsCompilerArg(compilerArgs, "-Xlint:-deprecation")) {
       compilerArgs.add("-Xlint:-deprecation");
     }
+    if (!containsCompilerArg(compilerArgs, "-Xlint:-options")) {
+      compilerArgs.add("-Xlint:-options");
+    }
     // -Xlint:-removal is Java 11+ only, skip for Java 8 compatibility
+    task.getOptions().setCompilerArgs(compilerArgs);
   }
 
   private boolean containsCompilerArg(List<String> compilerArgs, String value) {

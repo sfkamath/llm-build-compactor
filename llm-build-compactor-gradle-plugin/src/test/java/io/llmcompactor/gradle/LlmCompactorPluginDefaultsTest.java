@@ -3,8 +3,10 @@ package io.llmcompactor.gradle;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.llmcompactor.core.CompactorConfig;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import org.gradle.api.Project;
+import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -39,6 +41,34 @@ class LlmCompactorPluginDefaultsTest {
           .isEqualTo(CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS);
     } finally {
       System.clearProperty("llmce");
+    }
+  }
+
+  @Test
+  void javaCompileTasksHaveLintSuppressingArgs() {
+    PrintStream savedOut = System.out;
+    PrintStream savedErr = System.err;
+    try {
+      Project project = ProjectBuilder.builder().withGradleUserHomeDir(tempDir.toFile()).build();
+      project.getPluginManager().apply("java");
+      project.getPluginManager().apply(LlmCompactorPlugin.class);
+
+      JavaCompile compileJava =
+          project.getTasks().withType(JavaCompile.class).getByName("compileJava");
+
+      assertThat(compileJava.getOptions().isWarnings()).isFalse();
+      assertThat(compileJava.getOptions().isDeprecation()).isFalse();
+      assertThat(compileJava.getOptions().getCompilerArgs())
+          .contains(
+              "-nowarn",
+              "-Xlint:none",
+              "-Xlint:-processing",
+              "-Xlint:-unchecked",
+              "-Xlint:-deprecation",
+              "-Xlint:-options");
+    } finally {
+      System.setOut(savedOut);
+      System.setErr(savedErr);
     }
   }
 }

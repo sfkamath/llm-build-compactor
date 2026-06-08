@@ -73,3 +73,9 @@ run_gradle() {
         "$@" -q >/dev/null 2>&1
     fi
 }
+
+# Run a Gradle command and capture combined stdout+stderr into GRADLE_OUTPUT.
+# Returns the exit code of the gradle command.
+run_gradle_capture() {
+    GRADLE_OUTPUT=$("$@" 2>&1)
+}

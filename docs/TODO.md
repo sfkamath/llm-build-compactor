@@ -11,5 +11,6 @@ Date: 2026-03-27
 
 ## 🟢 Nice to Have (Can Wait)
 - ⬜ **IDE integration**: IntelliJ/Eclipse plugin for inline error display.
+- ⬜ **Bats tests**: https://bats-core.readthedocs.io/en/stable/faq.html
 
 ---
