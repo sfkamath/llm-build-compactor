@@ -7,14 +7,14 @@ Two distinct sync problems exist in this repo:
 
 ## Problem 1 — Plugin version (4 files, manually kept in sync)
 
-For local development, `0.0.0-SNAPSHOT` must be consistent across:
+For local development, `0.4.0` must be consistent across:
 
 | File | Property |
 |------|----------|
-| `pom.xml` | `<revision>0.0.0-SNAPSHOT</revision>` |
-| `gradle.properties` | `pluginVersion=0.0.0-SNAPSHOT` |
-| `test-project-maven/pom.xml` | `<llmCompactor.pluginVersion>0.0.0-SNAPSHOT</llmCompactor.pluginVersion>` |
-| `test-project-maven/.mvn/extensions.xml` | `<version>0.0.0-SNAPSHOT</version>` |
+| `pom.xml` | `<revision>0.4.0</revision>` |
+| `gradle.properties` | `pluginVersion=0.4.0` |
+| `test-project-maven/pom.xml` | `<llmCompactor.pluginVersion>0.4.0</llmCompactor.pluginVersion>` |
+| `test-project-maven/.mvn/extensions.xml` | `<version>0.4.0</version>` |
 
 `test-project-gradle/settings.gradle` is already wired correctly — it reads `pluginVersion`
 from `gradle.properties` via `providers.gradleProperty`, so no manual sync needed there.

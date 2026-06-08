@@ -30,7 +30,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 The compactor uses a Maven Extension to achieve complete build silence. Install it using:
 
 ```bash
-mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.3.1:install
+mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.4.0:install
 ```
 
 This creates `.mvn/extensions.xml` in your project, enabling the Core Extension that suppresses all build output during execution.
@@ -45,7 +45,7 @@ To customize the output format and features, add the plugin configuration to you
         <plugin>
             <groupId>io.github.sfkamath</groupId>
             <artifactId>llm-build-compactor-maven-plugin</artifactId>
-            <version>0.3.1</version>
+            <version>0.4.0</version>
             <configuration>
                 <outputAsJson>false</outputAsJson>
                 <compressStackFrames>true</compressStackFrames>
@@ -76,7 +76,7 @@ Add the plugin to your `build.gradle.kts` (Kotlin DSL):
 
 ```kotlin
 plugins {
-    id("io.github.sfkamath.llm-build-compactor") version "0.3.1"
+    id("io.github.sfkamath.llm-build-compactor") version "0.4.0"
 }
 ```
 
@@ -84,7 +84,7 @@ Or `build.gradle` (Groovy DSL):
 
 ```groovy
 plugins {
-    id 'io.github.sfkamath.llm-build-compactor' version '0.3.1'
+    id 'io.github.sfkamath.llm-build-compactor' version '0.4.0'
 }
 ```
 
@@ -241,7 +241,7 @@ When `showFailedTestLogs` is enabled (default: `true`), the compactor captures a
 <plugin>
     <groupId>io.github.sfkamath</groupId>
     <artifactId>llm-build-compactor-maven-plugin</artifactId>
-    <version>0.3.1</version>
+    <version>0.4.0</version>
     <configuration>
         <showFailedTestLogs>true</showFailedTestLogs>
     </configuration>
