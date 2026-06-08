@@ -11,7 +11,7 @@ public interface CompactorConfig {
   boolean DEFAULT_COMPRESS_STACK_FRAMES = true;
   boolean DEFAULT_SHOW_FIX_TARGETS = true;
   boolean DEFAULT_SHOW_RECENT_CHANGES = false;
-  boolean DEFAULT_SHOW_SLOW_TESTS = true;
+  boolean DEFAULT_SHOW_SLOW_TESTS = false;
   boolean DEFAULT_SHOW_TOTAL_DURATION = false;
   boolean DEFAULT_SHOW_DURATION_REPORT = false;
   boolean DEFAULT_SHOW_FAILED_TEST_LOGS = true;

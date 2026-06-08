@@ -562,12 +562,16 @@ public class LlmCompactorPlugin implements Plugin<Project> {
         DefaultCompactorConfig.mergeWhitelist(config.stackFrameWhitelist(), scanResults);
     List<String> blacklist = config.stackFrameBlacklist();
 
-    String fullOutput =
-        logLines.stream()
-            .map(line -> CompilationErrorExtractor.stripAnsi(line.toString()))
-            .collect(Collectors.joining("\n"));
-    List<BuildError> compilationErrors =
-        CompilationErrorExtractor.extractOrWrap(fullOutput, "build.gradle");
+    List<BuildError> compilationErrors;
+    if (buildFailed.get()) {
+      String fullOutput =
+          logLines.stream()
+              .map(line -> CompilationErrorExtractor.stripAnsi(line.toString()))
+              .collect(Collectors.joining("\n"));
+      compilationErrors = CompilationErrorExtractor.extractOrWrap(fullOutput, "build.gradle");
+    } else {
+      compilationErrors = Collections.emptyList();
+    }
 
     TestResultAggregator testResults = new TestResultAggregator();
     for (Project p : project.getAllprojects()) {

@@ -665,5 +665,24 @@ class GradleOptionTests {
       assertThat(tree.has("status")).isTrue();
       assertThat(tree.get("status").asText()).isEqualTo("FAILED");
     }
+
+    @Test
+    @DisplayName("summary status is SUCCESS and errors is empty when build succeeds")
+    void testStatusSuccessOnCleanBuild() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("classes")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = parseJson(result.summaryJson());
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("status")).isTrue();
+      assertThat(tree.get("status").asText()).isEqualTo("SUCCESS");
+      assertThat(tree.has("errors")).isTrue();
+      assertThat(tree.get("errors").isArray()).isTrue();
+      assertThat(tree.get("errors")).isEmpty();
+    }
   }
 }

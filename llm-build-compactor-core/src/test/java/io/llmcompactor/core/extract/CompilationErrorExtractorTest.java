@@ -68,6 +68,42 @@ class CompilationErrorExtractorTest {
   }
 
   @Test
+  void shouldReturnEmptyListForGradleSuccessOutput() {
+    List<String> logs =
+        Arrays.asList(
+            "> Task :compileJava UP-TO-DATE",
+            "> Task :processResources UP-TO-DATE",
+            "> Task :classes UP-TO-DATE",
+            "> Task :compileTestJava UP-TO-DATE",
+            "> Task :processTestResources UP-TO-DATE",
+            "> Task :testClasses UP-TO-DATE",
+            "> Task :test PASSED",
+            "",
+            "BUILD SUCCESSFUL in 5s");
+
+    List<BuildError> errors = CompilationErrorExtractor.extract(logs);
+
+    assertThat(errors).isEmpty();
+  }
+
+  @Test
+  void extractOrWrapCreatesFallbackAtBuildGradleLine1() {
+    String output =
+        "> Task :compileJava UP-TO-DATE\n"
+            + "> Task :compileTestJava UP-TO-DATE\n"
+            + "> Task :test PASSED\n"
+            + "\n"
+            + "BUILD SUCCESSFUL in 5s";
+
+    List<BuildError> result = CompilationErrorExtractor.extractOrWrap(output, "build.gradle");
+
+    assertThat(result).hasSize(1);
+    assertThat(result.get(0).file()).isEqualTo("build.gradle");
+    assertThat(result.get(0).lines()).containsExactly(1);
+    assertThat(result.get(0).message()).contains("> Task :compileJava UP-TO-DATE");
+  }
+
+  @Test
   void shouldExtractFatalErrorWithAnsiCodes() {
     List<String> logs =
         Arrays.asList(
