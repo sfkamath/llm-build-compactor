@@ -9,8 +9,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import lombok.experimental.UtilityClass;
 
-public final class FixTargetGenerator {
+@UtilityClass
+public class FixTargetGenerator {
 
   public static List<FixTarget> generate(List<BuildError> errors) {
 
@@ -41,6 +43,4 @@ public final class FixTargetGenerator {
 
     return targets;
   }
-
-  private FixTargetGenerator() {}
 }

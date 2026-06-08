@@ -15,10 +15,10 @@ import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.DefaultCompactorConfig;
 import io.llmcompactor.core.parser.ParserUtils;
 import java.util.List;
+import lombok.experimental.UtilityClass;
 
+@UtilityClass
 final class OutputConfig {
-
-  private OutputConfig() {}
 
   static CompactorConfig resolve(PropertyResolver props) {
     boolean llmcePresent = props.getString("llmce", null) != null;

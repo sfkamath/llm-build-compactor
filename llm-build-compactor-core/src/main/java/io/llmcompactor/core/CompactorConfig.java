@@ -1,7 +1,9 @@
 package io.llmcompactor.core;
 
 import java.util.List;
+import lombok.experimental.Accessors;
 
+@Accessors(fluent = true)
 public interface CompactorConfig {
 
   boolean DEFAULT_ENABLED = true;

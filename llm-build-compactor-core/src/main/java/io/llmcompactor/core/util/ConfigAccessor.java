@@ -1,7 +1,10 @@
 package io.llmcompactor.core.util;
 
+import lombok.experimental.UtilityClass;
+
 /** Utility for parsing configuration property values with consistent semantics. */
-public final class ConfigAccessor {
+@UtilityClass
+public class ConfigAccessor {
 
   /** Case-insensitive "true" check. Returns false for null or non-"true" values. */
   public static boolean parseBoolean(String value) {
@@ -34,6 +37,4 @@ public final class ConfigAccessor {
       return defaultValue;
     }
   }
-
-  private ConfigAccessor() {}
 }

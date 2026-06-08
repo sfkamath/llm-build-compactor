@@ -9,8 +9,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import lombok.experimental.UtilityClass;
 
-public final class CompilationErrorExtractor {
+@UtilityClass
+public class CompilationErrorExtractor {
 
   private static final Pattern pattern =
       Pattern.compile("(?:\\[ERROR]\\s+)?(.+\\.java):(\\d+): (.+)");
@@ -99,6 +101,4 @@ public final class CompilationErrorExtractor {
     }
     return sb.toString();
   }
-
-  private CompilationErrorExtractor() {}
 }

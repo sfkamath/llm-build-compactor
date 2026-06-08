@@ -3,8 +3,10 @@ package io.llmcompactor.core;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import lombok.experimental.UtilityClass;
 
-public final class StackTraceCompressor {
+@UtilityClass
+public class StackTraceCompressor {
 
   private static final List<String> FRAMEWORK_PREFIXES =
       Arrays.asList(
@@ -191,6 +193,4 @@ public final class StackTraceCompressor {
     return stackTrace.replaceAll(
         "(\\s*at\\s+)(?:[a-z0-9_]+\\.)*([A-Z][a-zA-Z0-9_$]*\\.[a-zA-Z0-9_$]*\\([^)]*\\))", "$1$2");
   }
-
-  private StackTraceCompressor() {}
 }

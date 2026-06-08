@@ -5,8 +5,10 @@ import io.llmcompactor.core.git.GitDiffExtractor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.experimental.UtilityClass;
 
-public final class RepairContextBuilder {
+@UtilityClass
+public class RepairContextBuilder {
 
   public static Map<String, Object> build(BuildSummary summary) {
 
@@ -22,6 +24,4 @@ public final class RepairContextBuilder {
 
     return ctx;
   }
-
-  private RepairContextBuilder() {}
 }

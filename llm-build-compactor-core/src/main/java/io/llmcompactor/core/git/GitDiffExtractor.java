@@ -8,8 +8,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import lombok.experimental.UtilityClass;
 
-public final class GitDiffExtractor {
+@UtilityClass
+public class GitDiffExtractor {
 
   public static List<String> changedFiles() {
 
@@ -48,6 +50,4 @@ public final class GitDiffExtractor {
 
     return new ArrayList<>(seen);
   }
-
-  private GitDiffExtractor() {}
 }

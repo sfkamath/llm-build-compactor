@@ -68,13 +68,13 @@ class BuildErrorTest {
   void shouldGetJacksonProperties() {
     BuildError error = new BuildError("Type", "File.java", 5, "Msg", "Stack", 100.0, "logs");
 
-    assertThat(error.getType()).isEqualTo("Type");
-    assertThat(error.getFile()).isEqualTo("File.java");
-    assertThat(error.getLines()).containsExactly(5);
-    assertThat(error.getMessage()).isEqualTo("Msg");
-    assertThat(error.getStackTrace()).isEqualTo("Stack");
-    assertThat(error.getTestDuration()).isEqualTo(100.0);
-    assertThat(error.getTestLogs()).isEqualTo("logs");
+    assertThat(error.type()).isEqualTo("Type");
+    assertThat(error.file()).isEqualTo("File.java");
+    assertThat(error.lines()).containsExactly(5);
+    assertThat(error.message()).isEqualTo("Msg");
+    assertThat(error.stackTrace()).isEqualTo("Stack");
+    assertThat(error.testDuration()).isEqualTo(100.0);
+    assertThat(error.testLogs()).isEqualTo("logs");
   }
 
   @Test

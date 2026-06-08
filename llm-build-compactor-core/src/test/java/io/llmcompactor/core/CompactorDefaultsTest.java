@@ -37,7 +37,7 @@ class CompactorDefaultsTest {
   void nullPrintStreamDoesNotThrow() {
     PrintStream ps = CompactorDefaults.nullPrintStream();
     ps.write(65);
-    ps.write(new byte[]{1, 2, 3}, 0, 2);
+    ps.write(new byte[] {1, 2, 3}, 0, 2);
     ps.println("test");
     assertThat(ps.checkError()).isFalse();
   }

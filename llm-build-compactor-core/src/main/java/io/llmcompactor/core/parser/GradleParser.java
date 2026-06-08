@@ -12,14 +12,15 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import javax.xml.parsers.ParserConfigurationException;
+import lombok.experimental.UtilityClass;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-/** Parses Gradle test result XML files (typically in build/test-results/test/*.xml). */
-public final class GradleParser {
+@UtilityClass
+public class GradleParser {
   public static TestResult parse(
       Path testResultsDir,
       boolean compressStackFrames,
@@ -141,6 +142,4 @@ public final class GradleParser {
 
     return new TestResult(totalTests.get(), testFailures.get(), failures, allDurations, slowTests);
   }
-
-  private GradleParser() {}
 }

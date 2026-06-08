@@ -1,9 +1,11 @@
 package io.llmcompactor.core.util;
 
 import java.util.regex.Pattern;
+import lombok.experimental.UtilityClass;
 
 /** Utility for stripping ANSI escape codes and terminal formatting from text. */
-public final class AnsiStripper {
+@UtilityClass
+public class AnsiStripper {
   /** ANSI escape code pattern for terminal colors (\x1B[m) */
   private static final Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
 
@@ -13,8 +15,6 @@ public final class AnsiStripper {
   /** HTML-encoded ANSI escape codes (&#27; or &amp#27; forms) */
   private static final Pattern HTML_ENCODED_ANSI_PATTERN =
       Pattern.compile("(?:&amp)?#27;\\[[0-9;]*m");
-
-  private AnsiStripper() {}
 
   /** Strips all ANSI escape codes, unicode escapes, and HTML-encoded ANSI codes from the text. */
   public static String stripAnsi(String text) {

@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.experimental.UtilityClass;
 import org.apache.maven.project.MavenProject;
 
 /**
@@ -23,9 +24,8 @@ import org.apache.maven.project.MavenProject;
  * <p>Used to seed the stack-frame whitelist so that only frames belonging to the project under
  * build are highlighted in failure output.
  */
+@UtilityClass
 final class PackageScanner {
-
-  private PackageScanner() {}
 
   static List<String> scan(MavenProject project) {
     List<String> sourceRoots = new ArrayList<>();

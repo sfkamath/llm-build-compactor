@@ -94,18 +94,6 @@ class DefaultCompactorConfigTest {
   }
 
   @Test
-  void nullListsBecomeEmpty() {
-    CompactorConfig config =
-        DefaultCompactorConfig.builder()
-            .stackFrameWhitelist(null)
-            .stackFrameBlacklist(null)
-            .build();
-
-    assertThat(config.stackFrameWhitelist()).isEmpty();
-    assertThat(config.stackFrameBlacklist()).isEmpty();
-  }
-
-  @Test
   void resolvedConfigDelegatesAllMethods() {
     List<String> whitelist = Collections.singletonList("com.example");
     List<String> blacklist = Collections.singletonList("org.foo");

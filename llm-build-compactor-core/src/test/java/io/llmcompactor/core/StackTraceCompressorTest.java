@@ -129,9 +129,7 @@ class StackTraceCompressorTest {
 
   @Test
   void shouldSkipConditionNotSatisfiedHeader() {
-    String stackTrace =
-        "Condition not satisfied:\n"
-            + "at com.example.MyTest.test(MyTest.java:10)";
+    String stackTrace = "Condition not satisfied:\n" + "at com.example.MyTest.test(MyTest.java:10)";
 
     String compressed =
         StackTraceCompressor.compress(stackTrace, "com.example", Collections.emptyList());

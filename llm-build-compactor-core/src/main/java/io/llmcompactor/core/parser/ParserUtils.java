@@ -3,8 +3,10 @@ package io.llmcompactor.core.parser;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import lombok.experimental.UtilityClass;
 
-public final class ParserUtils {
+@UtilityClass
+public class ParserUtils {
 
   /** Returns the first non-empty line of a message, or an empty string. */
   public static String extractFirstLine(String message) {
@@ -27,6 +29,4 @@ public final class ParserUtils {
     }
     return result;
   }
-
-  private ParserUtils() {}
 }

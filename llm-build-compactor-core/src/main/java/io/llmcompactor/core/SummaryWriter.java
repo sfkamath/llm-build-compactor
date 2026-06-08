@@ -15,8 +15,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import lombok.experimental.UtilityClass;
 
-public final class SummaryWriter {
+@UtilityClass
+public class SummaryWriter {
   private static final ObjectMapper mapper =
       new ObjectMapper()
           .enable(SerializationFeature.INDENT_OUTPUT)
@@ -289,7 +291,8 @@ public final class SummaryWriter {
           sb.append(error.file());
           if (error.lines() != null && !error.lines().isEmpty()) {
             sb.append(":")
-                .append(error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+                .append(
+                    error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
           }
         } else {
           sb.append(error.type());
@@ -350,6 +353,4 @@ public final class SummaryWriter {
     // Condense internal whitespace (2+ spaces/tabs) to a single space for JSON only
     return text.replaceAll("[ \\t]{2,}", " ");
   }
-
-  private SummaryWriter() {}
 }

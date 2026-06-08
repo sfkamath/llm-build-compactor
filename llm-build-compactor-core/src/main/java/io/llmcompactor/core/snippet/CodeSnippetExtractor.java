@@ -4,8 +4,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import lombok.experimental.UtilityClass;
 
-public final class CodeSnippetExtractor {
+@UtilityClass
+public class CodeSnippetExtractor {
 
   public static String extract(Path file, int line) {
     try {
@@ -27,6 +29,4 @@ public final class CodeSnippetExtractor {
       return "";
     }
   }
-
-  private CodeSnippetExtractor() {}
 }

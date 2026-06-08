@@ -14,9 +14,9 @@ class SlowTestTest {
     assertThat(slowTest.testName()).isEqualTo("testMethod");
     assertThat(slowTest.testDuration()).isEqualTo(1500.5);
 
-    assertThat(slowTest.getClassName()).isEqualTo("com.example.Test");
-    assertThat(slowTest.getTestName()).isEqualTo("testMethod");
-    assertThat(slowTest.getTestDuration()).isEqualTo(1500.5);
+    assertThat(slowTest.className()).isEqualTo("com.example.Test");
+    assertThat(slowTest.testName()).isEqualTo("testMethod");
+    assertThat(slowTest.testDuration()).isEqualTo(1500.5);
   }
 
   @Test

@@ -16,13 +16,15 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.xml.parsers.ParserConfigurationException;
+import lombok.experimental.UtilityClass;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-public final class SurefireParser {
+@UtilityClass
+public class SurefireParser {
 
   private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\\.java:(\\d+)\\)");
   private static final Pattern GROOVY_LINE_NUMBER_PATTERN = Pattern.compile("\\.groovy:(\\d+)\\)");
@@ -239,6 +241,4 @@ public final class SurefireParser {
         duration,
         testLogs);
   }
-
-  private SurefireParser() {}
 }

@@ -4,8 +4,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.experimental.UtilityClass;
 
-public final class ModuleDetector {
+@UtilityClass
+public class ModuleDetector {
 
   public static boolean isMaven(Path root) {
     return Files.exists(root.resolve("pom.xml"));
@@ -35,6 +37,4 @@ public final class ModuleDetector {
 
     return modules;
   }
-
-  private ModuleDetector() {}
 }

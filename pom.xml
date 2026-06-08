@@ -53,6 +53,7 @@
         <assertjVersion>3.27.7</assertjVersion>
         <jacksonVersion>2.22.0</jacksonVersion>
         <caffeine.version>3.2.3</caffeine.version>
+        <lombok.version>1.18.46</lombok.version>
 
         <!-- ── Maven Plugin API ────────────────────────────────────────────── -->
         <maven-core.version>3.9.16</maven-core.version>
@@ -157,11 +158,39 @@
                 <version>${javax.inject.version}</version>
                 <scope>provided</scope>
             </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+                <scope>provided</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven-compiler-plugin.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
@@ -251,7 +280,6 @@
                             <activeRecipes>
                                 <recipe>org.openrewrite.java.ShortenFullyQualifiedTypeReferences</recipe>
                                 <recipe>org.openrewrite.staticanalysis.CommonStaticAnalysis</recipe>
-                                <recipe>org.openrewrite.staticanalysis.CodeCleanup</recipe>
                                 <recipe>org.openrewrite.java.RemoveUnusedImports</recipe>
                                 <recipe>org.openrewrite.staticanalysis.UnnecessaryParentheses</recipe>
                                 <recipe>org.openrewrite.staticanalysis.SimplifyBooleanExpression</recipe>

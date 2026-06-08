@@ -7,11 +7,13 @@ import java.util.List;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import lombok.experimental.UtilityClass;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+@UtilityClass
 final class XmlParserUtils {
 
   static Document parseDocument(Path file)
@@ -61,6 +63,4 @@ final class XmlParserUtils {
       }
     }
   }
-
-  private XmlParserUtils() {}
 }

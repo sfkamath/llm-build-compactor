@@ -19,10 +19,10 @@ class TestResultTest {
 
     TestResult result = new TestResult(5, 1, errors, durations);
 
-    assertThat(result.getTestsRun()).isEqualTo(5);
-    assertThat(result.getFailures()).isEqualTo(1);
-    assertThat(result.getErrors()).hasSize(1);
-    assertThat(result.getAllDurations()).containsExactly(10.0, 20.0);
+    assertThat(result.testsRun()).isEqualTo(5);
+    assertThat(result.failures()).isEqualTo(1);
+    assertThat(result.errors()).hasSize(1);
+    assertThat(result.allDurations()).containsExactly(10.0, 20.0);
   }
 
   @Test
@@ -62,8 +62,7 @@ class TestResultTest {
 
   @Test
   void shouldExposeSlowTestsViaJacksonGetter() {
-    SlowTest slow =
-        new SlowTest("Test", "testMethod", 500.0);
+    SlowTest slow = new SlowTest("Test", "testMethod", 500.0);
     TestResult result =
         new TestResult(
             5,
@@ -72,7 +71,7 @@ class TestResultTest {
             Collections.emptyList(),
             Collections.singletonList(slow));
 
-    assertThat(result.getSlowTests()).hasSize(1);
-    assertThat(result.getSlowTests().get(0).getTestName()).isEqualTo("testMethod");
+    assertThat(result.slowTests()).hasSize(1);
+    assertThat(result.slowTests().get(0).testName()).isEqualTo("testMethod");
   }
 }

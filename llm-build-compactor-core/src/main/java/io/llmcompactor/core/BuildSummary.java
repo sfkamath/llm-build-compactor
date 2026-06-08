@@ -1,5 +1,6 @@
 package io.llmcompactor.core;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -7,18 +8,33 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TreeMap;
+import lombok.Getter;
+import lombok.Value;
+import lombok.experimental.Accessors;
 
+@Getter
+@Accessors(fluent = true)
+@JsonAutoDetect(
+    fieldVisibility = JsonAutoDetect.Visibility.ANY,
+    getterVisibility = JsonAutoDetect.Visibility.NONE,
+    isGetterVisibility = JsonAutoDetect.Visibility.NONE)
 public class BuildSummary {
   private final String status;
   private final int testsRun;
   private final int failures;
   private final List<BuildError> errors;
+
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
   private final List<FixTarget> fixTargets;
+
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
   private final List<String> recentChanges;
+
   private final Long totalBuildDurationMs;
   private final Map<String, Double> testDurationPercentiles;
+
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
   private final List<SlowTest> slowTests;
 
   public BuildSummary(
@@ -83,82 +99,6 @@ public class BuildSummary {
       List<FixTarget> fixTargets,
       List<String> recentChanges) {
     this(status, testsRun, failures, errors, fixTargets, recentChanges, null, null);
-  }
-
-  public String status() {
-    return status;
-  }
-
-  public int testsRun() {
-    return testsRun;
-  }
-
-  public int failures() {
-    return failures;
-  }
-
-  public List<BuildError> errors() {
-    return Collections.unmodifiableList(errors);
-  }
-
-  public List<FixTarget> fixTargets() {
-    return fixTargets;
-  }
-
-  public List<String> recentChanges() {
-    return recentChanges;
-  }
-
-  public Long totalBuildDurationMs() {
-    return totalBuildDurationMs;
-  }
-
-  public Map<String, Double> testDurationPercentiles() {
-    return testDurationPercentiles;
-  }
-
-  public List<SlowTest> slowTests() {
-    return slowTests;
-  }
-
-  // Jackson getters
-  public String getStatus() {
-    return status;
-  }
-
-  public int getTestsRun() {
-    return testsRun;
-  }
-
-  public int getFailures() {
-    return failures;
-  }
-
-  public List<BuildError> getErrors() {
-    return Collections.unmodifiableList(errors);
-  }
-
-  @JsonInclude(JsonInclude.Include.NON_EMPTY)
-  public List<FixTarget> getFixTargets() {
-    return fixTargets;
-  }
-
-  @JsonInclude(JsonInclude.Include.NON_EMPTY)
-  public List<String> getRecentChanges() {
-    return recentChanges;
-  }
-
-  public Long getTotalBuildDurationMs() {
-    return totalBuildDurationMs;
-  }
-
-  public Map<String, Double> getTestDurationPercentiles() {
-    return testDurationPercentiles;
-  }
-
-  @JsonInclude(JsonInclude.Include.NON_EMPTY)
-  public List<SlowTest> getSlowTests() {
-    return slowTests;
   }
 
   /** Computes test duration percentiles (p50, p90, p95, p99, max) from a list of durations. */
@@ -230,40 +170,12 @@ public class BuildSummary {
     return Collections.unmodifiableList(result);
   }
 
+  @Value
   private static class ErrorGroup {
-    private final String type;
-    private final String file;
-    private final String message;
-    private final String stackTrace;
-    private final double testDuration;
-
-    ErrorGroup(String type, String file, String message, String stackTrace, double testDuration) {
-      this.type = type;
-      this.file = file;
-      this.message = message;
-      this.stackTrace = stackTrace;
-      this.testDuration = testDuration;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-      ErrorGroup that = (ErrorGroup) o;
-      return Double.compare(that.testDuration, testDuration) == 0
-          && Objects.equals(type, that.type)
-          && Objects.equals(file, that.file)
-          && Objects.equals(message, that.message)
-          && Objects.equals(stackTrace, that.stackTrace);
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(type, file, message, stackTrace, testDuration);
-    }
+    String type;
+    String file;
+    String message;
+    String stackTrace;
+    double testDuration;
   }
 }

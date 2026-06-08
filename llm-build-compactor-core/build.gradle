@@ -13,6 +13,12 @@ repositories {
 }
 
 dependencies {
+    compileOnly "org.projectlombok:lombok:${rootProps['lombokVersion']}"
+    annotationProcessor "org.projectlombok:lombok:${rootProps['lombokVersion']}"
+
+    testCompileOnly "org.projectlombok:lombok:${rootProps['lombokVersion']}"
+    testAnnotationProcessor "org.projectlombok:lombok:${rootProps['lombokVersion']}"
+
     implementation "com.fasterxml.jackson.core:jackson-databind:${rootProps['jacksonVersion']}"
 
     testImplementation "org.junit.jupiter:junit-jupiter-api:${rootProps['junitVersion']}"

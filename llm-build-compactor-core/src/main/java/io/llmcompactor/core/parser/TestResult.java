@@ -1,11 +1,23 @@
 package io.llmcompactor.core.parser;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.SlowTest;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.ToString;
+import lombok.experimental.Accessors;
 
+@Getter
+@Accessors(fluent = true)
+@EqualsAndHashCode
+@ToString
+@JsonAutoDetect(
+    fieldVisibility = JsonAutoDetect.Visibility.ANY,
+    getterVisibility = JsonAutoDetect.Visibility.NONE,
+    isGetterVisibility = JsonAutoDetect.Visibility.NONE)
 public class TestResult {
   private final int testsRun;
   private final int failures;
@@ -40,78 +52,5 @@ public class TestResult {
 
   public TestResult(int testsRun, int failures, List<BuildError> errors) {
     this(testsRun, failures, errors, Collections.emptyList());
-  }
-
-  public int testsRun() {
-    return testsRun;
-  }
-
-  public int failures() {
-    return failures;
-  }
-
-  public List<BuildError> errors() {
-    return errors;
-  }
-
-  public List<Double> allDurations() {
-    return allDurations;
-  }
-
-  public List<SlowTest> slowTests() {
-    return slowTests;
-  }
-
-  // Jackson getters
-  public int getTestsRun() {
-    return testsRun;
-  }
-
-  public int getFailures() {
-    return failures;
-  }
-
-  public List<BuildError> getErrors() {
-    return errors;
-  }
-
-  public List<Double> getAllDurations() {
-    return allDurations;
-  }
-
-  public List<SlowTest> getSlowTests() {
-    return slowTests;
-  }
-
-  @Override
-  public boolean equals(Object o) {
-    if (this == o) {
-      return true;
-    }
-    if (o == null || getClass() != o.getClass()) {
-      return false;
-    }
-    TestResult that = (TestResult) o;
-    return testsRun == that.testsRun
-        && failures == that.failures
-        && Objects.equals(errors, that.errors)
-        && Objects.equals(allDurations, that.allDurations)
-        && Objects.equals(slowTests, that.slowTests);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(testsRun, failures, errors, allDurations, slowTests);
-  }
-
-  @Override
-  public String toString() {
-    return "TestResult{testsRun="
-        + testsRun
-        + ", failures="
-        + failures
-        + ", errors="
-        + errors.size()
-        + "}";
   }
 }

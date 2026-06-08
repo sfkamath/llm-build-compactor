@@ -7,8 +7,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import lombok.experimental.UtilityClass;
 
-public final class PackageDiscoverer {
+@UtilityClass
+public class PackageDiscoverer {
 
   public static List<String> discoverPackages(Iterable<Path> roots) {
     List<String> packages = new ArrayList<>();
@@ -56,6 +58,4 @@ public final class PackageDiscoverer {
     }
     return null;
   }
-
-  private PackageDiscoverer() {}
 }
