@@ -494,66 +494,33 @@ class GradleOptionTests {
   }
 
   @Nested
-  @DisplayName("Init Script Lifecycle")
-  class InitScriptTests {
+  @DisplayName("Install Lifecycle")
+  class InstallTests {
 
-    private static final String INIT_SCRIPT_NAME = "llm-compactor-silence.gradle";
     private static final String MARKER_START = "# >>> llm-compactor >>>";
     private static final String MARKER_END = "# <<< llm-compactor <<<";
 
-    @Test
-    @DisplayName("applying the plugin auto-installs the init script")
-    void testAutoInstall() throws Exception {
-      Path initScript = GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
-      Files.deleteIfExists(initScript);
+    private Path propsFile;
+    private byte[] originalContent;
 
-      GradleBuild.inProject("gradle-test-project").withTask("test").execute();
-
-      assertThat(initScript).exists();
+    @org.junit.jupiter.api.BeforeEach
+    void saveProps() throws Exception {
+      propsFile = GradleBuild.inProject("gradle-test-project").getProjectDir().resolve("gradle.properties");
+      originalContent = Files.exists(propsFile) ? Files.readAllBytes(propsFile) : null;
     }
 
-    @Test
-    @DisplayName("installLlmCompactor installs the init script")
-    void testInstall() throws Exception {
-      Path initScript = GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
-      Files.deleteIfExists(initScript);
-
-      GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
-
-      assertThat(initScript).exists();
-    }
-
-    @Test
-    @DisplayName("uninstallLlmCompactor removes the init script")
-    void testUninstall() throws Exception {
-      Path initScript = GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
-      // Ensure it exists first
-      GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
-      assertThat(initScript).exists();
-
-      GradleBuild.inProject("gradle-test-project").withTask("uninstallLlmCompactor").execute();
-
-      assertThat(initScript).doesNotExist();
-    }
-
-    @Test
-    @DisplayName("uninstallLlmCompactor is a no-op when script is absent")
-    void testUninstallIdempotent() throws Exception {
-      Path initScript = GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
-      Files.deleteIfExists(initScript);
-
-      BuildResult result =
-          GradleBuild.inProject("gradle-test-project").withTask("uninstallLlmCompactor").execute();
-
-      assertThat(result.exitCode()).isZero();
-      assertThat(initScript).doesNotExist();
+    @org.junit.jupiter.api.AfterEach
+    void restoreProps() throws Exception {
+      if (originalContent != null) {
+        Files.write(propsFile, originalContent);
+      } else {
+        Files.deleteIfExists(propsFile);
+      }
     }
 
     @Test
     @DisplayName("applying the plugin auto-installs the gradle.properties block")
     void testAutoInstallGradleProperties() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
-      // Remove any existing marker block
       removeMarkerBlock(propsFile);
 
       GradleBuild.inProject("gradle-test-project").withTask("test").execute();
@@ -565,7 +532,6 @@ class GradleOptionTests {
     @Test
     @DisplayName("installLlmCompactor writes org.gradle.logging.level=quiet to gradle.properties")
     void testInstallGradleProperties() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
       removeMarkerBlock(propsFile);
 
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
@@ -579,7 +545,6 @@ class GradleOptionTests {
     @Test
     @DisplayName("installLlmCompactor is idempotent for gradle.properties")
     void testInstallGradlePropertiesIdempotent() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
       removeMarkerBlock(propsFile);
 
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
@@ -598,7 +563,6 @@ class GradleOptionTests {
     @Test
     @DisplayName("uninstallLlmCompactor removes the gradle.properties block")
     void testUninstallGradleProperties() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
       removeMarkerBlock(propsFile);
 
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
@@ -614,9 +578,6 @@ class GradleOptionTests {
     @Test
     @DisplayName("uninstallLlmCompactor preserves existing gradle.properties content")
     void testUninstallGradlePropertiesPreservesOtherContent() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
-      removeMarkerBlock(propsFile);
-      // Write existing user content
       Files.write(propsFile, "org.gradle.parallel=true\n".getBytes());
 
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();

@@ -87,7 +87,7 @@ class CompilationErrorExtractorTest {
   }
 
   @Test
-  void extractOrWrapCreatesFallbackAtBuildGradleLine1() {
+  void extractOrWrapReturnsEmptyForSuccessfulBuildOutput() {
     String output =
         "> Task :compileJava UP-TO-DATE\n"
             + "> Task :compileTestJava UP-TO-DATE\n"
@@ -97,10 +97,7 @@ class CompilationErrorExtractorTest {
 
     List<BuildError> result = CompilationErrorExtractor.extractOrWrap(output, "build.gradle");
 
-    assertThat(result).hasSize(1);
-    assertThat(result.get(0).file()).isEqualTo("build.gradle");
-    assertThat(result.get(0).lines()).containsExactly(1);
-    assertThat(result.get(0).message()).contains("> Task :compileJava UP-TO-DATE");
+    assertThat(result).isEmpty();
   }
 
   @Test

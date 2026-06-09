@@ -4,16 +4,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.llmcompactor.core.CompactorConfig;
 import java.io.PrintStream;
+import java.net.URL;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.testfixtures.ProjectBuilder;
+import org.gradle.testkit.runner.BuildResult;
+import org.gradle.testkit.runner.GradleRunner;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class LlmCompactorPluginDefaultsTest {
 
   @TempDir Path tempDir;
+  @TempDir Path testKitDir;
 
   @Test
   void conventionDefaultsMatchCompactorDefaults() {
@@ -41,6 +47,26 @@ class LlmCompactorPluginDefaultsTest {
           .isEqualTo(CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS);
     } finally {
       System.clearProperty("llmce");
+    }
+  }
+
+  @Test
+  void testCountLoggerLineNotInOutput() throws Exception {
+    URL resource = getClass().getClassLoader().getResource("test-project");
+    Path projectDir = Paths.get(resource.toURI());
+
+    BuildResult result =
+        GradleRunner.create()
+            .withTestKitDir(testKitDir.toFile())
+            .withProjectDir(projectDir.toFile())
+            .withPluginClasspath()
+            .withArguments("test", "--no-daemon", "--console=plain")
+            .buildAndFail();
+
+    for (String line : result.getOutput().split("\n")) {
+      assertThat(line.trim())
+          .as("Unexpected test count line: %s", line)
+          .doesNotMatch("\\d+ tests? completed.*");
     }
   }
 

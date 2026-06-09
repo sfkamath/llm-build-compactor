@@ -26,12 +26,18 @@ public class CompilationErrorExtractor {
     return AnsiStripper.stripAnsi(line);
   }
 
+  private static final Pattern ERROR_SIGNAL =
+      Pattern.compile("(?i)\\berror\\b|\\bfailure\\b|compilation failed|could not compile");
+
   public static List<BuildError> extractOrWrap(String output, String fallbackFile) {
     List<BuildError> extracted = extract(Arrays.asList(output.split("\n")));
     if (!extracted.isEmpty()) {
       return extracted;
     }
     String clean = stripAnsi(output);
+    if (clean.isEmpty() || !ERROR_SIGNAL.matcher(clean).find()) {
+      return Collections.emptyList();
+    }
     return Collections.singletonList(
         new BuildError(
             "COMPILATION_ERROR", fallbackFile, 1, ParserUtils.extractFirstLine(clean), clean));

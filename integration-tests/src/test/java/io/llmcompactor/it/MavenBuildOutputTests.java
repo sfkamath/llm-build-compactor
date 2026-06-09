@@ -33,7 +33,8 @@ class MavenBuildOutputTests {
             "StackTraceTest.java",
             "LogIsolationTest.java",
             "PaymentIT.java",
-            "OrderProcessorIT.java");
+            "OrderProcessorIT.java")
+        .doesNotContain("pom.xml");
   }
 
   @Test

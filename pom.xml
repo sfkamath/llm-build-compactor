@@ -43,7 +43,7 @@
              revision: keep in sync with pluginVersion in gradle.properties.
              Cannot be loaded from there — Maven resolves <version>${revision}</version>
              at model-build time before any plugin runs.                      -->
-        <revision>0.4.0</revision>
+        <revision>0.4.0-SNAPSHOT</revision>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -256,7 +256,15 @@
 
         </plugins>
     </build>
-
+    <pluginRepositories>
+        <pluginRepository>
+            <id>nokee-release</id>
+            <name>Nokee Release</name>
+            <url>https://repo.nokee.dev/release</url>
+            <releases><enabled>true</enabled></releases>
+            <snapshots><enabled>false</enabled></snapshots>
+        </pluginRepository>
+    </pluginRepositories>
     <profiles>
         <profile>
             <id>quality</id>
@@ -279,16 +287,15 @@
                             </recipeArtifactCoordinates>
                             <activeRecipes>
                                 <recipe>org.openrewrite.java.ShortenFullyQualifiedTypeReferences</recipe>
-                                <recipe>org.openrewrite.staticanalysis.CommonStaticAnalysis</recipe>
                                 <recipe>org.openrewrite.java.RemoveUnusedImports</recipe>
                                 <recipe>org.openrewrite.staticanalysis.UnnecessaryParentheses</recipe>
                                 <recipe>org.openrewrite.staticanalysis.SimplifyBooleanExpression</recipe>
                                 <recipe>org.openrewrite.staticanalysis.NoDoubleBraceInitialization</recipe>
+                                <recipe>org.openrewrite.java.ShortenFullyQualifiedTypeReferences</recipe>
                             </activeRecipes>
                             <exclusions>
                                 <exclusion>**/target/generated-sources/**</exclusion>
                                 <exclusion>**/*.gradle</exclusion>
-                                <exclusion>**/gradle-plugin/**</exclusion>
                             </exclusions>
                         </configuration>
                         <executions>

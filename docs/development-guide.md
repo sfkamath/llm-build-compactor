@@ -229,8 +229,7 @@ as `-Drevision=<new_tag>`. The `pom.xml` revision value is a local dev default o
 # Maven verbose
 ./mvnw clean verify -X 2>&1 | tee build.log
 
-# Gradle verbose
-cd llm-build-compactor-gradle-plugin && ../gradlew-smart clean build --info -PpluginVersion=0.1.0-SNAPSHOT
+# Gradle: see llm-build-compactor-gradle-plugin/README.md
 ```
 
 ### Run SpotBugs Locally
@@ -243,23 +242,9 @@ cd llm-build-compactor-gradle-plugin && ../gradlew-smart clean build --info -Ppl
 
 ## Troubleshooting
 
-### gradle-plugin fails with "Could not find io.github.sfkamath:llm-build-compactor-core"
+### gradle-plugin fails to build or resolve dependencies
 
-This should not happen with the current setup — `llm-build-compactor-gradle-plugin/pom.xml` installs
-`llm-build-compactor-core` and the root POM to `~/.m2` before invoking Gradle. If it does occur:
-
-1. Confirm you are running `./mvnw` from the project root (not inside `llm-build-compactor-gradle-plugin/`)
-2. Run with `-pl llm-build-compactor-core,llm-build-compactor-gradle-plugin -am` to isolate the two modules
-
-### "Unsupported class file major version"
-
-You're running Gradle with an incompatible Java version. Use the correct wrapper:
-
-```bash
-./gradlew-java8 clean build    # Java 8
-./gradlew-java11 clean build   # Java 11
-./gradlew-smart clean build    # auto-detect
-```
+See `llm-build-compactor-gradle-plugin/README.md` → Troubleshooting.
 
 ### Test Project Shows 0 Failures
 
@@ -278,6 +263,10 @@ test-project-maven `pom.xml` was expanded by Maven's resource filter (running in
 of `integration-tests`) to `integration-tests/target` rather than the subprocess
 project's own `target/`. Always use literal relative paths like `target/surefire-reports`
 in test-project-maven pom.xml files — never `${project.build.directory}`.
+
+### Integration tests ignore init script changes
+
+The Gradle integration tests use an isolated daemon-scoped `GRADLE_USER_HOME`. Changing `llm-compactor-init.gradle` requires a manual install step before re-running integration tests. See `llm-build-compactor-gradle-plugin/README.md` → Init Script Changes.
 
 ### "Could not find io.github.sfkamath:llm-build-compactor-maven-plugin:@project.version@"
 

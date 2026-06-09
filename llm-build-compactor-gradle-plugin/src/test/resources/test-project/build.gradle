@@ -1,0 +1,16 @@
+plugins {
+    id 'java'
+    id 'io.github.sfkamath.llm-build-compactor'
+}
+
+def rootProps = new Properties()
+rootProps.load(new FileInputStream(file('../../../../../gradle.properties')))
+
+repositories { mavenCentral() }
+
+dependencies {
+    testImplementation "org.junit.jupiter:junit-jupiter:${rootProps['junitVersion']}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${rootProps['junitPlatformVersion']}"
+}
+
+test { useJUnitPlatform() }

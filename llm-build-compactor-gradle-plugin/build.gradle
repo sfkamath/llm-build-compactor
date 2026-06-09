@@ -21,6 +21,7 @@ dependencies {
     implementation "io.github.sfkamath:llm-build-compactor-core:${version}"
     compileOnly "com.fasterxml.jackson.core:jackson-databind:${rootProps['jacksonVersion']}"
     testImplementation gradleApi()
+    testImplementation gradleTestKit()
     testImplementation "org.junit.jupiter:junit-jupiter-api:${rootProps['junitVersion']}"
     testImplementation "org.assertj:assertj-core:${rootProps['assertjVersion']}"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${rootProps['junitVersion']}"

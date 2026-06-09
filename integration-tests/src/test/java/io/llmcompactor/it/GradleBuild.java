@@ -40,9 +40,27 @@ public final class GradleBuild {
       if (Files.exists(wrapperDists)) {
         copyDirectory(wrapperDists, GRADLE_TEST_HOME.resolve("wrapper/dists"));
       }
+
+      // Stop any running daemon so it restarts and picks up the latest plugin JAR
+      stopDaemon(GRADLE_TEST_HOME);
     } catch (IOException e) {
       throw new RuntimeException("Failed to initialize shared Gradle test home", e);
     }
+  }
+
+  private static void stopDaemon(Path gradleTestHome) {
+    try {
+      URL resource = GradleBuild.class.getClassLoader().getResource("test-projects/gradle-test-project");
+      if (resource == null) return;
+      Path projectDir = Paths.get(resource.toURI());
+      Path root = findRootWithFile(projectDir, "gradlew");
+      if (root == null) return;
+      ProcessBuilder pb = new ProcessBuilder(root.resolve("gradlew").toString(), "--stop");
+      pb.environment().put("GRADLE_USER_HOME", gradleTestHome.toAbsolutePath().toString());
+      pb.redirectErrorStream(true);
+      Process p = pb.start();
+      p.waitFor(30, TimeUnit.SECONDS);
+    } catch (Exception ignored) {}
   }
 
   private GradleBuild(Path projectDir) {
@@ -218,11 +236,6 @@ public final class GradleBuild {
   /** Returns the project directory. */
   public Path getProjectDir() {
     return projectDir;
-  }
-
-  /** Returns the shared Gradle test home directory (useful for inspecting init.d contents). */
-  public static Path gradleTestHome() {
-    return GRADLE_TEST_HOME;
   }
 
   /** Cleans up the shared Gradle test home directory. Should be called after all tests complete. */

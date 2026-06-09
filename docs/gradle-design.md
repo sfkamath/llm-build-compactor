@@ -29,10 +29,9 @@ That means the Gradle implementation is necessarily more layered than the Maven 
 
 ## Relevant Lifecycle
 
-The current Gradle path uses two stages:
+The current Gradle path uses one stage:
 
-1. an init script, installed into Gradle user home, for broad late build-scoped suppression setup
-2. the Gradle plugin itself, applied in the target build, for task-level quieting, log capture, test result parsing, and final summary emission
+1. the Gradle plugin itself, applied in the target build, for task-level quieting, log capture, test result parsing, and final summary emission
 
 The timing matters:
 
@@ -46,38 +45,27 @@ The timing matters:
 ```mermaid
 flowchart TD
     A[gradle invocation] --> B[Gradle startup logging configured]
-    B --> C[init script loaded from init.d]
-    C --> D[projects configured]
-    D --> E[LlmCompactorPlugin apply]
-    E --> F[register root buildFinished listener once]
-    E --> G[configure every task to capture stdout/stderr at DEBUG]
-    E --> H[quiet JavaCompile tasks]
-    E --> I[quiet Test, JavaExec, Checkstyle noise]
-    G --> J[task execution]
-    H --> J
-    I --> J
-    J --> K[test XML reports written under build/test-results]
-    J --> L[log lines captured in-memory]
-    K --> M[buildFinished]
-    L --> M
-    M --> N[parse test reports and extract compilation/test errors]
-    N --> O[aggregate errors and optional fix targets]
-    O --> P[emit one compact final summary]
+    B --> C[projects configured]
+    C --> D[LlmCompactorPlugin apply]
+    D --> E[register root buildFinished listener once]
+    D --> F[configure every task to capture stdout/stderr at DEBUG]
+    D --> G[quiet JavaCompile tasks]
+    D --> H[quiet Test, JavaExec, Checkstyle noise]
+    F --> I[task execution]
+    G --> I
+    H --> I
+    I --> J[test XML reports written under build/test-results]
+    I --> K[log lines captured in-memory]
+    J --> L[buildFinished]
+    K --> L
+    L --> M[parse test reports and extract compilation/test errors]
+    M --> N[aggregate errors and optional fix targets]
+    N --> O[emit one compact final summary]
 ```
 
 ## How Suppression Is Achieved
 
-### 1. Init Script Bootstrap
-
-The plugin installs an init script resource into Gradle user home:
-
-- `gradle-plugin/src/main/resources/llm-compactor-init.gradle`
-
-This script handles broad build-scoped logging setup that is useful across builds, particularly for test logging suppression and standard output capture in places where the normal plugin hook is too late or too narrow.
-
-This is not equivalent to Maven's full early-session control, but it is the closest Gradle analogue available without requiring custom launcher changes.
-
-### 2. Root-Level Plugin Registration
+### 1. Root-Level Plugin Registration
 
 The plugin registers its main listener once at the root build:
 
@@ -184,7 +172,6 @@ That is intentional for the LLM-focused use case.
 The main pieces are:
 
 - `llm-build-compactor-gradle-plugin/src/main/java/io/llmcompactor/gradle/LlmCompactorPlugin.java`
-- `llm-build-compactor-gradle-plugin/src/main/resources/llm-compactor-init.gradle`
 - `llm-build-compactor-core/src/main/java/io/llmcompactor/core/SummaryWriter.java`
 - `llm-build-compactor-core/src/main/java/io/llmcompactor/core/parser/GradleParser.java`
 - `llm-build-compactor-core/src/main/java/io/llmcompactor/core/StackTraceCompressor.java`
@@ -193,7 +180,6 @@ The main pieces are:
 
 Gradle output suppression in `llm-build-compactor` is achieved by combining:
 
-- init-script bootstrap
 - root-scoped plugin coordination
 - broad task-level log capture
 - task-specific quieting for noisy executors

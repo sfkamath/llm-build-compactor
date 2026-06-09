@@ -33,7 +33,8 @@ class GradleBuildOutputTests {
             "StackTraceTest.java",
             "LogIsolationTest.java",
             "PaymentIT.java",
-            "OrderProcessorIT.java");
+            "OrderProcessorIT.java")
+        .doesNotContain("build.gradle");
   }
 
   @Test
@@ -44,9 +45,10 @@ class GradleBuildOutputTests {
 
     for (String line : result.output().split("\n")) {
       assertThat(line.trim())
-          .as("Unexpected lint output: %s", line)
+          .as("Unexpected noise in output: %s", line)
           .doesNotStartWith("Note:")
-          .doesNotMatch("warning: \\[options\\].*");
+          .doesNotMatch("warning: \\[options\\].*")
+          .doesNotMatch("\\d+ tests? completed.*");
     }
   }
 
