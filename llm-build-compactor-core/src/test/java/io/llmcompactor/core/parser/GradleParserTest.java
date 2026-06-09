@@ -42,7 +42,7 @@ class GradleParserTest {
 
     TestResult result =
         GradleParser.parse(
-            resultsDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+            resultsDir, true, Collections.emptyList(), Collections.emptyList(), true);
 
     assertThat(result.testsRun()).isEqualTo(1);
     assertThat(result.failures()).isEqualTo(1);
@@ -83,7 +83,7 @@ class GradleParserTest {
 
     TestResult result =
         GradleParser.parse(
-            resultsDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+            resultsDir, true, Collections.emptyList(), Collections.emptyList(), true);
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);
@@ -118,7 +118,7 @@ class GradleParserTest {
 
     TestResult result =
         GradleParser.parse(
-            resultsDir, true, Collections.emptyList(), Collections.emptyList(), 0, false);
+            resultsDir, true, Collections.emptyList(), Collections.emptyList(), false);
 
     assertThat(result.errors()).hasSize(1);
     BuildError error = result.errors().get(0);

@@ -10,7 +10,7 @@ public final class TestLogReader {
   /**
    * Reads test logs from a testcase element, optionally falling back to its parent (suite) level.
    *
-   * @param testCaseElement the <testcase> element to read logs from
+   * @param testCaseElement the testcase element to read logs from
    * @param fallbackToSuite if true, looks at the parent element if no logs are found in the
    *     testcase
    * @param labelFormat a format string for labeling log sections (e.g., "[%s]" or "[%s for

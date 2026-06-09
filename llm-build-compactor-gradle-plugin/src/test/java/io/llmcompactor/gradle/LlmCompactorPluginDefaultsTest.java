@@ -12,7 +12,6 @@ import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.testfixtures.ProjectBuilder;
 import org.gradle.testkit.runner.BuildResult;
 import org.gradle.testkit.runner.GradleRunner;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -60,7 +59,7 @@ class LlmCompactorPluginDefaultsTest {
             .withTestKitDir(testKitDir.toFile())
             .withProjectDir(projectDir.toFile())
             .withPluginClasspath()
-            .withArguments("test", "--no-daemon", "--console=plain")
+            .withArguments("test", "-PenableCompactor", "--console=plain", "--info")
             .buildAndFail();
 
     for (String line : result.getOutput().split("\n")) {

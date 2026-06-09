@@ -14,3 +14,7 @@ dependencies {
 }
 
 test { useJUnitPlatform() }
+
+llmCompactor {
+    enabled = project.hasProperty('enableCompactor')
+}

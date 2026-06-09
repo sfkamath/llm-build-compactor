@@ -91,6 +91,7 @@ final class BuildOutputSuppressor {
                           (descriptor, event) -> {
                             // Swallow test output from build log; XML results capture it
                           });
+                      suppressTestCountLogger(task);
                     }
                   });
           p.getTasks()

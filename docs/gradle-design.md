@@ -51,9 +51,13 @@ flowchart TD
     D --> F[configure every task to capture stdout/stderr at DEBUG]
     D --> G[quiet JavaCompile tasks]
     D --> H[quiet Test, JavaExec, Checkstyle noise]
+    H -.-> H1["register afterSuite TestListener on each Test task<br/><i>(at configuration time)</i>"]
     F --> I[task execution]
     G --> I
     H --> I
+    I -.-> H2["afterSuite(root) fires at end of test execution:<br/>reflect into TestCountLogger"]
+    H2 --> H3[call completed&#40;&#41; on ProgressLogger]
+    H3 --> H4["replace all interface fields<br/>(except Collection/Map) with no-op Proxies"]
     I --> J[test XML reports written under build/test-results]
     I --> K[log lines captured in-memory]
     J --> L[buildFinished]
@@ -187,3 +191,119 @@ Gradle output suppression in `llm-build-compactor` is achieved by combining:
 - a single end-of-build compact summary
 
 That combination is what makes the Gradle path viable in practice, especially for large multi-module builds where raw console output would otherwise dominate the agent context.
+
+---
+
+## Test Summary Suppression (TestCountLogger)
+
+### How It Works
+
+`TestCountLogger.java` registers an `afterSuite` `TestListener` on the `Test` task during
+`configureEach`. When the root suite finishes, it reflects into the Gradle `Test` task to find
+the internal `org.gradle.api.internal.tasks.testing.logging.TestCountLogger` instance, then
+**replaces all interface-typed fields with no-op `Proxy` instances**.
+
+This is necessary because Gradle 9.x's `TestCountLogger.afterSuite(root)` outputs the summary
+two ways:
+1. `progressLogger.completed()` — captured by replacing `ProgressLogger` field
+2. `logger.error(summary())` — captured by replacing `org.slf4j.Logger` field
+
+Both are interface-typed fields, so the blanket "replace all interfaces except Collection/Map
+types" approach handles both without needing field-name matching. Collection and Map types
+are excluded because `workerFailures` (a `java.util.List`) is consumed by Gradle's task
+reporting framework after `afterSuite` completes, and neutering it would cause
+`List.stream()` to return `null`. The no-op proxy also has a `defaultReturnValue` helper
+that returns proper zero/false for primitive return types to avoid `NullPointerException`
+when Gradle queries the neutered objects.
+
+### Key Files
+
+- `src/main/java/io/llmcompactor/gradle/TestCountLogger.java` — suppression logic
+- `src/main/java/io/llmcompactor/gradle/BuildOutputSuppressor.java` — calls `suppressTestCountLogger` in `withType(Test.class).configureEach`
+- `src/test/java/io/llmcompactor/gradle/LlmCompactorPluginDefaultsTest.java` — `testCountLoggerLineNotInOutput` test
+- `src/test/resources/test-project/` — GradleRunner test project (SampleTest with 2 tests, 1 failure)
+- `src/test/java/io/llmcompactor/gradle/CrossVersionTest.java` — cross-version validation (8.14.4, 9.3.0, 9.5.1)
+- `src/test/java/io/llmcompactor/gradle/TestCountLoggerTest.java` — unit tests for the logger class
+
+### Diagnostics via JUL FINE Logging
+
+`TestCountLogger` has a `java.util.logging.Logger` at `FINE` level that logs if:
+
+- `findTestCountLogger` encounters a non-`List` collection type
+- `findTestCountLogger` throws an unexpected exception
+- `neuter` throws an unexpected exception
+
+These are silent by default (JUL's default threshold is INFO). To enable:
+
+```bash
+./gradlew :llm-build-compactor-gradle-plugin:test \
+  -Djava.util.logging.config.file=/path/to/logging.properties
+```
+
+With `logging.properties`:
+
+```properties
+io.llmcompactor.gradle.TestCountLogger.level = FINE
+java.util.logging.ConsoleHandler.level = FINE
+```
+
+**Note:** Inside the GradleRunner fork, JUL is bridged through `jul-to-slf4j` → Gradle's
+`OutputEventListener` → captured by our own suppression. So the FINE output is caught by
+the suppression machinery and won't leak into build output. To see it, check `System.err`
+directly, or observe the GradleRunner's captured output at DEBUG level.
+
+### History & Lessons Learned
+
+#### `whenReady`/`doFirst` approach (reverted)
+Originally tried `doFirst` and `taskGraph.whenReady`. These fire too early — Gradle's
+`TestCountLogger` is created inside `AbstractTestTask.executeTests()`, well after both hooks.
+
+#### `afterSuite` listener approach (current)
+Registering a `TestListener` and acting in `afterSuite(root)` is the only timing window
+where `TestCountLogger` exists but hasn't yet output its summary.
+
+#### Filter fix (`startsWith("org.gradle.")`)
+`findTestCountLogger` was matching our own anonymous `TestCountLogger$1` listener because it
+also contains "TestCountLogger" in its class name. Added `name.startsWith("org.gradle.")` as
+a guard.
+
+#### `setAccessible(true)` for `completed()`
+Gradle's `ProgressLoggerImpl.completed()` is package-private. The reflection call needs
+`completedMethod.setAccessible(true)`.
+
+#### SLF4J logger was the missing piece
+We were only replacing the `ProgressLogger` field, but the summary is also output via
+`logger.error(summary())` in `TestCountLogger.afterSuite(root)`. Changed from
+"replace only fields with `completed()` method" to "replace ALL interface fields" to catch
+both `progressLogger` and `logger`.
+
+#### `java.util.List` cast assumption
+`findTestCountLogger` casts the listener collection to `List<?>`. If Gradle changes the
+collection type, the `instanceof List` check silently fails, traversal finds nothing, and
+the summary line reappears. The `else` branch logs at FINE level to make this diagnosable.
+
+#### Cross-version compatibility
+Tested across Gradle 8.14.4, 9.3.0, and 9.5.1 — summary suppression works on all three.
+Gradle 8.x's `TestCountLogger` only uses `progressLogger` for the summary; Gradle 9.x also
+uses `logger.error(summary())`. The "replace all interfaces except collections" approach
+handles both without field-name matching.
+
+#### Proxy return values for primitives
+The no-op proxy `(proxy, method, args) -> null` returned `null` for all methods, but some
+Gradle code paths call methods on the neutered objects after `afterSuite` (e.g., accessing
+the `ProgressLoggerFactory` to check whether logging is enabled). When that method returns
+`boolean`, the auto-unboxing of `null` throws `NullPointerException`. Fixed via a
+`defaultReturnValue(Class<?>)` helper that returns proper zero/false for primitive types.
+
+#### Collection/Map interface skip
+The `workerFailures` field on `TestCountLogger` is a `java.util.List`. Neutering it caused
+`List.stream()` to return `null`, which was consumed by Gradle's test reporting after
+`afterSuite`. Collection and Map interfaces are now skipped (not neutered).
+
+### Known Issues
+
+- **`testsRun: 0` in JSON output**: The GradleRunner's JSON shows `testsRun: 0` even though
+  tests actually run. This is a `GradleParser` timestamp-filtering issue, separate from the
+  summary suppression.
+- **`System.setErr(nullPrint)`**: Currently enabled in `BuildOutputSuppressor`. If debugging
+  the forked GradleRunner process, comment it out to see stderr from the inner build.

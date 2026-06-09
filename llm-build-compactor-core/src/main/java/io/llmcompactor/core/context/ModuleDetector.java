@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import lombok.experimental.UtilityClass;
 
 @UtilityClass
@@ -22,9 +23,8 @@ public class ModuleDetector {
 
     List<String> modules = new ArrayList<>();
 
-    try {
-
-      Files.list(root)
+    try (Stream<Path> paths = Files.list(root)) {
+      paths
           .filter(
               p ->
                   Files.exists(p.resolve("pom.xml"))

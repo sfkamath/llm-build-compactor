@@ -31,15 +31,23 @@ import org.gradle.tooling.events.OperationCompletionListener;
 import org.gradle.tooling.events.task.TaskFailureResult;
 import org.gradle.tooling.events.task.TaskFinishEvent;
 
-abstract class CompletionService
+/** Build service that captures output and emits the compact summary on build completion. */
+public abstract class CompletionService
     implements BuildService<CompletionService.Params>, OperationCompletionListener, AutoCloseable {
 
-  interface Params extends BuildServiceParameters {
+  /** Parameters for the build service. */
+  public interface Params extends BuildServiceParameters {
+    /**
+     * The session start time in millis since epoch.
+     *
+     * @return the session start time
+     */
     Property<Long> getSessionStartTime();
   }
 
+  /** Constructs the completion service (injected by Gradle). */
   @Inject
-  protected CompletionService() {}
+  public CompletionService() {}
 
   private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
   private final AtomicBoolean buildFailed = new AtomicBoolean(false);
@@ -95,10 +103,13 @@ abstract class CompletionService
 
     List<BuildError> compilationErrors;
     if (buildFailed.get()) {
-      String fullOutput =
-          logLines.stream()
-              .map(line -> CompilationErrorExtractor.stripAnsi(line.toString()))
-              .collect(Collectors.joining("\n"));
+      String fullOutput;
+      synchronized (logLines) {
+        fullOutput =
+            logLines.stream()
+                .map(line -> CompilationErrorExtractor.stripAnsi(line.toString()))
+                .collect(Collectors.joining("\n"));
+      }
       compilationErrors = CompilationErrorExtractor.extractOrWrap(fullOutput, "build.gradle");
     } else {
       compilationErrors = Collections.emptyList();
@@ -116,7 +127,6 @@ abstract class CompletionService
                   config.compressStackFrames(),
                   whitelist,
                   blacklist,
-                  sessionStartTime,
                   config.showFailedTestLogs()));
         }
       } catch (Exception e) {

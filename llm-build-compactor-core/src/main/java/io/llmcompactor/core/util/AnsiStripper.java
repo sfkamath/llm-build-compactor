@@ -12,7 +12,7 @@ public class AnsiStripper {
   /** Unicode escape form of ANSI codes (\\u001B[m) */
   private static final Pattern UNICODE_ESCAPE_PATTERN = Pattern.compile("\\\\u001[B]\\[[0-9;]*m");
 
-  /** HTML-encoded ANSI escape codes (&#27; or &amp#27; forms) */
+  /** HTML-encoded ANSI escape codes (&amp#27; or &amp#27; forms) */
   private static final Pattern HTML_ENCODED_ANSI_PATTERN =
       Pattern.compile("(?:&amp)?#27;\\[[0-9;]*m");
 

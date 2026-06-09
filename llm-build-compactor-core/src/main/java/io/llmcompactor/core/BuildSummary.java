@@ -109,10 +109,10 @@ public class BuildSummary {
     List<Double> sorted = new ArrayList<>(durations);
     Collections.sort(sorted);
     Map<String, Double> percentiles = new TreeMap<>();
-    percentiles.put("p50", sorted.get((int) (sorted.size() * 0.50)));
-    percentiles.put("p90", sorted.get((int) (sorted.size() * 0.90)));
-    percentiles.put("p95", sorted.get((int) (sorted.size() * 0.95)));
-    percentiles.put("p99", sorted.get((int) (sorted.size() * 0.99)));
+    percentiles.put("p50", sorted.get(sorted.size() * 50 / 100));
+    percentiles.put("p90", sorted.get(sorted.size() * 90 / 100));
+    percentiles.put("p95", sorted.get(sorted.size() * 95 / 100));
+    percentiles.put("p99", sorted.get(sorted.size() * 99 / 100));
     percentiles.put("max", sorted.get(sorted.size() - 1));
     return percentiles;
   }

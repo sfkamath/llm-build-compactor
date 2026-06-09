@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import io.llmcompactor.core.util.AnsiStripper;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -170,11 +169,7 @@ public class SummaryWriter {
       if (parent != null) {
         Files.createDirectories(parent);
       }
-      // Java 8 compatible write with explicit UTF-8 encoding
-      try (OutputStreamWriter writer =
-          new OutputStreamWriter(Files.newOutputStream(path), StandardCharsets.UTF_8)) {
-        writer.write(toJson(summary));
-      }
+      Files.write(path, toJson(summary).getBytes(StandardCharsets.UTF_8));
     } catch (IOException e) {
       throw new RuntimeException("Failed to write build summary", e);
     }
@@ -291,7 +286,8 @@ public class SummaryWriter {
           sb.append(error.file());
           if (error.lines() != null && !error.lines().isEmpty()) {
             sb.append(":")
-                .append(error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
+                .append(
+                    error.lines().stream().map(String::valueOf).collect(Collectors.joining(", ")));
           }
         } else {
           sb.append(error.type());

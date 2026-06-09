@@ -50,7 +50,7 @@ public class SurefireParser {
         try (Stream<Path> files = Files.list(reportsDir)) {
           files
               .filter(p -> p.toString().endsWith(".xml"))
-              .filter(p -> p.toFile().lastModified() >= sessionStartTime)
+              .filter(p -> p.toFile().lastModified() >= sessionStartTime - 10000)
               .forEach(
                   file -> {
                     try {
