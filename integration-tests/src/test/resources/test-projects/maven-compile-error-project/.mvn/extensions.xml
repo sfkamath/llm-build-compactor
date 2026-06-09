@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extensions>
+    <extension>
+        <groupId>io.github.sfkamath</groupId>
+        <artifactId>llm-build-compactor-extension</artifactId>
+        <version>@project.version@</version>
+    </extension>
+</extensions>

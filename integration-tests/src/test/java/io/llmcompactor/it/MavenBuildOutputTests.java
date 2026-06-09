@@ -51,6 +51,32 @@ class MavenBuildOutputTests {
     }
   }
 
+  @Test
+  @DisplayName("build correctly surfaces compilation errors")
+  void testCompilationErrors() throws Exception {
+    BuildResult result =
+        MavenBuild.inProject("maven-compile-error-project").withGoal("compile").execute();
+
+    assertThat(result.summaryJson()).isNotNull();
+    JsonNode tree = result.summaryTree();
+
+    assertThat(tree.get("status").asText()).isEqualTo("FAILED");
+    assertThat(tree.get("testsRun").asInt()).isEqualTo(0);
+    assertThat(tree.has("errors")).isTrue();
+    
+    List<String> errorFiles = errorFiles(tree);
+    assertThat(errorFiles).contains("Bad.java");
+    
+    boolean foundIncompatibleTypes = false;
+    for (JsonNode error : tree.get("errors")) {
+      if (error.has("message") && error.get("message").asText().contains("incompatible types")) {
+        foundIncompatibleTypes = true;
+        break;
+      }
+    }
+    assertThat(foundIncompatibleTypes).isTrue();
+  }
+
   private static List<String> errorFiles(JsonNode tree) {
     List<String> files = new ArrayList<>();
     for (JsonNode error : tree.get("errors")) {

@@ -74,9 +74,19 @@ public abstract class CompletionService
 
   @Override
   public void onFinish(FinishEvent event) {
-    if (event instanceof TaskFinishEvent
-        && ((TaskFinishEvent) event).getResult() instanceof TaskFailureResult) {
+    if (event instanceof TaskFinishEvent && event.getResult() instanceof TaskFailureResult) {
       buildFailed.set(true);
+      TaskFailureResult fr = (TaskFailureResult) event.getResult();
+      synchronized (logLines) {
+        for (org.gradle.tooling.Failure failure : fr.getFailures()) {
+          if (failure.getMessage() != null) {
+            logLines.add(failure.getMessage());
+          }
+          if (failure.getDescription() != null) {
+            logLines.add(failure.getDescription());
+          }
+        }
+      }
     }
   }
 
@@ -85,13 +95,14 @@ public abstract class CompletionService
     System.setOut(originalOut);
     System.setErr(originalErr);
     emit(rootProject, extension, getParameters().getSessionStartTime().get());
-    System.setOut(CompactorDefaults.nullPrintStream());
-    System.setErr(CompactorDefaults.nullPrintStream());
   }
 
   private void emit(
       Project project, LlmCompactorPlugin.LlmCompactorExtension ext, long sessionStartTime) {
     CompactorConfig config = toConfig(ext).resolved();
+    if (config == null || !config.enabled()) {
+      return;
+    }
 
     List<List<String>> scanResults = new ArrayList<>();
     for (Project p : project.getAllprojects()) {
@@ -159,7 +170,18 @@ public abstract class CompletionService
           SummaryWriter.toHumanReadable(
               summary, config.showSlowTests(), config.testDurationThresholdMs());
     }
-    project.getLogger().quiet(renderedSummary);
+
+    if (originalOut != null) {
+      originalOut.println(renderedSummary);
+    } else {
+      project.getLogger().quiet(renderedSummary);
+    }
+
+    if (originalErr != null && buildFailed.get() && compilationErrors.isEmpty()) {
+      originalErr.println(
+          "[LLM Compactor] Build failed but no compilation errors extracted. Log lines: "
+              + logLines.size());
+    }
   }
 
   static CompactorConfig toConfig(LlmCompactorPlugin.LlmCompactorExtension ext) {

@@ -1,0 +1,26 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        mavenLocal()
+    }
+    dependencies {
+        classpath 'io.github.sfkamath:llm-build-compactor-gradle-plugin:@project.version@'
+        classpath 'io.github.sfkamath:llm-build-compactor-core:@project.version@'
+    }
+}
+
+plugins {
+    id 'java'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+apply plugin: 'io.github.sfkamath.llm-build-compactor'
+
+llmCompactor {
+    enabled = true
+}
