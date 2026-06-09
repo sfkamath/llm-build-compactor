@@ -48,6 +48,9 @@ sourceSets {
 test {
     useJUnitPlatform()
     ignoreFailures = true
+    testLogging {
+        events "failed"
+    }
 }
 
 tasks.register('failBuild') {

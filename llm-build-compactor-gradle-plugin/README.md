@@ -42,7 +42,7 @@ cd llm-build-compactor-gradle-plugin
 ../gradlew :test --tests "io.llmcompactor.gradle.LlmCompactorPluginDefaultsTest.testCountLoggerLineNotInOutput"
 ```
 
-This is significantly faster than the Maven integration tests (~3s vs ~15s) and should be the primary iteration loop when working on the init script or plugin behaviour.
+This is significantly faster than the Maven integration tests (~3s vs ~15s) and should be the primary iteration loop when working on the plugin behaviour.
 
 To disable the compactor's own output suppression during test runs (to see raw Gradle output):
 
@@ -101,7 +101,7 @@ Integration tests live in `integration-tests/` at the repo root and are activate
 - Output suppression behaviour (e.g. `TestCountLogger` suppression)
 - End-to-end plugin behaviour that requires task execution
 
-The init script (`llm-compactor-init.gradle`) is loaded from the classpath (`src/main/resources/`) and pre-installed into the isolated `testKitDir` before each test run. This means **no daemon restart is needed** when iterating on the init script during unit test runs — the resource is read fresh from disk each time.
+The `test-project` is used for end-to-end plugin behaviour that requires task execution.
 
 ### Adding a GradleTestKit test
 
@@ -128,8 +128,6 @@ void myTest() throws Exception {
 
 ---
 
----
-
 ## Troubleshooting
 
 ### "Could not find io.github.sfkamath:llm-build-compactor-core"
@@ -149,7 +147,3 @@ Incompatible Java version. Use the correct wrapper:
 ../gradlew-java11 clean build    # Java 11
 ../gradlew-smart clean build     # auto-detect
 ```
-
-### Tests pass in unit tests but fail in integration tests
-
-The unit tests use a fresh isolated `testKitDir` per test and pre-install the init script from the classpath. The integration tests use a persistent daemon that may have loaded an older init script. Follow the init script update steps above.

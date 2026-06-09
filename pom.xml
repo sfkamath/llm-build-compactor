@@ -256,15 +256,6 @@
 
         </plugins>
     </build>
-    <pluginRepositories>
-        <pluginRepository>
-            <id>nokee-release</id>
-            <name>Nokee Release</name>
-            <url>https://repo.nokee.dev/release</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>false</enabled></snapshots>
-        </pluginRepository>
-    </pluginRepositories>
     <profiles>
         <profile>
             <id>quality</id>

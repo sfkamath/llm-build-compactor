@@ -7,8 +7,8 @@ import org.gradle.api.Project;
 
 final class GradlePropertiesInstaller {
 
-  private static final String MARKER_START = "# >>> llm-compactor >>>";
-  private static final String MARKER_END = "# <<< llm-compactor <<<";
+  static final String MARKER_START = "# >>> llm-compactor >>>";
+  static final String MARKER_END = "# <<< llm-compactor <<<";
 
   private GradlePropertiesInstaller() {}
 

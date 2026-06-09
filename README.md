@@ -114,43 +114,31 @@ llmCompactor {
 }
 ```
 
-### 3. Global Settings (Auto-Installed)
+### 3. Local Auto-Installation
 
-When you first apply the plugin, it automatically installs two global suppressions:
+When you first apply the plugin, it automatically adds the following to your project's **`gradle.properties`**:
 
-| File | What it adds |
-|------|-------------|
-| `~/.gradle/init.d/llm-compactor-silence.gradle` | Init script that suppresses Gradle lifecycle output during the initialization phase, before plugin code runs |
-| `~/.gradle/gradle.properties` | `org.gradle.logging.level=quiet` wrapped in `# >>> llm-compactor >>>` markers, which silences per-test pass/fail lines (e.g. Spock's `MySpec some test PASSED`) |
+```properties
+# >>> llm-compactor >>>
+org.gradle.logging.level=quiet
+# <<< llm-compactor <<<
+```
 
-Both are managed as a unit by `installLlmCompactor` / `uninstallLlmCompactor`.
-
-> **Warning:** These settings affect **all Gradle builds on your machine**, not just
-> projects that use this plugin. A one-line notice is printed the first time they are installed.
+This ensures that Gradle's default lifecycle noise (like task start/finish lines) is silenced, allowing the compactor to provide a clean summary.
 
 #### Uninstalling
 
-If you want to remove both suppressions (e.g. when removing the plugin from your project):
+If you want to remove the suppression (e.g. when removing the plugin from your project):
 
 ```bash
 ./gradlew uninstallLlmCompactor
-./gradlew --stop
 ```
 
-The `./gradlew --stop` is **required**. The running Gradle daemon loaded the init script at
-startup and will continue suppressing output for all builds until it is restarted.
-
-> **If you remove the plugin from your build file without running `uninstallLlmCompactor`
-> first**, both suppressions remain active. Run `./gradlew uninstallLlmCompactor && ./gradlew --stop`
-> from any project that still has the plugin applied, or remove them manually:
-> ```
-> rm ~/.gradle/init.d/llm-compactor-silence.gradle
-> # remove the llm-compactor block from ~/.gradle/gradle.properties
-> ```
+This will remove the marker block from your project's `gradle.properties`.
 
 #### Re-installing manually
 
-If the settings are ever lost (e.g. after cleaning `~/.gradle`), reinstall them with:
+If the block is ever removed, you can reinstall it with:
 
 ```bash
 ./gradlew installLlmCompactor

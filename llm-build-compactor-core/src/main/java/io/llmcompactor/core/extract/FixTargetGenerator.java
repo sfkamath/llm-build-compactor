@@ -33,9 +33,17 @@ public class FixTargetGenerator {
 
       // For test files, snippets show the assertion line which is not actionable
       // The message already describes what failed. Skip snippets for test files.
-      boolean isTestFile = error.file().contains("/test/") || error.file().contains("/it/");
-      String snippet =
-          isTestFile ? null : CodeSnippetExtractor.extract(Paths.get(error.file()), line);
+      String fileName = error.file();
+      boolean isTestFile =
+          fileName.contains("/test/")
+              || fileName.contains("/it/")
+              || fileName.endsWith("Test.java")
+              || fileName.endsWith("IT.java")
+              || fileName.endsWith("Tests.java")
+              || fileName.endsWith("Spec.groovy")
+              || fileName.endsWith("Spec.java");
+
+      String snippet = isTestFile ? null : CodeSnippetExtractor.extract(Paths.get(fileName), line);
       String reason = SummaryWriter.stripExceptionPackage(error.message());
 
       targets.add(new FixTarget(error.file(), line, reason, snippet));

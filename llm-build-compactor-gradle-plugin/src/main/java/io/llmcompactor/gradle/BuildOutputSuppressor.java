@@ -3,11 +3,14 @@ package io.llmcompactor.gradle;
 import static io.llmcompactor.gradle.TestCountLogger.suppressTestCountLogger;
 
 import io.llmcompactor.core.CompactorDefaults;
+import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
-import org.gradle.BuildAdapter;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.logging.LogLevel;
@@ -23,7 +26,6 @@ final class BuildOutputSuppressor {
 
   static void apply(Project rootProject, boolean isEnabled) {
     if (isEnabled) {
-      rootProject.getGradle().useLogger(new BuildAdapter());
       System.setProperty("org.gradle.logging.level", "quiet");
       rootProject
           .getGradle()
@@ -47,6 +49,16 @@ final class BuildOutputSuppressor {
             p.getLogging().captureStandardOutput(org.gradle.api.logging.LogLevel.DEBUG);
             p.getLogging().captureStandardError(org.gradle.api.logging.LogLevel.DEBUG);
           });
+    } else {
+      // If compactor is disabled, but quiet mode is active (likely due to our auto-install),
+      // we should restore LIFECYCLE so failures are visible.
+      LogLevel currentLevel = rootProject.getGradle().getStartParameter().getLogLevel();
+      String propLevel = System.getProperty("org.gradle.logging.level");
+      if ((currentLevel == LogLevel.QUIET || "quiet".equalsIgnoreCase(propLevel))
+          && isQuietSetByPlugin(rootProject)) {
+        rootProject.getGradle().getStartParameter().setLogLevel(LogLevel.LIFECYCLE);
+        System.clearProperty("org.gradle.logging.level");
+      }
     }
 
     rootProject.allprojects(
@@ -92,6 +104,15 @@ final class BuildOutputSuppressor {
                             // Swallow test output from build log; XML results capture it
                           });
                       suppressTestCountLogger(task);
+                    } else {
+                      // If we restored LIFECYCLE, ensure test failures are actually shown
+                      if (rootProject.getGradle().getStartParameter().getLogLevel()
+                              == LogLevel.LIFECYCLE
+                          && isQuietSetByPlugin(rootProject)) {
+                        task.getTestLogging().getQuiet().getEvents().add(TestLogEvent.FAILED);
+                        task.getTestLogging().getQuiet().setShowExceptions(true);
+                        task.getTestLogging().getQuiet().setShowCauses(true);
+                      }
                     }
                   });
           p.getTasks()
@@ -152,5 +173,19 @@ final class BuildOutputSuppressor {
       }
     }
     return false;
+  }
+
+  private static boolean isQuietSetByPlugin(Project project) {
+    Path propsFile = project.getProjectDir().toPath().resolve("gradle.properties");
+    if (!Files.exists(propsFile)) {
+      return false;
+    }
+    try {
+      byte[] bytes = Files.readAllBytes(propsFile);
+      String content = new String(bytes, StandardCharsets.UTF_8);
+      return content.contains(GradlePropertiesInstaller.MARKER_START);
+    } catch (IOException e) {
+      return false;
+    }
   }
 }

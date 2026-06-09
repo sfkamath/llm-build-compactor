@@ -118,10 +118,21 @@ To test against a published version instead of the local build:
 Integration tests live in `integration-tests/` and are **not** part of the default
 reactor. They are activated via the `integration-tests` profile:
 
+Build all modules first (JARs must exist in target/ before integration tests run)
 ```bash
-# Build all modules first (JARs must exist in target/ before integration tests run)
 ./mvnw install -DskipTests
+```
+Run all tests
+```bash
 ./mvnw verify -Pintegration-tests
+```
+Run all tests with a focus tag
+```bash
+./mvnw verify -Pintegration-tests -pl :integration-tests  -Dgroups="focus"
+```
+Run 2 specific tests
+```bash
+./mvnw verify -Pintegration-tests -pl :integration-tests  -Dtest="io.llmcompactor.it.GradleOptionTests\$EnabledToggleTests#testDisabledRestoresLogging,io.llmcompactor.it.GradleBuildOutputTests#testCompilationErrors"
 ```
 
 The `integration-tests` module is **self-contained**: its `pom.xml` runs `install-file`
@@ -263,10 +274,6 @@ test-project-maven `pom.xml` was expanded by Maven's resource filter (running in
 of `integration-tests`) to `integration-tests/target` rather than the subprocess
 project's own `target/`. Always use literal relative paths like `target/surefire-reports`
 in test-project-maven pom.xml files — never `${project.build.directory}`.
-
-### Integration tests ignore init script changes
-
-The Gradle integration tests use an isolated daemon-scoped `GRADLE_USER_HOME`. Changing `llm-compactor-init.gradle` requires a manual install step before re-running integration tests. See `llm-build-compactor-gradle-plugin/README.md` → Init Script Changes.
 
 ### "Could not find io.github.sfkamath:llm-build-compactor-maven-plugin:@project.version@"
 

@@ -3,7 +3,6 @@ package io.llmcompactor.gradle;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.CompactorConfig;
-import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.DefaultCompactorConfig;
 import io.llmcompactor.core.PackageDiscoverer;
 import io.llmcompactor.core.SummaryBuilder;
@@ -14,7 +13,6 @@ import io.llmcompactor.core.parser.TestResultAggregator;
 import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,21 +29,24 @@ import org.gradle.tooling.events.OperationCompletionListener;
 import org.gradle.tooling.events.task.TaskFailureResult;
 import org.gradle.tooling.events.task.TaskFinishEvent;
 
-/** Build service that captures output and emits the compact summary on build completion. */
+/**
+ * Shared service that collects build events and log lines, emitting a compact summary upon build
+ * completion.
+ */
 public abstract class CompletionService
     implements BuildService<CompletionService.Params>, OperationCompletionListener, AutoCloseable {
 
-  /** Parameters for the build service. */
+  /** Parameters for the completion service. */
   public interface Params extends BuildServiceParameters {
     /**
-     * The session start time in millis since epoch.
+     * The start time of the build session in milliseconds.
      *
-     * @return the session start time
+     * @return property containing the session start time
      */
     Property<Long> getSessionStartTime();
   }
 
-  /** Constructs the completion service (injected by Gradle). */
+  /** Constructs the completion service. */
   @Inject
   public CompletionService() {}
 
@@ -121,9 +122,10 @@ public abstract class CompletionService
                 .map(line -> CompilationErrorExtractor.stripAnsi(line.toString()))
                 .collect(Collectors.joining("\n"));
       }
-      compilationErrors = CompilationErrorExtractor.extractOrWrap(fullOutput, "build.gradle");
+      compilationErrors =
+          new ArrayList<>(CompilationErrorExtractor.extractOrWrap(fullOutput, "build.gradle"));
     } else {
-      compilationErrors = Collections.emptyList();
+      compilationErrors = new ArrayList<>();
     }
 
     TestResultAggregator testResults = new TestResultAggregator();
@@ -145,10 +147,30 @@ public abstract class CompletionService
       }
     }
 
+    List<BuildError> allErrors = new ArrayList<>();
+    allErrors.addAll(compilationErrors);
+    allErrors.addAll(testResults.errors());
+
+    // Filter out generic task failures if we have higher-signal root causes (test errors or
+    // non-generic compilation errors)
+    boolean hasHighSignal =
+        !testResults.errors().isEmpty()
+            || allErrors.stream()
+                .anyMatch(
+                    e ->
+                        !"build.gradle".equals(e.file())
+                            && !e.message().startsWith("Execution failed for task"));
+
+    if (hasHighSignal) {
+      allErrors.removeIf(
+          e ->
+              "build.gradle".equals(e.file())
+                  && e.message().startsWith("Execution failed for task"));
+    }
+
     BuildSummary summary =
         new SummaryBuilder()
-            .addErrors(compilationErrors)
-            .addErrors(testResults.errors())
+            .addErrors(allErrors)
             .addDurations(testResults.allDurations())
             .addSlowTests(testResults.slowTests())
             .withTestsRun(testResults.testsRun())
@@ -158,8 +180,13 @@ public abstract class CompletionService
             .withConfig(config)
             .build();
 
+    // Write default summary file
+    Path buildDir = project.getLayout().getBuildDirectory().getAsFile().get().toPath();
+    SummaryWriter.write(summary, buildDir.resolve("llm-summary.json"));
+
+    // Write to custom path if specified
     if (config.outputPath() != null) {
-      SummaryWriter.write(summary, Paths.get(config.outputPath()));
+      SummaryWriter.write(summary, project.getProjectDir().toPath().resolve(config.outputPath()));
     }
 
     String renderedSummary;
@@ -173,8 +200,9 @@ public abstract class CompletionService
 
     if (originalOut != null) {
       originalOut.println(renderedSummary);
+      originalOut.flush();
     } else {
-      project.getLogger().quiet(renderedSummary);
+      rootProject.getLogger().quiet(renderedSummary);
     }
 
     if (originalErr != null && buildFailed.get() && compilationErrors.isEmpty()) {
@@ -203,21 +231,18 @@ public abstract class CompletionService
         .build();
   }
 
-  private static List<String> scanProjectPackages(Project project) {
-    org.gradle.api.plugins.JavaPluginExtension javaExtension =
-        project.getExtensions().findByType(org.gradle.api.plugins.JavaPluginExtension.class);
-    if (javaExtension == null) {
-      return Collections.emptyList();
+  private List<String> scanProjectPackages(Project p) {
+    List<String> packages = new ArrayList<>();
+    File mainSrc = p.file("src/main/java");
+    if (mainSrc.exists()) {
+      packages.addAll(
+          PackageDiscoverer.discoverPackages(Collections.singletonList(mainSrc.toPath())));
     }
-    List<Path> roots = new ArrayList<>();
-    javaExtension
-        .getSourceSets()
-        .all(
-            sourceSet -> {
-              for (File root : sourceSet.getAllJava().getSrcDirs()) {
-                roots.add(root.toPath());
-              }
-            });
-    return PackageDiscoverer.discoverPackages(roots);
+    File testSrc = p.file("src/test/java");
+    if (testSrc.exists()) {
+      packages.addAll(
+          PackageDiscoverer.discoverPackages(Collections.singletonList(testSrc.toPath())));
+    }
+    return packages;
   }
 }

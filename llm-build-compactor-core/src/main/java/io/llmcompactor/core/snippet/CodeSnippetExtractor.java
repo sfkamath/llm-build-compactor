@@ -26,7 +26,7 @@ public class CodeSnippetExtractor {
       return snippet.toString();
 
     } catch (IOException e) {
-      return "";
+      return null;
     }
   }
 }

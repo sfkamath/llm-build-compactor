@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 /** Integration tests for Gradle plugin configuration options. */
 @DisplayName("Gradle Plugin Options")
@@ -32,6 +33,36 @@ class GradleOptionTests {
       assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
     }
 
+    @Tag("focus")
+    @Test
+    @DisplayName("enabled=false restores LIFECYCLE log level if QUIET was set by plugin")
+    void testDisabledRestoresLogging() throws Exception {
+      Path propsFile =
+          GradleBuild.inProject("gradle-test-project").getProjectDir().resolve("gradle.properties");
+      String markers =
+          "\n# >>> llm-compactor >>>\norg.gradle.logging.level=quiet\n# <<< llm-compactor <<<\n";
+      Files.write(propsFile, markers.getBytes());
+
+      try {
+        BuildResult result =
+            GradleBuild.inProject("gradle-test-project")
+                .withTask("test")
+                .withProperty("llmCompactor.enabled", "false")
+                .execute();
+
+        // Standard Gradle output for failing tests at LIFECYCLE level
+        // includes the test summary and specific failure details.
+        assertThat(result.output())
+            .as("Standard Gradle failure summary should be visible when compactor is disabled")
+            .contains("tests completed")
+            .contains("failed")
+            .contains("OrderServiceTest > testSlf4jFailing() FAILED")
+            .contains("OrderServiceTest.java");
+      } finally {
+        removeMarkerBlock(propsFile);
+      }
+    }
+
     @Test
     @DisplayName("llmce alias produces no compactor summary")
     void testLlmceAlias() throws Exception {
@@ -45,6 +76,22 @@ class GradleOptionTests {
       assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
     }
   }
+
+  private static void removeMarkerBlock(Path propsFile) throws Exception {
+    if (!Files.exists(propsFile)) return;
+    String content = new String(Files.readAllBytes(propsFile));
+    int start = content.indexOf(MARKER_START);
+    if (start < 0) return;
+    int end = content.indexOf(MARKER_END, start);
+    if (end < 0) return;
+    end += MARKER_END.length();
+    if (end < content.length() && content.charAt(end) == '\n') end++;
+    if (start > 0 && content.charAt(start - 1) == '\n') start--;
+    Files.write(propsFile, (content.substring(0, start) + content.substring(end)).getBytes());
+  }
+
+  private static final String MARKER_START = "# >>> llm-compactor >>>";
+  private static final String MARKER_END = "# <<< llm-compactor <<<";
 
   @Nested
   @DisplayName("Output Format")
@@ -497,9 +544,6 @@ class GradleOptionTests {
   @DisplayName("Install Lifecycle")
   class InstallTests {
 
-    private static final String MARKER_START = "# >>> llm-compactor >>>";
-    private static final String MARKER_END = "# <<< llm-compactor <<<";
-
     private Path propsFile;
     private byte[] originalContent;
 
@@ -586,19 +630,6 @@ class GradleOptionTests {
       String content = new String(Files.readAllBytes(propsFile));
       assertThat(content).contains("org.gradle.parallel=true");
       assertThat(content).doesNotContain(MARKER_START);
-    }
-
-    private void removeMarkerBlock(Path propsFile) throws Exception {
-      if (!Files.exists(propsFile)) return;
-      String content = new String(Files.readAllBytes(propsFile));
-      int start = content.indexOf(MARKER_START);
-      if (start < 0) return;
-      int end = content.indexOf(MARKER_END, start);
-      if (end < 0) return;
-      end += MARKER_END.length();
-      if (end < content.length() && content.charAt(end) == '\n') end++;
-      if (start > 0 && content.charAt(start - 1) == '\n') start--;
-      Files.write(propsFile, (content.substring(0, start) + content.substring(end)).getBytes());
     }
   }
 

@@ -44,8 +44,8 @@ class CodeSnippetExtractorTest {
   }
 
   @Test
-  void shouldReturnEmptyStringIfFileNotFound() {
+  void shouldReturnNullIfFileNotFound() {
     String snippet = CodeSnippetExtractor.extract(tempDir.resolve("NonExistent.java"), 1);
-    assertThat(snippet).isEmpty();
+    assertThat(snippet).isNull();
   }
 }

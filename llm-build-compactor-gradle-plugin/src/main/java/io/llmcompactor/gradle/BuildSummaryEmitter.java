@@ -22,10 +22,6 @@ class BuildSummaryEmitter {
       boolean isEnabled,
       PrintStream originalOut,
       PrintStream originalErr) {
-    if (!isEnabled) {
-      return;
-    }
-
     Provider<CompletionService> provider =
         rootProject
             .getGradle()

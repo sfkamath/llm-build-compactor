@@ -33,12 +33,11 @@ The current Gradle path uses one stage:
 
 1. the Gradle plugin itself, applied in the target build, for task-level quieting, log capture, test result parsing, and final summary emission
 
-The timing matters:
+The timing and listeners matter:
 
-- Startup logging configuration happens very early in Gradle.
-- Init scripts run before project build scripts, but still after some startup logging decisions.
-- Plugin `apply()` runs during project configuration.
-- `buildFinished` is the reliable point for emitting the final compact summary.
+- **StandardOutputListener**: Applied to each task to capture raw stdout/stderr lines.
+- **OperationCompletionListener**: Registered once via `BuildEventsListenerRegistry` to receive `TaskFinishEvent` notifications. This allows the plugin to detect build failure state and capture top-level `TaskFailureResult` messages.
+- **Service Close**: Because the summary service is a `BuildService` implementing `AutoCloseable`, its `close()` method is the reliable point for emitting the final compact summary after the build completes.
 
 ## Current Flow
 
@@ -47,25 +46,55 @@ flowchart TD
     A[gradle invocation] --> B[Gradle startup logging configured]
     B --> C[projects configured]
     C --> D[LlmCompactorPlugin apply]
-    D --> E[register root buildFinished listener once]
-    D --> F[configure every task to capture stdout/stderr at DEBUG]
-    D --> G[quiet JavaCompile tasks]
-    D --> H[quiet Test, JavaExec, Checkstyle noise]
-    H -.-> H1["register afterSuite TestListener on each Test task<br/><i>(at configuration time)</i>"]
-    F --> I[task execution]
-    G --> I
-    H --> I
-    I -.-> H2["afterSuite(root) fires at end of test execution:<br/>reflect into TestCountLogger"]
-    H2 --> H3[call completed&#40;&#41; on ProgressLogger]
-    H3 --> H4["replace all interface fields<br/>(except Collection/Map) with no-op Proxies"]
-    I --> J[test XML reports written under build/test-results]
-    I --> K[log lines captured in-memory]
-    J --> L[buildFinished]
-    K --> L
-    L --> M[parse test reports and extract compilation/test errors]
-    M --> N[aggregate errors and optional fix targets]
-    N --> O[emit one compact final summary]
+    D --> E{isEnabled?}
+    
+    E -- Yes --> F[register OperationCompletionListener once]
+    F --> G[configure every task to capture stdout/stderr at DEBUG]
+    G --> H[quiet JavaCompile tasks]
+    H --> I[quiet Test, JavaExec, Checkstyle noise]
+    I -.-> I1["register afterSuite TestListener on each Test task<br/><i>(at configuration time)</i>"]
+    
+    E -- No --> J{is quiet mode active?}
+    J -- Yes --> K[restore LIFECYCLE log level]
+    K --> L[clear org.gradle.logging.level system property]
+    L --> M[register fallback TestListener for visibility]
+    
+    I --> N[task execution]
+    H --> N
+    G --> N
+    M --> N
+    
+    N -.-> N1[OperationCompletionListener receives TaskFinishEvents]
+    N1 --> N2[Capture generic failure messages from TaskFailureResult]
+    N2 --> P
+    
+    N -.-> I2["afterSuite(root) fires at end of test execution:<br/>reflect into TestCountLogger"]
+    I2 --> I3[call completed&#40;&#41; on ProgressLogger]
+    I3 --> I4["replace all interface fields<br/>(except Collection/Map) with no-op Proxies"]
+    
+    N --> O[test XML reports written under build/test-results]
+    N --> P[log lines captured in-memory via StandardOutputListener]
+    O --> Q[Service close fires at end of build]
+    P --> Q
+    Q --> R[parse test reports and extract compilation/test errors]
+    R --> S[Deduplicate generic task failures against root causes]
+    S --> T[emit one compact final summary via root logger]
 ```
+
+## Logging Restoration
+
+When the plugin is applied but disabled (e.g., `-PllmCompactor.enabled=false`), it handles the "graceful restoration" of standard Gradle logging. This is critical because the plugin's auto-installer may have previously set `org.gradle.logging.level=quiet` in the project's `gradle.properties`.
+
+### 1. Identifying the Need for Restoration
+The plugin checks if the current `StartParameter` log level is `QUIET` and if this was likely set by the compactor plugin (by checking for the marker in `gradle.properties`).
+
+### 2. Aggressive Log Reset
+If restoration is needed, the plugin:
+- Sets the `StartParameter` log level back to `LIFECYCLE`.
+- Clears the global `org.gradle.logging.level` system property to prevent it from overriding early logging decisions.
+
+### 3. Fallback Visibility (Robustness)
+Because some parts of the Gradle logging pipeline may remain suppressed even after a mid-build log level change, the plugin registers a fallback `TestListener` when in restoration mode. This listener manually prints `FAILED` test strings directly to `System.out` to ensure that critical failure signals are never lost when the user expects standard output.
 
 ## How Suppression Is Achieved
 
@@ -127,13 +156,31 @@ At the end of the build, the plugin:
 - optionally includes recent Git changes
 - renders one human-readable or JSON summary
 
-The summary is emitted at build end as the primary user-visible output of the compactor.
+The summary is emitted via the **root project's logger at `QUIET` level**. This ensures it is visible to the user even when standard Gradle output is suppressed, while still following Gradle's logging abstractions.
+
+By default, the summary is also written to **`build/llm-summary.json`** in the root project.
+
+### 7. Deduplication and High-Signal Filtering
+
+The compactor captures error information from two streams:
+1.  **Log Stream**: Regex-extracted errors from captured stdout/stderr (e.g., `JavaCompile` output).
+2.  **Event Stream**: Failure messages from `TaskFinishEvent` (e.g., "Execution failed for task ':test'").
+
+To maintain a compact and high-signal summary, the compactor follows these rules:
+-   **Prioritize Specificity**: If specific compiler errors or test failures are extracted, generic "Execution failed" messages from the event stream are suppressed.
+-   **Fallback to Generic**: Only if no specific root causes can be identified is a top-level task failure reported as a fallback.
+
+This ensures that the LLM receives the most actionable information without the noise of redundant Gradle lifecycle messages.
 
 ## Property Handling
 
-The Gradle plugin reads configuration through Gradle's own `findProperty()` API, which natively resolves `-D` command-line flags, `gradle.properties`, and plugin extension values in a consistent priority order. This is unlike the Maven extension, which must explicitly check `session.getUserProperties()` because Maven `-D` flags are user properties and may not be propagated to JVM system properties.
+The Gradle plugin reads configuration through Gradle's own `findProperty()` API, which natively resolves `-D` command-line flags, `gradle.properties`, and plugin extension values in a consistent priority order.
 
-As a result, the Gradle property path is simpler and has no equivalent to Maven's plugin-XML-overriding-CLI-flag failure mode.
+To manage Gradle's early-applied logging decisions symmetrically:
+- **When enabled**: The plugin sets `System.setProperty("org.gradle.logging.level", "quiet")` to ensure global consistency.
+- **When disabled (Restoring)**: The plugin calls `System.clearProperty("org.gradle.logging.level")` to allow standard logging to take effect.
+
+This approach is simpler than the Maven extension path and ensures that CLI flags consistently override property files.
 
 ## Why Lifecycle Details Matter
 
@@ -302,8 +349,5 @@ The `workerFailures` field on `TestCountLogger` is a `java.util.List`. Neutering
 
 ### Known Issues
 
-- **`testsRun: 0` in JSON output**: The GradleRunner's JSON shows `testsRun: 0` even though
-  tests actually run. This is a `GradleParser` timestamp-filtering issue, separate from the
-  summary suppression.
 - **`System.setErr(nullPrint)`**: Currently enabled in `BuildOutputSuppressor`. If debugging
   the forked GradleRunner process, comment it out to see stderr from the inner build.

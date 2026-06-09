@@ -1,5 +1,6 @@
 package io.llmcompactor.core.context;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -32,7 +33,7 @@ public class ModuleDetector {
                       || Files.exists(p.resolve("build.gradle.kts")))
           .forEach(p -> modules.add(p.getFileName().toString()));
 
-    } catch (Exception ignored) {
+    } catch (IOException ignored) {
     }
 
     return modules;

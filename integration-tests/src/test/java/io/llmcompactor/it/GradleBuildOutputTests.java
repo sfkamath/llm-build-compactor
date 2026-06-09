@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 @DisplayName("Gradle Build Output")
 class GradleBuildOutputTests {
@@ -52,6 +53,7 @@ class GradleBuildOutputTests {
     }
   }
 
+  @Tag("focus")
   @Test
   @DisplayName("build correctly surfaces compilation errors")
   void testCompilationErrors() throws Exception {
