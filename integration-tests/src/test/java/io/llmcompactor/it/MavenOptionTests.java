@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -436,7 +438,29 @@ class MavenOptionTests {
     }
   }
 
+  @Nested
+  @DisplayName("Install Lifecycle")
+  class InstallTests {
+
+    @Test
+    @DisplayName("install goal creates .mvn/extensions.xml")
+    void testInstallExtension() throws Exception {
+      Path extensionsXml =
+          MavenBuild.inProject("maven-test-project").getProjectDir().resolve(".mvn/extensions.xml");
+      try {
+        MavenBuild.inProject("maven-test-project").withGoal("llm-compactor:install").execute();
+
+        assertThat(extensionsXml).exists();
+        String content = new String(Files.readAllBytes(extensionsXml));
+        assertThat(content).contains("llm-build-compactor-extension");
+      } finally {
+        Files.deleteIfExists(extensionsXml);
+      }
+    }
+  }
+
   // Helper for JSON validation - parses JSON and returns it for further assertions
+
   private static JsonNode parseJson(String json) throws IOException {
     return new ObjectMapper().readTree(json);
   }
@@ -459,5 +483,25 @@ class MavenOptionTests {
       assertThat(tree.has("status")).isTrue();
       assertThat(tree.get("status").asText()).isEqualTo("FAILED");
     }
+
+    @Test
+    @DisplayName("summary status is SUCCESS and errors is empty when build succeeds")
+    void testStatusSuccessOnCleanBuild() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("compile")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = parseJson(result.summaryJson());
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("status")).isTrue();
+      assertThat(tree.get("status").asText()).isEqualTo("SUCCESS");
+      assertThat(tree.has("errors")).isTrue();
+      assertThat(tree.get("errors").isArray()).isTrue();
+      assertThat(tree.get("errors")).isEmpty();
+    }
   }
 }
+

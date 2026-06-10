@@ -47,8 +47,22 @@ class MavenBuildOutputTests {
       assertThat(line.trim())
           .as("Unexpected lint output: %s", line)
           .doesNotStartWith("Note:")
-          .doesNotMatch("warning: \\[options\\].*");
+          .doesNotMatch("warning: \\[options\\].*")
+          .doesNotMatch("\\[INFO\\] Tests run:.*");
     }
+  }
+
+  @Test
+  @DisplayName("build output contains no Maven failure summary block")
+  void testNoMavenFailureSummary() throws Exception {
+    BuildResult result =
+        MavenBuild.inProject("maven-test-project").withGoal("verify").execute();
+
+    assertThat(result.output())
+        .as("Maven failure summary should be suppressed for test failures")
+        .doesNotContain("[ERROR] Failed to execute goal")
+        .doesNotContain("[ERROR] Re-run Maven using the -X switch")
+        .doesNotContain("[ERROR] For more information about the errors");
   }
 
   @Test
