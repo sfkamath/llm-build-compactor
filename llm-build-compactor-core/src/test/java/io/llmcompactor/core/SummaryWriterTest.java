@@ -540,6 +540,30 @@ class SummaryWriterTest {
   }
 
   @Test
+  void shouldStripPackagePrefixesFromStackTraceInHumanReadable() {
+    String rawTrace =
+        "at com.example.MyClass.myMethod(MyClass.java:10)\n"
+            + "at com.example.other.Helper.doWork(Helper.java:42)";
+    BuildError error =
+        new BuildError("TestFailure", "src/Test.java", 5, "assertion failed", rawTrace);
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            1,
+            1,
+            Collections.singletonList(error),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String human = SummaryWriter.toHumanReadable(summary, false);
+
+    assertThat(human).contains("at MyClass.myMethod(MyClass.java:10)");
+    assertThat(human).contains("at Helper.doWork(Helper.java:42)");
+    assertThat(human).doesNotContain("at com.example.MyClass");
+    assertThat(human).doesNotContain("at com.example.other.Helper");
+  }
+
+  @Test
   void shouldHandleWriteIOException() {
     BuildSummary summary =
         new BuildSummary(

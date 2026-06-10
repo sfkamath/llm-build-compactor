@@ -18,6 +18,7 @@ import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
+import io.llmcompactor.core.util.IoUtils;
 import java.io.PrintStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -133,7 +134,7 @@ public class BuildOutputSpy extends AbstractEventSpy {
     System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "off");
     resetSlf4j();
 
-    PrintStream nullPrint = CompactorDefaults.nullPrintStream();
+    PrintStream nullPrint = IoUtils.nullPrintStream();
     System.setOut(nullPrint);
     System.setErr(nullPrint);
     System.setProperty(PROP_EXTENSION_ACTIVE, "true");

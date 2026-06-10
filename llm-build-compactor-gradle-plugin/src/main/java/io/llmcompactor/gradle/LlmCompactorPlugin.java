@@ -75,7 +75,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     /**
      * Whether to show fix targets for errors.
      *
-     * @return property for showing fix targets (default: false)
+     * @return property for showing fix targets (default: true)
      */
     Property<Boolean> getShowFixTargets();
 
@@ -96,7 +96,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     /**
      * Whether to show test duration for slow tests (above threshold).
      *
-     * @return property for showing slow test durations (default: true)
+     * @return property for showing slow test durations (default: false)
      */
     Property<Boolean> getShowSlowTests();
 
@@ -145,10 +145,8 @@ public class LlmCompactorPlugin implements Plugin<Project> {
      * @return null (property is ignored)
      */
     default Object propertyMissing(String name, Object value) {
-      System.err.println(
-          "[LLM Compactor] Warning: Unknown property '"
-              + name
-              + "' - this may be from a newer plugin version");
+      org.gradle.api.logging.Logging.getLogger(LlmCompactorPlugin.class)
+          .warn("[LLM Compactor] Unknown property '{}' ignored (newer plugin version)", name);
       return null;
     }
   }

@@ -3,7 +3,6 @@ package io.llmcompactor.gradle;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.CompactorConfig;
-import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.DefaultCompactorConfig;
 import io.llmcompactor.core.PackageDiscoverer;
 import io.llmcompactor.core.SummaryBuilder;
@@ -11,6 +10,7 @@ import io.llmcompactor.core.SummaryWriter;
 import io.llmcompactor.core.extract.CompilationErrorExtractor;
 import io.llmcompactor.core.parser.GradleParser;
 import io.llmcompactor.core.parser.TestResultAggregator;
+import io.llmcompactor.core.util.IoUtils;
 import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Path;
@@ -105,7 +105,7 @@ public abstract class CompletionService
   /** Returns the shared null sentinel, creating it on first use. */
   static synchronized PrintStream nullStream() {
     if (nullSentinel == null) {
-      nullSentinel = CompactorDefaults.nullPrintStream();
+      nullSentinel = IoUtils.nullPrintStream();
     }
     return nullSentinel;
   }
@@ -248,7 +248,8 @@ public abstract class CompletionService
                   config.showFailedTestLogs()));
         }
       } catch (Exception e) {
-        // Ignore
+        org.gradle.api.logging.Logging.getLogger(CompletionService.class)
+            .debug("Error parsing test results: " + e.getMessage());
       }
     }
 

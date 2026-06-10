@@ -402,3 +402,18 @@ cd test-project-maven && mvn clean verify
 ```
 
 **Java Version Support:** Java 8 through 25. See [`docs/development-guide.md`](docs/development-guide.md) for the Gradle wrapper strategy and multi-version testing.
+
+---
+
+## Documentation
+
+| File | Description |
+|------|-------------|
+| [`docs/development-guide.md`](docs/development-guide.md) | Developer setup, Gradle wrapper strategy, multi-version testing, and release workflow. |
+| [`docs/gradle-design.md`](docs/gradle-design.md) | Architecture of the Gradle plugin: suppression lifecycle, stream safety, daemon reuse, and BuildService design. |
+| [`docs/maven-design.md`](docs/maven-design.md) | Architecture of the Maven plugin and extension: lifecycle hooks, session events, and output suppression. |
+| [`docs/maven-extension-model.md`](docs/maven-extension-model.md) | Detailed model for the Maven extension: how `BuildOutputSpy` integrates with the Maven session. |
+| [`docs/abandoned-branch-salvage.md`](docs/abandoned-branch-salvage.md) | Notes on salvaging features from the `fix/generic-build-errors` branch, including JaCoCo coverage footer design. |
+| [`docs/src-main-review.md`](docs/src-main-review.md) | Code-review findings for `src/main`, phased fix plan, and agent delegation batching guide. |
+| [`docs/TODO.md`](docs/TODO.md) | Outstanding tasks and known issues. |
+| [`docs/version-sync.md`](docs/version-sync.md) | How plugin versions are kept in sync across Maven Central and the Gradle Plugin Portal. |

@@ -81,9 +81,6 @@ public class SummaryWriter {
   private static final Pattern LEVEL_PATTERN =
       Pattern.compile("(INFO|DEBUG|WARN|ERROR|TRACE)(\\s+|:\\s+)");
 
-  /** Logger name pattern: abbreviated or full package.class */
-  private static final Pattern LOGGER_PATTERN = Pattern.compile("[a-z][a-zA-Z0-9_.]*\\s*-\\s*");
-
   /** Cleans up test log lines by removing infrastructure noise and normalizing format. */
   public static String cleanTestLogLine(String line) {
     if (line == null || line.isEmpty()) {
@@ -112,10 +109,6 @@ public class SummaryWriter {
 
     // Strip log level
     result = LEVEL_PATTERN.matcher(result).replaceAll("");
-
-    // Strip logger name (but keep the message after the dash)
-    // Disabled: users need to see the class name in test logs to debug failures
-    // result = LOGGER_PATTERN.matcher(result).replaceAll("");
 
     // Strip ANSI escape codes (terminal colors), including HTML-encoded forms
     result = AnsiStripper.stripAnsi(result);

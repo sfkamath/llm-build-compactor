@@ -58,9 +58,10 @@ class CompilationErrorExtractorTest {
 
   @Test
   @Disabled(
-      "Parked salvage check for review finding #23 (modernizer-style single-colon extraction)."
-          + " HEAD already matches these via the generic pattern; not a priority. See"
-          + " docs/src-main-review.md #23.")
+      "Needs IT-level completion: add modernizer-maven-plugin to test-project-maven, introduce an"
+          + " Optional.orElseThrow()-style violation, and write an IT asserting the extracted"
+          + " BuildError matches the modernizer log line. Unit parsing is already confirmed correct"
+          + " via the hardcoded-string assertions below.")
   void shouldExtractModernizerErrors() {
     // Modernizer (and other plugins) emit single-colon "[ERROR] File.java:LINE: message" lines,
     // matched by the generic `pattern` rather than the javac `:[line,col]` mavenPattern.

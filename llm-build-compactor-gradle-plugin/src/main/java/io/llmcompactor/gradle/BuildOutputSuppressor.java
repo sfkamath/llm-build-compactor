@@ -182,6 +182,7 @@ final class BuildOutputSuppressor {
       String content = new String(bytes, StandardCharsets.UTF_8);
       return content.contains(GradlePropertiesInstaller.MARKER_START);
     } catch (IOException e) {
+      project.getLogger().debug("Could not read gradle.properties: " + e.getMessage());
       return false;
     }
   }

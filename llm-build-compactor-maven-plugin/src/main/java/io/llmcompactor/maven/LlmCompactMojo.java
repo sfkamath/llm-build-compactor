@@ -124,7 +124,7 @@ public class LlmCompactMojo extends AbstractMojo {
 
     CompactorConfig config =
         DefaultCompactorConfig.builder()
-            .enabled(enabled)
+            .enabled(CompactorDefaults.resolveEnabled(llmcePresent, enabledValue))
             .outputPath(outputPath)
             .mode(mode)
             .outputAsJson(outputAsJson)

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
 import javax.xml.parsers.ParserConfigurationException;
 import lombok.experimental.UtilityClass;
@@ -21,6 +22,8 @@ import org.xml.sax.SAXException;
 
 @UtilityClass
 public class GradleParser {
+  private static final Logger LOGGER = Logger.getLogger(GradleParser.class.getName());
+
   public static TestResult parse(
       Path testResultsDir,
       boolean compressStackFrames,
@@ -54,7 +57,7 @@ public class GradleParser {
                       stackFrameWhitelist,
                       stackFrameBlacklist));
     } catch (IOException e) {
-      // Ignore IO errors
+      LOGGER.fine("Error reading test results from " + testResultsDir + ": " + e.getMessage());
     }
 
     return new TestResult(totalTests.get(), testFailures.get(), failures, allDurations, slowTests);
