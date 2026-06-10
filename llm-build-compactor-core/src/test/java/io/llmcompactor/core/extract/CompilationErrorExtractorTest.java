@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.llmcompactor.core.BuildError;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 class CompilationErrorExtractorTest {
@@ -53,6 +54,34 @@ class CompilationErrorExtractorTest {
         .isEqualTo("/Users/sfk/Developer/project/src/main/java/io/Service.java");
     assertThat(errors.get(1).lines()).containsExactly(10);
     assertThat(errors.get(1).message()).isEqualTo("error: cannot find symbol");
+  }
+
+  @Test
+  @Disabled(
+      "Parked salvage check for review finding #23 (modernizer-style single-colon extraction)."
+          + " HEAD already matches these via the generic pattern; not a priority. See"
+          + " docs/src-main-review.md #23.")
+  void shouldExtractModernizerErrors() {
+    // Modernizer (and other plugins) emit single-colon "[ERROR] File.java:LINE: message" lines,
+    // matched by the generic `pattern` rather than the javac `:[line,col]` mavenPattern.
+    List<String> logs =
+        Arrays.asList(
+            "[INFO] --- modernizer:2.7.0:modernizer (default) @ core ---",
+            "[ERROR] /proj/src/main/java/com/example/Foo.java:42: Prefer"
+                + " java.nio.charset.StandardCharsets.UTF_8 over the String \"UTF-8\"",
+            "[ERROR] /proj/src/main/java/com/example/Bar.java:17: Prefer"
+                + " java.util.Objects.equals over com.google.common.base.Objects.equal");
+
+    List<BuildError> errors = CompilationErrorExtractor.extract(logs);
+
+    assertThat(errors).hasSize(2);
+    assertThat(errors.get(0).file()).isEqualTo("/proj/src/main/java/com/example/Foo.java");
+    assertThat(errors.get(0).lines()).containsExactly(42);
+    assertThat(errors.get(0).message())
+        .isEqualTo("Prefer java.nio.charset.StandardCharsets.UTF_8 over the String \"UTF-8\"");
+    assertThat(errors.get(0).type()).isEqualTo("COMPILATION_ERROR");
+    assertThat(errors.get(1).file()).isEqualTo("/proj/src/main/java/com/example/Bar.java");
+    assertThat(errors.get(1).lines()).containsExactly(17);
   }
 
   @Test

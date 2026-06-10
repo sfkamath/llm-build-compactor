@@ -23,6 +23,7 @@ public final class GradleBuild {
   private final List<String> tasks = new ArrayList<>();
   private final Map<String, String> properties = new HashMap<>();
   private int timeoutMinutes = 5;
+  private boolean configCache = false;
 
   // Shared Gradle user home for all tests in a suite run
   // This allows dependency caching while isolating from the user's real Gradle cache
@@ -156,6 +157,12 @@ public final class GradleBuild {
     return this;
   }
 
+  /** Enables Gradle's configuration cache for this build (default: disabled). */
+  public GradleBuild withConfigurationCache() {
+    this.configCache = true;
+    return this;
+  }
+
   /** Executes the Gradle build and returns the result. */
   public BuildResult execute() throws IOException, InterruptedException {
     // Clean build directory to ensure fresh test outputs (but keep .gradle cache for dependencies)
@@ -171,7 +178,8 @@ public final class GradleBuild {
     cmd.add(gradlew);
     cmd.add("--daemon"); // Daemon is scoped to GRADLE_USER_HOME so safe to reuse across tests
     cmd.add("--no-build-cache"); // Prevent cached test results with stale timestamps
-    cmd.add("--no-configuration-cache"); // Prevent stale task graph from hiding test results
+    // Default off: prevents a stale task graph from hiding test results. Opt-in for CC-specific tests.
+    cmd.add(configCache ? "--configuration-cache" : "--no-configuration-cache");
 
     // Add project properties
     for (Map.Entry<String, String> prop : properties.entrySet()) {

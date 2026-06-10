@@ -66,6 +66,36 @@ class GradleBuildOutputTests {
         .doesNotContain("> Run with --scan");
   }
 
+  @Test
+  @DisplayName("Params serialize under configuration cache; summary still emits")
+  void testConfigurationCacheCompatible() throws Exception {
+    // The single Property<DefaultCompactorConfig> on CompletionService.Params is populated by a
+    // lazy provider that captures the DSL extension (BuildSummaryEmitter#buildConfig). This test
+    // locks in finding #20's purpose: that snapshot must serialize for Gradle's configuration
+    // cache. Run 1 stores the cache; if the provider can't serialize, Gradle prints a problems
+    // banner and discards it. Run 2 reuses the stored entry (execute() deletes build/ but keeps
+    // .gradle/), exercising the deserialize path.
+    BuildResult first =
+        GradleBuild.inProject("gradle-test-project")
+            .withConfigurationCache()
+            .withTask("test")
+            .execute();
+    assertThat(first.output())
+        .as("configuration cache must store cleanly (no serialization problems)")
+        .doesNotContain("problems were found storing the configuration cache")
+        .doesNotContain("Configuration cache problems found");
+    assertThat(first.summaryJson()).isNotNull();
+
+    BuildResult second =
+        GradleBuild.inProject("gradle-test-project")
+            .withConfigurationCache()
+            .withTask("test")
+            .execute();
+    assertThat(second.summaryJson())
+        .as("summary still emits when Params are restored from the configuration cache")
+        .isNotNull();
+  }
+
   @Tag("focus")
   @Test
   @DisplayName("build correctly surfaces compilation errors")
