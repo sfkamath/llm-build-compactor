@@ -38,7 +38,9 @@ The timing and listeners matter:
 - **StandardOutputListener**: Applied to each task to capture raw stdout/stderr lines.
 - **OperationCompletionListener**: Registered once via `BuildEventsListenerRegistry` to receive `TaskFinishEvent` notifications. This allows the plugin to detect build failure state and capture top-level `TaskFailureResult` messages.
 - **CompletionService (BuildService)**: Because the summary service is a `BuildService` implementing `AutoCloseable`, its `close()` method is the reliable point for emitting the final compact summary. The service is **fully serializable**, receiving its configuration and project paths through `BuildServiceParameters`. This ensures stability across build phases and compatibility with the Configuration Cache.
-- **Late Stream Restoration**: To suppress Gradle's final "What went wrong" failure block without changing build exit codes, the plugin redirects `System.out` and `System.err` to null during the build. It then uses a background thread (restored via `CompletionService.close()`) with a 500ms delay to restore the original streams. This "late restoration" allows Gradle's final reporting to happen against a null-redirected stream while ensuring the daemon environment is restored for future builds.
+- **Late Stream Restoration**: To suppress Gradle's final "What went wrong" failure block without changing build exit codes, the plugin redirects `System.out` and `System.err` to null during the build. It then uses a background thread (restored via `CompletionService.close()`) with a 2000ms (2s) delay to restore the original streams. This "late restoration" allows Gradle's final reporting to happen against a null-redirected stream while ensuring the daemon environment is restored for future builds.
+
+The 2s does **not** add build latency: `close()` *schedules* the restore on a daemon thread and returns immediately (non-blocking). In daemon mode the delay elapses in the background during idle time before the next build. In a one-shot (non-daemon) invocation the JVM exits before the daemon thread fires, so the restore simply never runs — harmless, since the process is terminating. The trade-off is that, in a reused daemon, a delayed restore from one build can fire into the next build's window (see the stream-restoration risk noted in the `src-main-review.md` findings).
 
 ## Current Flow
 
@@ -91,21 +93,21 @@ If restoration is needed, the plugin:
 - Clears the global `org.gradle.logging.level` system property to prevent it from overriding early logging decisions.
 
 ### 3. Fallback Visibility (Robustness)
-Because some parts of the Gradle logging pipeline may remain suppressed even after a mid-build log level change, the plugin registers a fallback `TestListener` when in restoration mode. This listener manually prints `FAILED` test strings directly to `System.out` to ensure that critical failure signals are never lost when the user expects standard output.
+Because some parts of the Gradle logging pipeline may remain suppressed even after a mid-build log level change, the plugin re-enables failure output on each `Test` task when in restoration mode. It configures the task's quiet-level test logging (`testLogging.getQuiet()`) to emit `FAILED` events with exceptions and causes, so critical failure signals stay visible at `LIFECYCLE` even though the plugin previously forced quiet mode.
 
 ## How Suppression Is Achieved
 
-### 2. Global Stream Redirection (Late Restoration)
+### 1. Global Stream Redirection (Late Restoration)
 
 To capture the "long tail" of Gradle output (including the final failure blocks), the plugin:
 - captures the original `System.out` and `System.err` during initialization.
 - redirects `System.out` and `System.err` to a null `PrintStream` during the build.
 - emits the final summary via **Gradle's internal quiet logger**, which bypasses the `System.out` redirection.
-- restores the original streams via a **delayed background thread** (500ms delay) triggered in `CompletionService.close()`.
+- restores the original streams via a **delayed background thread** (2000ms delay) triggered in `CompletionService.close()`.
 
 This ensures that Gradle's final failure reporting (which happens after all build services close) is swallowed, while preserving the daemon's health for subsequent builds. Unlike the `ignoreFailures` strategy, this preserves correct build exit codes.
 
-### 3. Task-Level Log Suppression
+### 2. Task-Level Log Suppression
 
 The most important practical suppression mechanism is task-scoped logging capture.
 
@@ -121,7 +123,7 @@ This is what suppresses noisy categories that were otherwise still leaking:
 
 This was the key difference between "partially quiet" and "actually quiet in real builds".
 
-### 4. JavaCompile-Specific Quieting
+### 3. JavaCompile-Specific Quieting
 
 `JavaCompile` tasks also get additional compile options applied:
 
@@ -131,7 +133,7 @@ This was the key difference between "partially quiet" and "actually quiet in rea
 
 This does not solve the whole problem alone, but it reduces noise at the source before Gradle has to filter it.
 
-### 5. Test Result Parsing Instead of Console Parsing
+### 4. Test Result Parsing Instead of Console Parsing
 
 The Gradle path does not rely only on console text to understand test failures.
 
@@ -146,7 +148,7 @@ Instead, on `buildFinished`, the plugin walks each project's `build/test-results
 
 This is why the compactor can still provide useful failure summaries even when the live console output is heavily suppressed.
 
-### 6. Final Summary Emission
+### 5. Final Summary Emission
 
 At the end of the build, the plugin:
 
@@ -159,7 +161,7 @@ The summary is emitted via **Gradle's internal logger at `QUIET` level**. This e
 
 By default, the summary is also written to **`build/llm-summary.json`** in the root project.
 
-### 7. Deduplication and High-Signal Filtering
+### 6. Deduplication and High-Signal Filtering
 
 The compactor captures error information from two streams:
 1.  **Log Stream**: Regex-extracted errors from captured stdout/stderr (e.g., `JavaCompile` output).
@@ -173,7 +175,7 @@ This ensures that the LLM receives the most actionable information without the n
 
 ## Property Handling
 
-The Gradle plugin reads configuration through Gradle's own `findProperty()` API, which natively resolves `-D` command-line flags, `gradle.properties`, and plugin extension values in a consistent priority order.
+The Gradle plugin reads configuration through Gradle's `ProviderFactory` (`gradleProperty()` falling back to `systemProperty()`), which resolves `gradle.properties` entries and `-D` command-line flags, feeding the plugin extension's conventions in a consistent priority order.
 
 To manage Gradle's early-applied logging decisions symmetrically:
 - **When enabled**: The plugin sets `System.setProperty("org.gradle.logging.level", "quiet")` to ensure global consistency.
