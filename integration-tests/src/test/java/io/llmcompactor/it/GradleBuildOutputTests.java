@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
@@ -94,6 +95,30 @@ class GradleBuildOutputTests {
     assertThat(second.summaryJson())
         .as("summary still emits when Params are restored from the configuration cache")
         .isNotNull();
+  }
+
+  @Test
+  @Disabled(
+      "Reproduces open finding #25: on a compileJava failure the compactor emits the summary"
+          + " correctly, but Gradle's ERROR-level renderer ALSO leaks the raw failure footer to the"
+          + " console (double-report). testNoGradleFailureSummary only covers the `test` task, so"
+          + " the compile path is unguarded. Re-enable when #25 is fixed. See"
+          + " docs/src-main-review.md #25.")
+  @DisplayName("compile failures suppress Gradle's failure footer (#25)")
+  void testNoGradleFailureSummaryForCompileErrors() throws Exception {
+    BuildResult result =
+        GradleBuild.inProject("gradle-compile-error-project").withTask("compileJava").execute();
+
+    // The compacted summary must still carry the compile error (already asserted by
+    // testCompilationErrors) ...
+    assertThat(result.summaryJson()).isNotNull();
+
+    // ... but Gradle's own failure footer must NOT also leak alongside it.
+    assertThat(result.output())
+        .as("compile-failure footer should be suppressed, same as test failures")
+        .doesNotContain("* What went wrong:")
+        .doesNotContain("Execution failed for task ':compileJava'")
+        .doesNotContain("BUILD FAILED in");
   }
 
   @Tag("focus")
