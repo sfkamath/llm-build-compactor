@@ -30,7 +30,7 @@ final class BuildOutputSuppressor {
       rootProject
           .getGradle()
           .getStartParameter()
-          .setLogLevel(org.gradle.api.logging.LogLevel.QUIET);
+          .setLogLevel(org.gradle.api.logging.LogLevel.ERROR);
       rootProject
           .getGradle()
           .getStartParameter()
@@ -99,6 +99,7 @@ final class BuildOutputSuppressor {
                       task.getTestLogging().setShowExceptions(false);
                       task.getTestLogging().setShowCauses(false);
                       task.getTestLogging().setShowStackTraces(false);
+
                       task.addTestOutputListener(
                           (descriptor, event) -> {
                             // Swallow test output from build log; XML results capture it

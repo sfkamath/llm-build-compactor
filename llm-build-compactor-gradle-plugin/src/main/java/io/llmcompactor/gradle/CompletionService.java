@@ -16,11 +16,14 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
-import org.gradle.api.Project;
 import org.gradle.api.logging.StandardOutputListener;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
@@ -39,38 +42,151 @@ public abstract class CompletionService
   /** Parameters for the completion service. */
   public interface Params extends BuildServiceParameters {
     /**
-     * The start time of the build session in milliseconds.
+     * Gets the session start time.
      *
      * @return property containing the session start time
      */
     Property<Long> getSessionStartTime();
+
+    /**
+     * Gets the project root directory.
+     *
+     * @return property containing the project root directory
+     */
+    Property<File> getRootDir();
+
+    /**
+     * Gets the build directory.
+     *
+     * @return property containing the build directory
+     */
+    Property<File> getBuildDir();
+
+    /**
+     * Gets all build directories.
+     *
+     * @return list of build directories for all subprojects
+     */
+    ListProperty<File> getAllBuildDirs();
+
+    /**
+     * Gets all source directories.
+     *
+     * @return list of source directories for package discovery
+     */
+    ListProperty<File> getAllSourceDirs();
+
+    /**
+     * Gets the enabled status.
+     *
+     * @return whether the plugin is enabled
+     */
+    Property<Boolean> getEnabled();
+
+    /**
+     * Gets the JSON output status.
+     *
+     * @return whether to output as JSON
+     */
+    Property<Boolean> getOutputAsJson();
+
+    /**
+     * Gets the stack frame compression status.
+     *
+     * @return whether to compress stack traces
+     */
+    Property<Boolean> getCompressStackFrames();
+
+    /**
+     * Gets the stack frame whitelist.
+     *
+     * @return whitelist for stack traces
+     */
+    ListProperty<String> getStackFrameWhitelist();
+
+    /**
+     * Gets the stack frame blacklist.
+     *
+     * @return blacklist for stack traces
+     */
+    ListProperty<String> getStackFrameBlacklist();
+
+    /**
+     * Gets the slow tests display status.
+     *
+     * @return whether to show slow tests
+     */
+    Property<Boolean> getShowSlowTests();
+
+    /**
+     * Gets the test duration threshold.
+     *
+     * @return test duration threshold
+     */
+    Property<Double> getTestDurationThresholdMs();
+
+    /**
+     * Gets the custom output path.
+     *
+     * @return custom output path
+     */
+    Property<String> getOutputPath();
+
+    /**
+     * Gets the failed test logs display status.
+     *
+     * @return whether to show failed test logs
+     */
+    Property<Boolean> getShowFailedTestLogs();
+
+    /**
+     * Gets the fix targets display status.
+     *
+     * @return whether to show fix targets
+     */
+    Property<Boolean> getShowFixTargets();
+
+    /**
+     * Gets the recent changes display status.
+     *
+     * @return whether to show recent changes
+     */
+    Property<Boolean> getShowRecentChanges();
+
+    /**
+     * Gets the total duration display status.
+     *
+     * @return whether to show total duration
+     */
+    Property<Boolean> getShowTotalDuration();
+
+    /**
+     * Gets the duration report display status.
+     *
+     * @return whether to show duration report
+     */
+    Property<Boolean> getShowDurationReport();
+
+    /**
+     * Gets the mode preset.
+     *
+     * @return mode preset
+     */
+    Property<String> getMode();
   }
 
   /** Constructs the completion service. */
   @Inject
   public CompletionService() {}
 
+  static volatile PrintStream originalOut;
+  static volatile PrintStream originalErr;
+
   private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
   private final AtomicBoolean buildFailed = new AtomicBoolean(false);
 
-  private volatile PrintStream originalOut;
-  private volatile PrintStream originalErr;
-  private volatile Project rootProject;
-  private volatile LlmCompactorPlugin.LlmCompactorExtension extension;
-
   StandardOutputListener listener() {
     return logLines::add;
-  }
-
-  void init(
-      Project rootProject,
-      LlmCompactorPlugin.LlmCompactorExtension extension,
-      PrintStream originalOut,
-      PrintStream originalErr) {
-    this.rootProject = rootProject;
-    this.extension = extension;
-    this.originalOut = originalOut;
-    this.originalErr = originalErr;
   }
 
   @Override
@@ -93,22 +209,54 @@ public abstract class CompletionService
 
   @Override
   public void close() {
-    System.setOut(originalOut);
-    System.setErr(originalErr);
-    emit(rootProject, extension, getParameters().getSessionStartTime().get());
+    emit();
+    restoreStreamsLate();
   }
 
-  private void emit(
-      Project project, LlmCompactorPlugin.LlmCompactorExtension ext, long sessionStartTime) {
-    CompactorConfig config = toConfig(ext).resolved();
-    if (config == null || !config.enabled()) {
+  private void restoreStreamsLate() {
+    PrintStream out = originalOut;
+    PrintStream err = originalErr;
+    if (out == null || err == null) return;
+
+    // Restore streams after a short delay to ensure Gradle's final failure reporting
+    // (which happens after service close) is caught by the current null redirection.
+    ScheduledExecutorService scheduler =
+        Executors.newSingleThreadScheduledExecutor(
+            r -> {
+              Thread t = new Thread(r, "llm-compactor-stream-restorer");
+              t.setDaemon(true);
+              return t;
+            });
+
+    scheduler.schedule(
+        () -> {
+          System.out.flush();
+          System.err.flush();
+          System.setOut(out);
+          System.setErr(err);
+        },
+        2000,
+        TimeUnit.MILLISECONDS);
+
+    scheduler.shutdown(); // allows the scheduled task to finish, then terminates
+  }
+
+  private void emit() {
+    Params params = getParameters();
+    if (!params.getEnabled().getOrElse(true)) {
       return;
     }
 
+    CompactorConfig config = toConfig(params).resolved();
+
     List<List<String>> scanResults = new ArrayList<>();
-    for (Project p : project.getAllprojects()) {
-      scanResults.add(scanProjectPackages(p));
+    for (File sourceDir : params.getAllSourceDirs().get()) {
+      if (sourceDir.exists()) {
+        scanResults.add(
+            PackageDiscoverer.discoverPackages(Collections.singletonList(sourceDir.toPath())));
+      }
     }
+
     List<String> whitelist =
         DefaultCompactorConfig.mergeWhitelist(config.stackFrameWhitelist(), scanResults);
     List<String> blacklist = config.stackFrameBlacklist();
@@ -129,10 +277,9 @@ public abstract class CompletionService
     }
 
     TestResultAggregator testResults = new TestResultAggregator();
-    for (Project p : project.getAllprojects()) {
+    for (File buildDir : params.getAllBuildDirs().get()) {
       try {
-        Path testResultsDir =
-            p.getLayout().getBuildDirectory().getAsFile().get().toPath().resolve("test-results");
+        Path testResultsDir = buildDir.toPath().resolve("test-results");
         if (testResultsDir.toFile().exists()) {
           testResults.add(
               GradleParser.parse(
@@ -151,8 +298,7 @@ public abstract class CompletionService
     allErrors.addAll(compilationErrors);
     allErrors.addAll(testResults.errors());
 
-    // Filter out generic task failures if we have higher-signal root causes (test errors or
-    // non-generic compilation errors)
+    // Filter out generic task failures if we have higher-signal root causes
     boolean hasHighSignal =
         !testResults.errors().isEmpty()
             || allErrors.stream()
@@ -176,17 +322,17 @@ public abstract class CompletionService
             .withTestsRun(testResults.testsRun())
             .withFailures(testResults.failures())
             .withBuildFailed(buildFailed.get())
-            .withSessionStartTime(sessionStartTime)
+            .withSessionStartTime(params.getSessionStartTime().get())
             .withConfig(config)
             .build();
 
     // Write default summary file
-    Path buildDir = project.getLayout().getBuildDirectory().getAsFile().get().toPath();
-    SummaryWriter.write(summary, buildDir.resolve("llm-summary.json"));
+    Path rootBuildDir = params.getBuildDir().get().toPath();
+    SummaryWriter.write(summary, rootBuildDir.resolve("llm-summary.json"));
 
     // Write to custom path if specified
     if (config.outputPath() != null) {
-      SummaryWriter.write(summary, project.getProjectDir().toPath().resolve(config.outputPath()));
+      SummaryWriter.write(summary, params.getRootDir().get().toPath().resolve(config.outputPath()));
     }
 
     String renderedSummary;
@@ -198,51 +344,34 @@ public abstract class CompletionService
               summary, config.showSlowTests(), config.testDurationThresholdMs());
     }
 
-    if (originalOut != null) {
-      originalOut.println(renderedSummary);
-      originalOut.flush();
-    } else {
-      rootProject.getLogger().quiet(renderedSummary);
-    }
+    // Using Gradle's internal logger is the most reliable way to ensure the summary
+    // is printed to the console even if we've redirected System.out to null.
+    org.gradle.api.logging.Logging.getLogger(CompletionService.class).quiet(renderedSummary);
 
-    if (originalErr != null && buildFailed.get() && compilationErrors.isEmpty()) {
-      originalErr.println(
-          "[LLM Compactor] Build failed but no compilation errors extracted. Log lines: "
-              + logLines.size());
+    if (buildFailed.get() && compilationErrors.isEmpty()) {
+      org.gradle.api.logging.Logging.getLogger(CompletionService.class)
+          .debug(
+              "[LLM Compactor] Build failed but no compilation errors extracted. Log lines: "
+                  + logLines.size());
     }
   }
 
-  static CompactorConfig toConfig(LlmCompactorPlugin.LlmCompactorExtension ext) {
+  private static CompactorConfig toConfig(Params params) {
     return DefaultCompactorConfig.builder()
-        .enabled(Boolean.TRUE.equals(ext.getEnabled().get()))
-        .outputPath(ext.getOutputPath().getOrNull())
-        .mode(ext.getMode().getOrNull())
-        .outputAsJson(ext.getOutputAsJson().get())
-        .compressStackFrames(ext.getCompressStackFrames().get())
-        .showFixTargets(ext.getShowFixTargets().get())
-        .showRecentChanges(ext.getShowRecentChanges().get())
-        .showSlowTests(Boolean.TRUE.equals(ext.getShowSlowTests().get()))
-        .showTotalDuration(Boolean.TRUE.equals(ext.getShowTotalDuration().get()))
-        .showDurationReport(Boolean.TRUE.equals(ext.getShowDurationReport().get()))
-        .showFailedTestLogs(ext.getShowFailedTestLogs().get())
-        .testDurationThresholdMs(ext.getTestDurationThresholdMs().get())
-        .stackFrameWhitelist(ext.getStackFrameWhitelist().getOrElse(Collections.emptyList()))
-        .stackFrameBlacklist(ext.getStackFrameBlacklist().getOrElse(Collections.emptyList()))
+        .enabled(params.getEnabled().getOrElse(true))
+        .outputPath(params.getOutputPath().getOrNull())
+        .mode(params.getMode().getOrNull())
+        .outputAsJson(params.getOutputAsJson().getOrElse(true))
+        .compressStackFrames(params.getCompressStackFrames().getOrElse(true))
+        .showFixTargets(params.getShowFixTargets().getOrElse(false))
+        .showRecentChanges(params.getShowRecentChanges().getOrElse(false))
+        .showSlowTests(params.getShowSlowTests().getOrElse(true))
+        .showTotalDuration(params.getShowTotalDuration().getOrElse(false))
+        .showDurationReport(params.getShowDurationReport().getOrElse(false))
+        .showFailedTestLogs(params.getShowFailedTestLogs().getOrElse(true))
+        .testDurationThresholdMs(params.getTestDurationThresholdMs().getOrElse(100.0))
+        .stackFrameWhitelist(params.getStackFrameWhitelist().getOrElse(Collections.emptyList()))
+        .stackFrameBlacklist(params.getStackFrameBlacklist().getOrElse(Collections.emptyList()))
         .build();
-  }
-
-  private List<String> scanProjectPackages(Project p) {
-    List<String> packages = new ArrayList<>();
-    File mainSrc = p.file("src/main/java");
-    if (mainSrc.exists()) {
-      packages.addAll(
-          PackageDiscoverer.discoverPackages(Collections.singletonList(mainSrc.toPath())));
-    }
-    File testSrc = p.file("src/test/java");
-    if (testSrc.exists()) {
-      packages.addAll(
-          PackageDiscoverer.discoverPackages(Collections.singletonList(testSrc.toPath())));
-    }
-    return packages;
   }
 }

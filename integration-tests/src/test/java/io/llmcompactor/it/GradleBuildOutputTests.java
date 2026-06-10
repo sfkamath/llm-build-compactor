@@ -53,6 +53,19 @@ class GradleBuildOutputTests {
     }
   }
 
+  @Test
+  @DisplayName("build output contains no Gradle 'What went wrong' or failure block")
+  void testNoGradleFailureSummary() throws Exception {
+    BuildResult result =
+        GradleBuild.inProject("gradle-test-project").withTask("test").execute();
+
+    assertThat(result.output())
+        .as("Gradle failure summary should be suppressed for test failures")
+        .doesNotContain("* What went wrong:")
+        .doesNotContain("BUILD FAILED in")
+        .doesNotContain("> Run with --scan");
+  }
+
   @Tag("focus")
   @Test
   @DisplayName("build correctly surfaces compilation errors")

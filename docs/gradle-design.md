@@ -37,7 +37,8 @@ The timing and listeners matter:
 
 - **StandardOutputListener**: Applied to each task to capture raw stdout/stderr lines.
 - **OperationCompletionListener**: Registered once via `BuildEventsListenerRegistry` to receive `TaskFinishEvent` notifications. This allows the plugin to detect build failure state and capture top-level `TaskFailureResult` messages.
-- **Service Close**: Because the summary service is a `BuildService` implementing `AutoCloseable`, its `close()` method is the reliable point for emitting the final compact summary after the build completes.
+- **CompletionService (BuildService)**: Because the summary service is a `BuildService` implementing `AutoCloseable`, its `close()` method is the reliable point for emitting the final compact summary. The service is **fully serializable**, receiving its configuration and project paths through `BuildServiceParameters`. This ensures stability across build phases and compatibility with the Configuration Cache.
+- **Late Stream Restoration**: To suppress Gradle's final "What went wrong" failure block without changing build exit codes, the plugin redirects `System.out` and `System.err` to null during the build. It then uses a background thread (restored via `CompletionService.close()`) with a 500ms delay to restore the original streams. This "late restoration" allows Gradle's final reporting to happen against a null-redirected stream while ensuring the daemon environment is restored for future builds.
 
 ## Current Flow
 
@@ -48,37 +49,33 @@ flowchart TD
     C --> D[LlmCompactorPlugin apply]
     D --> E{isEnabled?}
     
-    E -- Yes --> F[register OperationCompletionListener once]
-    F --> G[configure every task to capture stdout/stderr at DEBUG]
-    G --> H[quiet JavaCompile tasks]
-    H --> I[quiet Test, JavaExec, Checkstyle noise]
-    I -.-> I1["register afterSuite TestListener on each Test task<br/><i>(at configuration time)</i>"]
+    E -- Yes --> F[register CompletionService once with serializable Params]
+    F --> G[capture original System.out/err in CompletionService]
+    G --> H[redirect System.out/err to null]
+    H --> I[configure every task to capture stdout/stderr at DEBUG]
+    I --> J[quiet JavaCompile tasks]
+    J --> K[quiet Test, JavaExec, Checkstyle noise]
     
-    E -- No --> J{is quiet mode active?}
-    J -- Yes --> K[restore LIFECYCLE log level]
-    K --> L[clear org.gradle.logging.level system property]
-    L --> M[register fallback TestListener for visibility]
+    E -- No --> L{is quiet mode active?}
+    L -- Yes --> M[restore LIFECYCLE log level]
+    M --> N[clear org.gradle.logging.level system property]
+    N --> O[register fallback TestListener for visibility]
     
-    I --> N[task execution]
-    H --> N
-    G --> N
-    M --> N
+    K --> P[task execution]
+    J --> P
+    I --> P
+    O --> P
     
-    N -.-> N1[OperationCompletionListener receives TaskFinishEvents]
-    N1 --> N2[Capture generic failure messages from TaskFailureResult]
-    N2 --> P
+    P -.-> P1[OperationCompletionListener receives TaskFinishEvents]
+    P1 --> P2[Capture generic failure messages from TaskFailureResult]
+    P2 --> R
     
-    N -.-> I2["afterSuite(root) fires at end of test execution:<br/>reflect into TestCountLogger"]
-    I2 --> I3[call completed&#40;&#41; on ProgressLogger]
-    I3 --> I4["replace all interface fields<br/>(except Collection/Map) with no-op Proxies"]
-    
-    N --> O[test XML reports written under build/test-results]
-    N --> P[log lines captured in-memory via StandardOutputListener]
-    O --> Q[Service close fires at end of build]
-    P --> Q
-    Q --> R[parse test reports and extract compilation/test errors]
-    R --> S[Deduplicate generic task failures against root causes]
-    S --> T[emit one compact final summary via root logger]
+    P --> Q[test XML reports written under build/test-results]
+    P --> R[log lines captured in-memory via StandardOutputListener]
+    Q --> S[Service close fires at end of build]
+    R --> S
+    S --> T[emit final summary via Gradle quiet logger]
+    S --> U[Late Restoration: restore original System.out/err via background thread]
 ```
 
 ## Logging Restoration
@@ -98,13 +95,15 @@ Because some parts of the Gradle logging pipeline may remain suppressed even aft
 
 ## How Suppression Is Achieved
 
-### 1. Root-Level Plugin Registration
+### 2. Global Stream Redirection (Late Restoration)
 
-The plugin registers its main listener once at the root build:
+To capture the "long tail" of Gradle output (including the final failure blocks), the plugin:
+- captures the original `System.out` and `System.err` during initialization.
+- redirects `System.out` and `System.err` to a null `PrintStream` during the build.
+- emits the final summary via **Gradle's internal quiet logger**, which bypasses the `System.out` redirection.
+- restores the original streams via a **delayed background thread** (500ms delay) triggered in `CompletionService.close()`.
 
-- `gradle-plugin/src/main/java/io/llmcompactor/gradle/LlmCompactorPlugin.java`
-
-This avoids duplicate summaries in multi-project builds and ensures that summary generation happens once for the entire build, not once per subproject.
+This ensures that Gradle's final failure reporting (which happens after all build services close) is swallowed, while preserving the daemon's health for subsequent builds. Unlike the `ignoreFailures` strategy, this preserves correct build exit codes.
 
 ### 3. Task-Level Log Suppression
 
@@ -156,7 +155,7 @@ At the end of the build, the plugin:
 - optionally includes recent Git changes
 - renders one human-readable or JSON summary
 
-The summary is emitted via the **root project's logger at `QUIET` level**. This ensures it is visible to the user even when standard Gradle output is suppressed, while still following Gradle's logging abstractions.
+The summary is emitted via **Gradle's internal logger at `QUIET` level**. This ensures it reaches the console even if standard streams have been redirected or captured by Gradle's managed logging pipeline.
 
 By default, the summary is also written to **`build/llm-summary.json`** in the root project.
 

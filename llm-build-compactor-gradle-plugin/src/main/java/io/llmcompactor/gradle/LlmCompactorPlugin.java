@@ -4,7 +4,6 @@ import io.llmcompactor.core.CompactorConfig;
 import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.parser.ParserUtils;
 import io.llmcompactor.core.util.ConfigAccessor;
-import java.io.PrintStream;
 import java.util.Collections;
 import java.util.List;
 import javax.inject.Inject;
@@ -239,13 +238,13 @@ public class LlmCompactorPlugin implements Plugin<Project> {
       rootProject.getExtensions().getExtraProperties().set(ROOT_LISTENER_REGISTERED, true);
       long sessionStartTime = System.currentTimeMillis();
       boolean isEnabled = Boolean.TRUE.equals(extension.getEnabled().get());
-      PrintStream originalOut = System.out;
-      PrintStream originalErr = System.err;
+
+      CompletionService.originalOut = System.out;
+      CompletionService.originalErr = System.err;
 
       BuildOutputSuppressor.apply(rootProject, isEnabled);
       BuildSummaryEmitter emitter = new BuildSummaryEmitter(eventsRegistry);
-      emitter.register(
-          rootProject, extension, sessionStartTime, isEnabled, originalOut, originalErr);
+      emitter.register(rootProject, extension, sessionStartTime);
     }
   }
 
