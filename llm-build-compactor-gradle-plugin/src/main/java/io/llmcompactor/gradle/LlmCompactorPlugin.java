@@ -239,8 +239,7 @@ public class LlmCompactorPlugin implements Plugin<Project> {
       long sessionStartTime = System.currentTimeMillis();
       boolean isEnabled = Boolean.TRUE.equals(extension.getEnabled().get());
 
-      CompletionService.originalOut = System.out;
-      CompletionService.originalErr = System.err;
+      CompletionService.captureOriginals();
 
       BuildOutputSuppressor.apply(rootProject, isEnabled);
       BuildSummaryEmitter emitter = new BuildSummaryEmitter(eventsRegistry);

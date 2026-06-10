@@ -91,8 +91,15 @@ public class BuildOutputSpy extends AbstractEventSpy {
   public void close() throws Exception {
     restoreLogLevel();
     resetSlf4j();
-    System.setOut(originalOut);
-    System.setErr(originalErr);
+    // In pass-through mode the streams were never captured/suppressed, so originalOut/Err are
+    // null. Restoring unconditionally would install null streams and break stdout/stderr for the
+    // rest of the JVM. Only restore when we actually captured the originals.
+    if (originalOut != null) {
+      System.setOut(originalOut);
+    }
+    if (originalErr != null) {
+      System.setErr(originalErr);
+    }
     System.clearProperty(PROP_EXTENSION_ACTIVE);
   }
 

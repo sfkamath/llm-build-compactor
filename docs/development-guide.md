@@ -2,6 +2,15 @@
 
 This guide covers building, testing, and developing the LLM Build Compactor across all supported Java versions.
 
+## Documentation Convention
+
+`docs/src-main-review.md` is a **working TODO**, not a record. Once an item ships, **remove it from the
+plan** — the design and the code are the documentation of what shipped. Two homes for lasting docs:
+
+- **Design decisions** (why it was built this way, trade-offs, invariants) → javadoc on the changed
+  class, or the relevant `docs/*-design.md` for cross-cutting concerns.
+- **Operational procedures** (how to build, test, run, observe) → this file.
+
 ## Java Version Support
 
 The compactor supports **Java 8 through 25** (latest LTS + recent releases).

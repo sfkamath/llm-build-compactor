@@ -10,14 +10,17 @@ Modules reviewed:
 - `llm-build-compactor-extension` (Maven EventSpy)
 - `llm-build-compactor-maven-plugin`
 
+> **This file is a working TODO, not a record.** Shipped items are deleted, not ticked — the code +
+> its javadoc + `docs/*-design.md` are the documentation of what landed. See the Development Guide's
+> "Documentation Convention". Items removed so far: **#1, #2, #24** (stream-safety batch; rationale
+> now lives in javadoc on `CompletionService`/`BuildOutputSpy`/`CompactorDefaults`).
+
 ---
 
 ## Findings
 
 | # | Sev | Module / File | Location | Issue | Suggested fix |
 |---|-----|---------------|----------|-------|---------------|
-| 1 | 🔴 High | gradle-plugin · `CompletionService` + `LlmCompactorPlugin` | `CompletionService.java:182-242`, `LlmCompactorPlugin.java:242-243` | **Daemon stream race.** `originalOut/originalErr` are `static`. Plugin captures `System.out` at `apply()` time; restore is scheduled 2000ms after `close()` on a daemon thread. In a reused Gradle daemon, a second build starting within the restore window (a) captures the *null* stream as "original", and (b) the pending restore can clobber the new build's redirect. Net effect: daemon stdout/stderr can be permanently nulled or restored to the wrong stream. | Make capture idempotent: only set `originalOut/originalErr` if currently `null` AND not already the null sentinel. Cancel/skip restore if a new build has re-captured. Prefer restoring synchronously at a deterministic point over a timed background thread. |
-| 2 | 🔴 High | extension · `BuildOutputSpy` | `close()` `BuildOutputSpy.java:91-97` | **`System.setOut(null)` in pass-through.** When `shouldPassThrough()` is true, `originalOut/originalErr` are never assigned, but `close()` unconditionally calls `System.setOut(originalOut)` / `setErr(originalErr)` → installs `null` streams, breaking stdout/stderr for the rest of the JVM. | Guard restore: only restore when `originalOut != null` (i.e. streams were actually captured/suppressed). |
 | 3 | 🟠 Med | gradle-plugin · `GradlePropertiesInstaller` | `autoInstall` called from `LlmCompactorPlugin.java:232-234` | **Silent mutation of tracked source file.** Every enabled `apply()` writes `org.gradle.logging.level=quiet` into the user's `gradle.properties`. Idempotent, but auto-editing a version-controlled file as a side effect of running a build is surprising and hard to attribute. | Gate behind explicit opt-in (the `installLlmCompactor` task already exists) or, at minimum, log at lifecycle level when the block is first written. |
 | 4 | 🟠 Med | core · `parser/GradleParser` vs `parser/SurefireParser` | `GradleParser.java:94-123`, `SurefireParser.java:152-222` | **Duplicated, divergent source/line extraction.** Two hand-rolled stack-frame → (file,line) parsers with different behavior: Gradle returns a bare filename; Surefire resolves to a real `src/...` path. Divergence is a latent correctness/maintenance hazard. | Extract one shared frame-resolver (in `ParserUtils` or a new helper) used by both parsers; unify the "resolve to source path" behavior. |
 | 5 | 🟠 Med | gradle-plugin · `CompletionService` | `toConfig` `CompletionService.java:359-376` | **Fallback defaults inverted vs canonical.** `getShowFixTargets().getOrElse(false)` but `DEFAULT_SHOW_FIX_TARGETS=true`; `getShowSlowTests().getOrElse(true)` but `DEFAULT_SHOW_SLOW_TESTS=false`. Masked today because params are always populated from conventions, but the literals are a latent bug if a param is ever absent. | Replace literals with the `CompactorConfig.DEFAULT_*` constants. |
@@ -34,7 +37,7 @@ Modules reviewed:
 | 16 | 🟡 Low | docs · `gradle-design.md` | `:41,:104` | **Doc/code drift.** Design doc states a "500ms delay" for late stream restoration; code uses `2000ms`. Section numbering under "How Suppression Is Achieved" also skips "1." | Sync the doc to the actual delay (and reconcile #1's redesign if the timing changes). |
 | 22 | 🟢 Feat | **core** (new `JacocoCoverageReader`) + extension + gradle-plugin | new — *inspired by* `fix/generic-build-errors:19b762d`, **re-mechanised + relocated to core** | **Salvage (re-designed): JaCoCo coverage-failure footer, shared by both build systems.** When a coverage-gated build goes red (or passes), emit `[JACOCO_COVERAGE] Coverage: N% (...) - required: M%` so an LLM sees *why* inline. **Do NOT port the branch's `.exec`-reflection verbatim** — it is the inferior mechanism (bytecode-probe level, forced reflection, needs `org.jacoco.core` dep). **Absent from HEAD.** Confirmed non-overlapping with jvm-coverage-mcp (whose XML+StAX read is strictly richer). | **Primary mechanism = read `jacoco.xml` via DOM** (match `parser/XmlParserUtils`, *not* StAX) (`target/site/jacoco/jacoco.xml` / `jacoco-merged.xml`; Gradle `build/reports/jacoco/test/jacocoTestReport.xml`). Line/method/branch level, **no jacoco dep, no reflection**. Normally present by the time `jacoco:check` fails (report runs first). **Split:** (a) **core** — `JacocoCoverageReader` (DOM parse of `<report>`/`<counter>` → `CoverageResult`), plus optional **rough** `.exec` fallback (reflection, probe-level only) for when the report mojo hasn't run. (b) **extension** — locate XML/exec + read minimums from `MavenProject` pom check-rules (`Xpp3Dom`). (c) **gradle-plugin** — locate XML/exec + read minimums from the Jacoco DSL. **Design call first:** thread `CoverageResult` into `BuildSummary` via `SummaryBuilder` (nullable field + new telescoping ctor — see salvage §2 hazard note), not the branch's `REAL_OUT` side-channel. See [`abandoned-branch-salvage.md`](abandoned-branch-salvage.md) §2. |
 | 23 | 🟢 Feat | core · `CompilationErrorExtractor` | verify HEAD vs `fix/generic-build-errors:35f2a10` | **Salvage check: modernizer-style errors.** Confirm HEAD extracts `[ERROR] <file>:<line>: <msg>` (modernizer/plugin) lines. If missing, port the parser branch + `shouldExtractModernizerErrors` test. | Run/port the test; add regex only if it fails. |
-| 24 | 🟢 Feat | core · `CompactorDefaults` + extension null-stream | ties to #1/#2 | **Salvage: seal the null `PrintStream`.** `jul-placeholder-rabbit-hole-wip` proved the null stream overrides only `write(...)`; `println(String)`/`print(Object)` can leak via encoder paths. Override `print(String/Object)` + `println(String/Object)` + `write(byte[])` too. | Add overrides in `CompactorDefaults.nullPrintStream` and the extension's `nullPrintStream()`; add a test asserting `println(String)` emits zero bytes. See `abandoned-branch-salvage.md` §3. |
+| 25 | 🔴 High | gradle-plugin · suppression (regression) | `GradleBuildOutputTests.java:58-67` (test gap); should-have-fixed in `7289eb7`, `38eb919` | **Suppression only works for test failures, not compile failures.** Observed in the field (Haiku run on another project): on a `compileJava` failure the compactor emits the JSON summary correctly **but the raw Gradle failure footer still leaks to the console** — `FAILURE: Build failed with an exception.` / `* What went wrong:` / `Execution failed for task ':compileJava'` / `BUILD FAILED in 1s` all print alongside the summary. So the build error is double-reported (compacted + raw). `testNoGradleFailureSummary` asserts `doesNotContain("* What went wrong:")` etc., but it runs the **`test`** task only — it never exercises the `compileJava` path, so the regression passes CI. | Reproduce: add a `testNoGradleFailureSummary`-style assertion against the `gradle-compile-error-project` / `compileJava` task (the same project `testCompilationErrors` already uses). Then make compile-failure footers suppress the same way test-failure footers do. |
 
 ---
 
@@ -44,11 +47,8 @@ Each phase is independently shippable. Verify with `mvn clean verify -Pquality` 
 
 ### Phase 1 — Correctness / stream-safety (blockers)
 Goal: no path can leave a JVM/daemon with null or wrong std streams.
-1. **#2** `BuildOutputSpy.close()` — guard restore on `originalOut != null`.
-   - Verify: pass-through run (disabled / interactive goal) leaves `System.out` intact; add/extend an extension IT asserting stdout works post-build.
-2. **#1** `CompletionService` static-stream race — idempotent capture (never overwrite a live capture / null sentinel) and safe restore.
-   - Verify: back-to-back Gradle builds in one daemon (`GradleOptionTests`) still print summaries and restore streams; no permanent null.
-3. **#16** Update `gradle-design.md` delay (500ms → actual) once #1's timing is final.
+*(#1, #2 shipped — removed. Remaining:)*
+1. **#16** Update `gradle-design.md` delay (500ms → actual) once #1's timing is final.
 
 ### Phase 2 — Config correctness & consistency
 Goal: defaults agree across core, Gradle, Maven.
@@ -179,8 +179,6 @@ Haiku. Effort = the model's reasoning-effort setting.
 
 | # | Item | Cx | Agent | Effort | Why |
 |---|------|----|-------|--------|-----|
-| 1 | Daemon static-stream race | L | **Opus** (Fable if speed) | high | Daemon lifecycle + concurrency; wrong fix re-breaks streams. Needs careful reasoning + IT design. |
-| 2 | `BuildOutputSpy.close()` null streams | S | **Opus** (Fable) | medium | Tiny diff but subtle pass-through reasoning; pair with #1 for shared stream-safety IT. |
 | 3 | `autoInstall` gates source-file write | M | **Sonnet** | high | Behavioral/UX decision + task wiring; needs opt-in design. |
 | 4 | Unify Gradle/Surefire frame resolver | M | **Sonnet** | high | Cross-file extraction, must preserve both parsers' output (regression-prone). |
 | 5 | Inverted `getOrElse` defaults | T | **Haiku** | medium | One-line constant swaps — *or* deleted entirely by Addendum A. |
@@ -200,41 +198,36 @@ Haiku. Effort = the model's reasoning-effort setting.
 | 21 | README docs index | S | **Haiku** | medium | Discovery + mechanical index section. Should now also index `abandoned-branch-salvage.md`. |
 | 22 | JaCoCo coverage footer (core + Maven, then Gradle) | M | **Sonnet** | high | Re-mechanised (XML/DOM, not the branch's `.exec` reflection); core/plugin split + `BuildSummary` ctor ripple + tests. Core+Maven first, Gradle follow-up. See salvage §2. |
 | 23 | Verify/port modernizer-error extraction | T | **Haiku** | medium | Run branch test against HEAD; port regex only if it fails. |
-| 24 | Seal null `PrintStream` (`print`/`println` overrides) | S | **Sonnet** | medium | Concurrency-adjacent; ties to #1/#2 stream-safety. Add zero-byte `println` test. |
+| 25 | Compile-failure footer leaks to console | M | **Opus** (Fable) | high | Suppression regression — works for `test`, not `compileJava`. Needs the failing-footer suppression path + a `compileJava` IT closing the `testNoGradleFailureSummary` gap. |
 
 **Suggested batching for delegation:**
-- **Opus batch** (stream safety): #1 + #2 + **#24** together, one IT covering all three. (#24 seals the null stream the others restore — same blast radius.)
+- **Opus batch** (stream safety): #1 + #2 + #24 **shipped**. Remaining: **#25** (compile-failure footer) — same suppression machinery, but the leak is via Gradle's ERROR-level renderer, not `System.out`; needs a `compileJava` repro IT.
 - **Sonnet batch 1** (config dedup): #20 → A → #17 (+ #5 falls out). One PR.
 - **Sonnet batch 2** (suppression robustness): #3, #7, #10, #11, #4.
 - **Sonnet batch 3** (salvage feature): **#22** core+Maven, then a self-contained Gradle follow-up PR. Standalone — no dependency on other batches.
 - **Haiku batch** (mechanical cleanup): #6, #8, #9, #12, #14, #15, #19, #21, **#23**.
 
-> **Sequencing note:** the abandoned-branch salvage (#22–24) is independent of the review findings (#1–21) and can run in parallel. `feat/gradle-flow-api-variants` (Addendum F head-start) is **post-merge / post-Phase-1-2 only** — see `abandoned-branch-salvage.md` §4.
+> **Sequencing note:** the abandoned-branch salvage (#22–23) is independent of the remaining review findings and can run in parallel. `feat/gradle-flow-api-variants` (Addendum F head-start) is **post-merge / post-Phase-1-2 only** — see `abandoned-branch-salvage.md` §4.
 
 ---
 
-## Addendum F — Event-driven stream restoration (refines #1)
+## Addendum F — Event-driven stream restoration (remaining hardening beyond #1)
 
-The 2s timer in `CompletionService.restoreStreamsLate` is a guess, not a signal. Findings:
+The 2s timer in `CompletionService.restoreStreamsLate` is a guess, not a signal. **#1 shipped the
+boundary-driven half** — `captureOriginals()` cancels any `pendingRestore` and the next
+`LlmCompactorPlugin.apply()` is treated as the "event"; the null stream is identified by `==`
+against the shared `nullSentinel`, not by value. Remaining, unshipped hardening:
 
 - **No usable "output finished" event.** Gradle's final failure footer is rendered by
   launcher/output infrastructure *after* `BuildService.close()`, outside any plugin-observable
   event. `BuildListener.buildFinished` / `Gradle.buildFinished {}` are deprecated and fire too
   early; `OperationCompletionListener` only sees task events. `close()` is already the last hook —
-  hence the timer.
-- **Preferred fix — boundary-driven, not time-driven** (also resolves the #1 race):
-  1. Keep `scheduler` + the `ScheduledFuture` in static fields. On the next build's
-     `LlmCompactorPlugin.apply()`, if `System.out` is still the null sentinel, restore immediately
-     and `future.cancel(false)` any pending restore. The "event" is the next plugin apply.
-  2. Add `Runtime.getRuntime().addShutdownHook(...)` to restore on daemon teardown (a real
-     terminal event).
-  3. Optional (raises min Gradle): Build Flow API (`FlowScope` / `BuildWorkResultProvider`, 8+)
-     as an end-of-build-work signal — but it still orders before footer rendering, so it
-     supplements rather than replaces the delay.
-- Identify the null stream reliably: compare against a stored sentinel reference (the
-  `nullPrintStream()` instance), not `== originalOut`.
-
-Route this with #1 to the Opus batch.
+  hence the residual timer.
+- Add `Runtime.getRuntime().addShutdownHook(...)` to restore on daemon teardown (a real terminal
+  event) so a crash mid-window can't leave streams nulled.
+- Optional (raises min Gradle): Build Flow API (`FlowScope` / `BuildWorkResultProvider`, 8+) as an
+  end-of-build-work signal — but it still orders before footer rendering, so it supplements rather
+  than replaces the delay. Ties into the #25 footer-leak investigation.
 
 **Head-start exists.** The abandoned `feat/gradle-flow-api-variants` branch already prototyped the
 version-gated `Legacy`/`Modern` lifecycle listener split (`gradle/lifecycle/BuildLifecycleListener`

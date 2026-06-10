@@ -48,36 +48,36 @@ The 2s does **not** add build latency: `close()` *schedules* the restore on a da
 flowchart TD
     A[gradle invocation] --> B[Gradle startup logging configured]
     B --> C[projects configured]
-    C --> D[LlmCompactorPlugin apply]
-    D --> E{isEnabled?}
+    C --> D["LlmCompactorPlugin::apply"]
+    D --> E{"isEnabled?<br/>CompactorDefaults::resolveEnabled"}
     
-    E -- Yes --> F[register CompletionService once with serializable Params]
-    F --> G[capture original System.out/err in CompletionService]
-    G --> H[redirect System.out/err to null]
-    H --> I[configure every task to capture stdout/stderr at DEBUG]
-    I --> J[quiet JavaCompile tasks]
-    J --> K[quiet Test, JavaExec, Checkstyle noise]
+    E -- Yes --> F["register CompletionService once with serializable Params<br/>BuildSummaryEmitter::register"]
+    F --> G["capture original System.out/err<br/>LlmCompactorPlugin::apply → CompletionService.originalOut/Err"]
+    G --> H["redirect System.out/err to null<br/>BuildOutputSuppressor::apply"]
+    H --> I["configure every task to capture stdout/stderr at DEBUG<br/>BuildOutputSuppressor::applyQuietTaskLogging"]
+    I --> J["quiet JavaCompile tasks<br/>BuildOutputSuppressor::applyQuietJavaCompileOptions"]
+    J --> K["quiet Test, JavaExec, Checkstyle noise<br/>BuildOutputSuppressor::apply"]
     
-    E -- No --> L{is quiet mode active?}
+    E -- No --> L{"is quiet mode active?<br/>BuildOutputSuppressor::isQuietSetByPlugin"}
     L -- Yes --> M[restore LIFECYCLE log level]
     M --> N[clear org.gradle.logging.level system property]
-    N --> O[register fallback TestListener for visibility]
+    N --> O["configure testLogging.quiet to emit FAILED + exceptions/causes<br/>BuildOutputSuppressor::apply"]
     
     K --> P[task execution]
     J --> P
     I --> P
     O --> P
     
-    P -.-> P1[OperationCompletionListener receives TaskFinishEvents]
-    P1 --> P2[Capture generic failure messages from TaskFailureResult]
+    P -.-> P1["OperationCompletionListener receives TaskFinishEvents<br/>CompletionService::onFinish"]
+    P1 --> P2["capture generic failure messages from TaskFailureResult<br/>CompletionService::onFinish"]
     P2 --> R
     
     P --> Q[test XML reports written under build/test-results]
-    P --> R[log lines captured in-memory via StandardOutputListener]
-    Q --> S[Service close fires at end of build]
+    P --> R["log lines captured in-memory via StandardOutputListener<br/>CompletionService::listener"]
+    Q --> S["Service close fires at end of build<br/>CompletionService::close"]
     R --> S
-    S --> T[emit final summary via Gradle quiet logger]
-    S --> U[Late Restoration: restore original System.out/err via background thread]
+    S --> T["emit final summary via Gradle quiet logger<br/>CompletionService::emit"]
+    S --> U["Late Restoration: restore original System.out/err via background thread<br/>CompletionService::restoreStreamsLate"]
 ```
 
 ## Logging Restoration

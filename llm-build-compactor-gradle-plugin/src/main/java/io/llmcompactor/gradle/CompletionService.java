@@ -3,6 +3,7 @@ package io.llmcompactor.gradle;
 import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
 import io.llmcompactor.core.CompactorConfig;
+import io.llmcompactor.core.CompactorDefaults;
 import io.llmcompactor.core.DefaultCompactorConfig;
 import io.llmcompactor.core.PackageDiscoverer;
 import io.llmcompactor.core.SummaryBuilder;
@@ -18,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
@@ -182,6 +184,44 @@ public abstract class CompletionService
   static volatile PrintStream originalOut;
   static volatile PrintStream originalErr;
 
+  /**
+   * The single null stream installed by suppression. Shared (not re-created per build) so capture
+   * can reliably tell "the streams are still our null redirect" apart from a real console stream.
+   */
+  private static volatile PrintStream nullSentinel;
+
+  /** The pending late-restore from the current/previous build, so a new build can cancel it. */
+  private static volatile ScheduledFuture<?> pendingRestore;
+
+  /** Returns the shared null sentinel, creating it on first use. */
+  static synchronized PrintStream nullStream() {
+    if (nullSentinel == null) {
+      nullSentinel = CompactorDefaults.nullPrintStream();
+    }
+    return nullSentinel;
+  }
+
+  /**
+   * Captures the real System.out/err exactly once per daemon lifetime, tolerating daemon reuse. If
+   * a previous build nulled the streams and its late-restore has not fired yet, System.out is our
+   * sentinel — we keep the originals captured earlier rather than capturing the null stream as the
+   * "original". Also cancels any pending restore so it cannot clobber this build's redirect.
+   */
+  static synchronized void captureOriginals() {
+    if (pendingRestore != null) {
+      pendingRestore.cancel(false);
+      pendingRestore = null;
+    }
+    PrintStream out = System.out;
+    PrintStream err = System.err;
+    if (out != nullSentinel) {
+      originalOut = out;
+    }
+    if (err != nullSentinel) {
+      originalErr = err;
+    }
+  }
+
   private final List<CharSequence> logLines = Collections.synchronizedList(new ArrayList<>());
   private final AtomicBoolean buildFailed = new AtomicBoolean(false);
 
@@ -228,15 +268,24 @@ public abstract class CompletionService
               return t;
             });
 
-    scheduler.schedule(
-        () -> {
-          System.out.flush();
-          System.err.flush();
-          System.setOut(out);
-          System.setErr(err);
-        },
-        2000,
-        TimeUnit.MILLISECONDS);
+    pendingRestore =
+        scheduler.schedule(
+            () -> {
+              System.out.flush();
+              System.err.flush();
+              // Only restore if the streams are still our sentinel. If a new build started in this
+              // daemon it has taken over the redirect (and cancelled this future via
+              // captureOriginals), so we must not clobber it.
+              if (System.out == nullSentinel) {
+                System.setOut(out);
+              }
+              if (System.err == nullSentinel) {
+                System.setErr(err);
+              }
+              pendingRestore = null;
+            },
+            2000,
+            TimeUnit.MILLISECONDS);
 
     scheduler.shutdown(); // allows the scheduled task to finish, then terminates
   }

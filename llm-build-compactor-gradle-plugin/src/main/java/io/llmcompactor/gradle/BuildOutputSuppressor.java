@@ -2,7 +2,6 @@ package io.llmcompactor.gradle;
 
 import static io.llmcompactor.gradle.TestCountLogger.suppressTestCountLogger;
 
-import io.llmcompactor.core.CompactorDefaults;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -40,7 +39,7 @@ final class BuildOutputSuppressor {
           .getStartParameter()
           .setShowStacktrace(
               org.gradle.api.logging.configuration.ShowStacktrace.INTERNAL_EXCEPTIONS);
-      PrintStream nullPrint = CompactorDefaults.nullPrintStream();
+      PrintStream nullPrint = CompletionService.nullStream();
       System.setOut(nullPrint);
       System.setErr(nullPrint);
 
