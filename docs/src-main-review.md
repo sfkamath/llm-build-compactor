@@ -16,7 +16,10 @@ Modules reviewed:
 > now lives in javadoc on `CompletionService`/`BuildOutputSpy`/`CompactorDefaults`). **#5, #17, #20,
 > Addendum A** (config dedup: `DefaultCompactorConfig` is now `Serializable` + `toBuilder`;
 > `resolved()` is a 6-line `toBuilder()` overlay on `DefaultCompactorConfig`; `Params` collapsed to
-> single `Property<DefaultCompactorConfig> getConfig()`).
+> single `Property<DefaultCompactorConfig> getConfig()`). **#3, #4, #7, #10, #11** (suppression
+> robustness: `autoInstall` removed, `neuter` narrowed to `progressLogger`/`logger` by name,
+> `setFork(false)` removed, redundant `doFirst` dropped, Gradle/Surefire source resolver unified
+> in `ParserUtils.resolveFrameSource`).
 
 ---
 
@@ -24,14 +27,9 @@ Modules reviewed:
 
 | # | Sev | Module / File | Location | Issue | Suggested fix |
 |---|-----|---------------|----------|-------|---------------|
-| 3 | 🟠 Med | gradle-plugin · `GradlePropertiesInstaller` | `autoInstall` called from `LlmCompactorPlugin.java:232-234` | **Silent mutation of tracked source file.** Every enabled `apply()` writes `org.gradle.logging.level=quiet` into the user's `gradle.properties`. Idempotent, but auto-editing a version-controlled file as a side effect of running a build is surprising and hard to attribute. | Gate behind explicit opt-in (the `installLlmCompactor` task already exists) or, at minimum, log at lifecycle level when the block is first written. |
-| 4 | 🟠 Med | core · `parser/GradleParser` vs `parser/SurefireParser` | `GradleParser.java:94-123`, `SurefireParser.java:152-222` | **Duplicated, divergent source/line extraction.** Two hand-rolled stack-frame → (file,line) parsers with different behavior: Gradle returns a bare filename; Surefire resolves to a real `src/...` path. Divergence is a latent correctness/maintenance hazard. | Extract one shared frame-resolver (in `ParserUtils` or a new helper) used by both parsers; unify the "resolve to source path" behavior. |
 | 6 | 🟠 Med | gradle-plugin · `LlmCompactorPlugin` | javadoc `:80-129` | **Stale javadoc defaults.** `getShowFixTargets` doc says "default: false" (actual `true`); `getShowSlowTests` doc says "default: true" (actual `false`). Contradicts `CompactorConfig`. | Correct the javadoc to match `CompactorConfig.DEFAULT_*`. |
-| 7 | 🟠 Med | gradle-plugin · `TestCountLogger` | `neuter` `:45-87` | **Broad reflective field replacement.** Replaces *all* non-collection interface fields (across the full superclass chain) with no-op proxies. Cross-version fragility: a future Gradle field could be neutered unintentionally, silently corrupting reporting. Behavior is documented but inherently brittle. | Narrow targeting to the known fields (`progressLogger`, `logger`) by type/name where possible; keep the FINE diagnostics. Add a cross-version guard test (already partly covered). |
 | 8 | 🟡 Low | core · `SummaryWriter` | `toHumanReadable` `:251` + `:304` | **Double stack-trace stripping.** `normalize()` already applies `StackTraceCompressor.stripPackagePrefixes` to each error; the render loop applies it again. Redundant work, no behavior change. | Drop the second `stripPackagePrefixes` call in the render loop. |
 | 9 | 🟡 Low | core · `SummaryWriter` | `LOGGER_PATTERN` `:85` | **Dead field.** Only referenced in commented-out code (`:118`). | Remove the field and the commented line. |
-| 10 | 🟡 Low | gradle-plugin · `BuildOutputSuppressor` | `applyQuietJavaCompileOptions` `:136` | **Forces `setFork(false)` globally** on every `JavaCompile`. Can change memory behavior / risk OOM on large multi-module builds that rely on forked compilation. | Confirm intent; consider not overriding `fork` unless needed for the warning suppression. |
-| 11 | 🟡 Low | gradle-plugin · `BuildOutputSuppressor` | `configureEach` `:64-82` | **Redundant double application.** Quiet logging / compile options are applied in `configureEach` *and* re-applied in `doFirst`. Likely defensive but doubles work and obscures intent. | Keep one; document why if `doFirst` is genuinely required for ordering. |
 | 12 | 🟡 Low | gradle-plugin · `LlmCompactorPlugin` | `propertyMissing` `:147-153` | **Warning printed to `System.err`** which is redirected to null when enabled → the "unknown property" warning is silently lost in the common case. | Emit via the Gradle logger (quiet level) instead of `System.err`. |
 | 13 | 🟡 Low | core · `CompactorConfig` | `resolved()` `:48-108` | **Hand-written 15-method decorator.** Verbose anonymous reimplementation; every new config field must be added in 3+ places (interface, `DefaultCompactorConfig`, `resolved()`, both consumers). Maintenance smell, not a bug. | Optional: generate the overlay (e.g. a small delegating base or apply preset onto a copied builder) to cut duplication. |
 | 14 | 🟡 Low | extension · `BuildOutputSpy` / maven-plugin · `LlmCompactMojo` | `LlmCompactMojo.java:127` | **Mojo builds config from raw `@Parameter enabled`** (`.enabled(enabled)`) rather than the project-property-resolved `enabledValue` used for the gate. Harmless after the early-return, but inconsistent. | Build config from the same resolved value used for gating. |
@@ -59,19 +57,15 @@ Goal: defaults agree across core, Gradle, Maven.
 6. **#14** Mojo: use resolved enabled value for config.
    - Verify: a test asserting Gradle and Maven produce identical `showFixTargets`/`showSlowTests` defaults for an unconfigured project.
 
-### Phase 3 — Side-effect & robustness hardening
-7. **#3** Gate or loudly log `autoInstall` writes to `gradle.properties`.
-8. **#7** Narrow `TestCountLogger` field targeting; keep FINE diagnostics + cross-version test.
-9. **#10 / #11** Reconsider global `setFork(false)`; drop redundant `doFirst` re-application.
+### Phase 3 — Side-effect & robustness hardening *(shipped: #3, #7, #10, #11)*
 10. **#15** Add debug/FINE logging before broad catches.
    - Verify: cross-version `CrossVersionTest` + summary-suppression tests stay green.
 
-### Phase 4 — Cleanup / maintainability (low risk)
+### Phase 4 — Cleanup / maintainability (low risk) *(shipped: #4)*
 11. **#8** Remove double `stripPackagePrefixes` in `SummaryWriter`.
 12. **#9** Delete dead `LOGGER_PATTERN`.
-13. **#4** Extract shared stack-frame → source resolver for `GradleParser`/`SurefireParser`.
-14. **#12** Route `propertyMissing` warning through Gradle logger.
-15. **#13** (Optional) De-duplicate `CompactorConfig.resolved()` overlay.
+13. **#12** Route `propertyMissing` warning through Gradle logger.
+14. **#13** (Optional) De-duplicate `CompactorConfig.resolved()` overlay.
    - Verify: `SummaryWriterTest`, `GradleParser`/`SurefireParser` parser tests unchanged in output.
 
 ---
@@ -123,15 +117,10 @@ Haiku. Effort = the model's reasoning-effort setting.
 
 | # | Item | Cx | Agent | Effort | Why |
 |---|------|----|-------|--------|-----|
-| 3 | `autoInstall` gates source-file write | M | **Sonnet** | high | Behavioral/UX decision + task wiring; needs opt-in design. |
-| 4 | Unify Gradle/Surefire frame resolver | M | **Sonnet** | high | Cross-file extraction, must preserve both parsers' output (regression-prone). |
 | 5 | Inverted `getOrElse` defaults | T | **Haiku** | medium | One-line constant swaps — *or* deleted entirely by Addendum A. |
 | 6 | Stale Gradle javadoc defaults | T | **Haiku** | medium | Doc-only constant correction. |
-| 7 | Narrow `TestCountLogger` reflection | M | **Sonnet** | high | Reflection + cross-version (8.x/9.x) correctness; keep CrossVersionTest green. |
 | 8 | Drop double `stripPackagePrefixes` | T | **Haiku** | medium | Remove one redundant call; verify SummaryWriterTest. |
 | 9 | Delete dead `LOGGER_PATTERN` | T | **Haiku** | medium | Remove field + commented line. |
-| 10 | Reconsider global `setFork(false)` | S | **Sonnet** | medium | Needs build/perf judgment + verification, not mechanical. |
-| 11 | Redundant `doFirst` re-apply | S | **Sonnet** | medium | Must confirm ordering need before removing; behavioral risk. |
 | 12 | `propertyMissing` → Gradle logger | T | **Haiku** | medium | Swap `System.err.println` for logger call. |
 | 14 | Mojo uses resolved enabled value | T | **Haiku** | medium | One-line source swap. |
 | 15 | Log before broad catches | S | **Haiku** | high | Several call-sites; add debug/FINE, no logic change. |
@@ -144,7 +133,7 @@ Haiku. Effort = the model's reasoning-effort setting.
 **Suggested batching for delegation:**
 - **Opus batch** (stream safety): #1 + #2 + #24 **shipped**. Remaining: **#25** (compile-failure footer) — same suppression machinery, but the leak is via Gradle's ERROR-level renderer, not `System.out`; needs a `compileJava` repro IT.
 - **Sonnet batch 1** (config dedup): **shipped** (#5, #17, #20, Addendum A).
-- **Sonnet batch 2** (suppression robustness): #3, #7, #10, #11, #4.
+- **Sonnet batch 2** (suppression robustness): **shipped** (#3, #7, #10, #11, #4).
 - **Sonnet batch 3** (salvage feature): **#22** core+Maven, then a self-contained Gradle follow-up PR. Standalone — no dependency on other batches.
 - **Haiku batch** (mechanical cleanup): #6, #8, #9, #12, #14, #15, #19, #21, **#23**.
 

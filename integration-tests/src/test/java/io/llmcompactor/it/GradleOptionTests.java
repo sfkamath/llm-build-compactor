@@ -563,14 +563,14 @@ class GradleOptionTests {
     }
 
     @Test
-    @DisplayName("applying the plugin auto-installs the gradle.properties block")
+    @DisplayName("applying the plugin does not auto-mutate gradle.properties (opt-in only)")
     void testAutoInstallGradleProperties() throws Exception {
       removeMarkerBlock(propsFile);
 
       GradleBuild.inProject("gradle-test-project").withTask("test").execute();
 
-      assertThat(propsFile).exists();
-      assertThat(new String(Files.readAllBytes(propsFile))).contains(MARKER_START);
+      String content = Files.exists(propsFile) ? new String(Files.readAllBytes(propsFile)) : "";
+      assertThat(content).doesNotContain(MARKER_START);
     }
 
     @Test

@@ -111,7 +111,9 @@ public class GradleParser {
                 if (line > 0) {
                   int openParen = l.lastIndexOf("(", lastColon);
                   if (openParen > 0) {
-                    sourceFile = l.substring(openParen + 1, lastColon);
+                    String resolved = ParserUtils.resolveFrameSource(l);
+                    sourceFile =
+                        resolved != null ? resolved : l.substring(openParen + 1, lastColon);
                   }
                   if (l.contains(className)) {
                     break;

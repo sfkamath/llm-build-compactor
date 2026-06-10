@@ -65,14 +65,6 @@ final class GradlePropertiesInstaller {
             });
   }
 
-  static void autoInstall(Project project) {
-    try {
-      install(project.getRootProject().getProjectDir().toPath());
-    } catch (IOException e) {
-      project.getLogger().warn("[LLM Compactor] Could not install: {}", e.getMessage());
-    }
-  }
-
   static void install(Path projectDir) throws IOException {
     Path propsFile = projectDir.resolve("gradle.properties");
     String content =

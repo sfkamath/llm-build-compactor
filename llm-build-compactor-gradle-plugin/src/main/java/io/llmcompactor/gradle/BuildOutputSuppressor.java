@@ -67,7 +67,6 @@ final class BuildOutputSuppressor {
                   task -> {
                     if (isEnabled) {
                       applyQuietTaskLogging(task);
-                      task.doFirst(ignored -> applyQuietTaskLogging(task));
                     }
                   });
           p.getTasks()
@@ -76,7 +75,6 @@ final class BuildOutputSuppressor {
                   task -> {
                     if (isEnabled) {
                       applyQuietJavaCompileOptions(task);
-                      task.doFirst(ignored -> applyQuietJavaCompileOptions(task));
                     }
                   });
           p.getTasks()
@@ -132,7 +130,6 @@ final class BuildOutputSuppressor {
   }
 
   private static void applyQuietJavaCompileOptions(JavaCompile task) {
-    task.getOptions().setFork(false);
     task.getOptions().setWarnings(false);
     task.getOptions().setDeprecation(false);
     // Groovy DSL may populate compilerArgs with GStringImpl; normalize to plain Strings

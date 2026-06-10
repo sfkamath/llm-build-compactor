@@ -229,9 +229,6 @@ public class LlmCompactorPlugin implements Plugin<Project> {
     }
 
     GradlePropertiesInstaller.registerTasks(project);
-    if (enabledValue) {
-      GradlePropertiesInstaller.autoInstall(project);
-    }
 
     Project rootProject = project.getRootProject();
     if (!rootProject.getExtensions().getExtraProperties().has(ROOT_LISTENER_REGISTERED)) {

@@ -3,9 +3,7 @@ package io.llmcompactor.gradle;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import org.gradle.api.tasks.testing.Test;
@@ -51,6 +49,10 @@ public final class TestCountLogger {
       Class<?> tclClass = tcl.getClass();
       while (tclClass != null) {
         for (Field pf : tclClass.getDeclaredFields()) {
+          String fieldName = pf.getName();
+          if (!"progressLogger".equals(fieldName) && !"logger".equals(fieldName)) {
+            continue;
+          }
           pf.setAccessible(true);
           Object pl = pf.get(tcl);
           if (pl == null || Proxy.isProxyClass(pl.getClass())) {
@@ -59,9 +61,6 @@ public final class TestCountLogger {
 
           Class<?> type = pf.getType();
           if (!type.isInterface()) {
-            continue;
-          }
-          if (Collection.class.isAssignableFrom(type) || Map.class.isAssignableFrom(type)) {
             continue;
           }
 
