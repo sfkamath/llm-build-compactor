@@ -79,102 +79,11 @@ public abstract class CompletionService
     ListProperty<File> getAllSourceDirs();
 
     /**
-     * Gets the enabled status.
+     * Serialized config snapshot; populated lazily from the DSL extension at emit time.
      *
-     * @return whether the plugin is enabled
+     * @return property containing the compactor config
      */
-    Property<Boolean> getEnabled();
-
-    /**
-     * Gets the JSON output status.
-     *
-     * @return whether to output as JSON
-     */
-    Property<Boolean> getOutputAsJson();
-
-    /**
-     * Gets the stack frame compression status.
-     *
-     * @return whether to compress stack traces
-     */
-    Property<Boolean> getCompressStackFrames();
-
-    /**
-     * Gets the stack frame whitelist.
-     *
-     * @return whitelist for stack traces
-     */
-    ListProperty<String> getStackFrameWhitelist();
-
-    /**
-     * Gets the stack frame blacklist.
-     *
-     * @return blacklist for stack traces
-     */
-    ListProperty<String> getStackFrameBlacklist();
-
-    /**
-     * Gets the slow tests display status.
-     *
-     * @return whether to show slow tests
-     */
-    Property<Boolean> getShowSlowTests();
-
-    /**
-     * Gets the test duration threshold.
-     *
-     * @return test duration threshold
-     */
-    Property<Double> getTestDurationThresholdMs();
-
-    /**
-     * Gets the custom output path.
-     *
-     * @return custom output path
-     */
-    Property<String> getOutputPath();
-
-    /**
-     * Gets the failed test logs display status.
-     *
-     * @return whether to show failed test logs
-     */
-    Property<Boolean> getShowFailedTestLogs();
-
-    /**
-     * Gets the fix targets display status.
-     *
-     * @return whether to show fix targets
-     */
-    Property<Boolean> getShowFixTargets();
-
-    /**
-     * Gets the recent changes display status.
-     *
-     * @return whether to show recent changes
-     */
-    Property<Boolean> getShowRecentChanges();
-
-    /**
-     * Gets the total duration display status.
-     *
-     * @return whether to show total duration
-     */
-    Property<Boolean> getShowTotalDuration();
-
-    /**
-     * Gets the duration report display status.
-     *
-     * @return whether to show duration report
-     */
-    Property<Boolean> getShowDurationReport();
-
-    /**
-     * Gets the mode preset.
-     *
-     * @return mode preset
-     */
-    Property<String> getMode();
+    Property<DefaultCompactorConfig> getConfig();
   }
 
   /** Constructs the completion service. */
@@ -292,11 +201,11 @@ public abstract class CompletionService
 
   private void emit() {
     Params params = getParameters();
-    if (!params.getEnabled().getOrElse(true)) {
+    if (!params.getConfig().get().enabled()) {
       return;
     }
 
-    CompactorConfig config = toConfig(params).resolved();
+    CompactorConfig config = params.getConfig().get().resolved();
 
     List<List<String>> scanResults = new ArrayList<>();
     for (File sourceDir : params.getAllSourceDirs().get()) {
@@ -403,24 +312,5 @@ public abstract class CompletionService
               "[LLM Compactor] Build failed but no compilation errors extracted. Log lines: "
                   + logLines.size());
     }
-  }
-
-  private static CompactorConfig toConfig(Params params) {
-    return DefaultCompactorConfig.builder()
-        .enabled(params.getEnabled().getOrElse(true))
-        .outputPath(params.getOutputPath().getOrNull())
-        .mode(params.getMode().getOrNull())
-        .outputAsJson(params.getOutputAsJson().getOrElse(true))
-        .compressStackFrames(params.getCompressStackFrames().getOrElse(true))
-        .showFixTargets(params.getShowFixTargets().getOrElse(false))
-        .showRecentChanges(params.getShowRecentChanges().getOrElse(false))
-        .showSlowTests(params.getShowSlowTests().getOrElse(true))
-        .showTotalDuration(params.getShowTotalDuration().getOrElse(false))
-        .showDurationReport(params.getShowDurationReport().getOrElse(false))
-        .showFailedTestLogs(params.getShowFailedTestLogs().getOrElse(true))
-        .testDurationThresholdMs(params.getTestDurationThresholdMs().getOrElse(100.0))
-        .stackFrameWhitelist(params.getStackFrameWhitelist().getOrElse(Collections.emptyList()))
-        .stackFrameBlacklist(params.getStackFrameBlacklist().getOrElse(Collections.emptyList()))
-        .build();
   }
 }

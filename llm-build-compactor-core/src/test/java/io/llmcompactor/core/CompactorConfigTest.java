@@ -2,100 +2,19 @@ package io.llmcompactor.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Collections;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CompactorConfigTest {
 
-  static class StubConfig implements CompactorConfig {
-    private final String mode;
-    private final boolean outputAsJson;
-    private final boolean showFixTargets;
-    private final boolean showFailedTestLogs;
-
-    StubConfig(
-        String mode, boolean outputAsJson, boolean showFixTargets, boolean showFailedTestLogs) {
-      this.mode = mode;
-      this.outputAsJson = outputAsJson;
-      this.showFixTargets = showFixTargets;
-      this.showFailedTestLogs = showFailedTestLogs;
-    }
-
-    @Override
-    public boolean enabled() {
-      return true;
-    }
-
-    @Override
-    public String outputPath() {
-      return null;
-    }
-
-    @Override
-    public String mode() {
-      return mode;
-    }
-
-    @Override
-    public boolean outputAsJson() {
-      return outputAsJson;
-    }
-
-    @Override
-    public boolean compressStackFrames() {
-      return true;
-    }
-
-    @Override
-    public boolean showFixTargets() {
-      return showFixTargets;
-    }
-
-    @Override
-    public boolean showRecentChanges() {
-      return false;
-    }
-
-    @Override
-    public boolean showSlowTests() {
-      return true;
-    }
-
-    @Override
-    public boolean showTotalDuration() {
-      return false;
-    }
-
-    @Override
-    public boolean showDurationReport() {
-      return false;
-    }
-
-    @Override
-    public boolean showFailedTestLogs() {
-      return showFailedTestLogs;
-    }
-
-    @Override
-    public double testDurationThresholdMs() {
-      return 100.0;
-    }
-
-    @Override
-    public List<String> stackFrameWhitelist() {
-      return Collections.emptyList();
-    }
-
-    @Override
-    public List<String> stackFrameBlacklist() {
-      return Collections.emptyList();
-    }
-  }
-
   @Test
   void shouldResolveAgentMode() {
-    CompactorConfig base = new StubConfig("AGENT", false, false, true);
+    CompactorConfig base =
+        DefaultCompactorConfig.builder()
+            .mode("AGENT")
+            .outputAsJson(false)
+            .showFixTargets(false)
+            .showFailedTestLogs(true)
+            .build();
     CompactorConfig resolved = base.resolved();
 
     assertThat(resolved.mode()).isEqualTo("AGENT");
@@ -106,12 +25,18 @@ class CompactorConfigTest {
     // Non-overridden fields
     assertThat(resolved.enabled()).isTrue();
     assertThat(resolved.compressStackFrames()).isTrue();
-    assertThat(resolved.showSlowTests()).isTrue();
+    assertThat(resolved.showSlowTests()).isFalse();
   }
 
   @Test
   void shouldResolveDebugMode() {
-    CompactorConfig base = new StubConfig("DEBUG", false, false, false);
+    CompactorConfig base =
+        DefaultCompactorConfig.builder()
+            .mode("DEBUG")
+            .outputAsJson(false)
+            .showFixTargets(false)
+            .showFailedTestLogs(false)
+            .build();
     CompactorConfig resolved = base.resolved();
 
     assertThat(resolved.outputAsJson()).isTrue();
@@ -121,7 +46,13 @@ class CompactorConfigTest {
 
   @Test
   void shouldResolveHumanMode() {
-    CompactorConfig base = new StubConfig("HUMAN", true, false, true);
+    CompactorConfig base =
+        DefaultCompactorConfig.builder()
+            .mode("HUMAN")
+            .outputAsJson(true)
+            .showFixTargets(false)
+            .showFailedTestLogs(true)
+            .build();
     CompactorConfig resolved = base.resolved();
 
     assertThat(resolved.outputAsJson()).isFalse();
@@ -131,7 +62,13 @@ class CompactorConfigTest {
 
   @Test
   void shouldResolveNoneMode() {
-    CompactorConfig base = new StubConfig("NONE", false, false, true);
+    CompactorConfig base =
+        DefaultCompactorConfig.builder()
+            .mode("NONE")
+            .outputAsJson(false)
+            .showFixTargets(false)
+            .showFailedTestLogs(true)
+            .build();
     CompactorConfig resolved = base.resolved();
 
     assertThat(resolved.outputAsJson()).isFalse();

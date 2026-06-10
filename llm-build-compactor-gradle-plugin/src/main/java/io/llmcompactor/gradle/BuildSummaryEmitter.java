@@ -1,5 +1,6 @@
 package io.llmcompactor.gradle;
 
+import io.llmcompactor.core.DefaultCompactorConfig;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,20 +47,7 @@ class BuildSummaryEmitter {
                   params.getAllBuildDirs().set(allBuildDirs);
                   params.getAllSourceDirs().set(allSourceDirs);
 
-                  params.getEnabled().set(extension.getEnabled());
-                  params.getOutputAsJson().set(extension.getOutputAsJson());
-                  params.getCompressStackFrames().set(extension.getCompressStackFrames());
-                  params.getStackFrameWhitelist().set(extension.getStackFrameWhitelist());
-                  params.getStackFrameBlacklist().set(extension.getStackFrameBlacklist());
-                  params.getShowSlowTests().set(extension.getShowSlowTests());
-                  params.getTestDurationThresholdMs().set(extension.getTestDurationThresholdMs());
-                  params.getOutputPath().set(extension.getOutputPath());
-                  params.getShowFailedTestLogs().set(extension.getShowFailedTestLogs());
-                  params.getShowFixTargets().set(extension.getShowFixTargets());
-                  params.getShowRecentChanges().set(extension.getShowRecentChanges());
-                  params.getShowTotalDuration().set(extension.getShowTotalDuration());
-                  params.getShowDurationReport().set(extension.getShowDurationReport());
-                  params.getMode().set(extension.getMode());
+                  params.getConfig().set(rootProject.provider(() -> buildConfig(extension)));
                 });
 
     CompletionService service = provider.get();
@@ -72,5 +60,24 @@ class BuildSummaryEmitter {
         });
 
     eventsRegistry.onTaskCompletion(provider);
+  }
+
+  private static DefaultCompactorConfig buildConfig(LlmCompactorPlugin.LlmCompactorExtension ext) {
+    return DefaultCompactorConfig.builder()
+        .enabled(ext.getEnabled().get())
+        .outputPath(ext.getOutputPath().getOrNull())
+        .mode(ext.getMode().getOrNull())
+        .outputAsJson(ext.getOutputAsJson().get())
+        .compressStackFrames(ext.getCompressStackFrames().get())
+        .showFixTargets(ext.getShowFixTargets().get())
+        .showRecentChanges(ext.getShowRecentChanges().get())
+        .showSlowTests(ext.getShowSlowTests().get())
+        .showTotalDuration(ext.getShowTotalDuration().get())
+        .showDurationReport(ext.getShowDurationReport().get())
+        .showFailedTestLogs(ext.getShowFailedTestLogs().get())
+        .testDurationThresholdMs(ext.getTestDurationThresholdMs().get())
+        .stackFrameWhitelist(ext.getStackFrameWhitelist().get())
+        .stackFrameBlacklist(ext.getStackFrameBlacklist().get())
+        .build();
   }
 }

@@ -1,9 +1,7 @@
 package io.llmcompactor.core;
 
 import java.util.List;
-import lombok.experimental.Accessors;
 
-@Accessors(fluent = true)
 public interface CompactorConfig {
 
   boolean DEFAULT_ENABLED = true;
@@ -45,65 +43,5 @@ public interface CompactorConfig {
 
   List<String> stackFrameBlacklist();
 
-  default CompactorConfig resolved() {
-    ModePreset preset = ModePreset.from(mode());
-    CompactorConfig base = this;
-    return new CompactorConfig() {
-      public boolean enabled() {
-        return base.enabled();
-      }
-
-      public String outputPath() {
-        return base.outputPath();
-      }
-
-      public String mode() {
-        return base.mode();
-      }
-
-      public boolean outputAsJson() {
-        return preset.overrideOutputAsJson(base.outputAsJson());
-      }
-
-      public boolean compressStackFrames() {
-        return base.compressStackFrames();
-      }
-
-      public boolean showFixTargets() {
-        return preset.overrideShowFixTargets(base.showFixTargets());
-      }
-
-      public boolean showRecentChanges() {
-        return base.showRecentChanges();
-      }
-
-      public boolean showSlowTests() {
-        return base.showSlowTests();
-      }
-
-      public boolean showTotalDuration() {
-        return base.showTotalDuration();
-      }
-
-      public boolean showDurationReport() {
-        return base.showDurationReport();
-      }
-
-      public boolean showFailedTestLogs() {
-        return preset.overrideShowFailedTestLogs(base.showFailedTestLogs());
-      }
-
-      public double testDurationThresholdMs() {
-        return base.testDurationThresholdMs();
-      }
-
-      public List<String> stackFrameWhitelist() {
-        return base.stackFrameWhitelist();
-      }
-
-      public List<String> stackFrameBlacklist() {
-        return base.stackFrameBlacklist();
-      }
-    };
-  }
+  CompactorConfig resolved();
 }

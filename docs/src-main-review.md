@@ -13,7 +13,10 @@ Modules reviewed:
 > **This file is a working TODO, not a record.** Shipped items are deleted, not ticked — the code +
 > its javadoc + `docs/*-design.md` are the documentation of what landed. See the Development Guide's
 > "Documentation Convention". Items removed so far: **#1, #2, #24** (stream-safety batch; rationale
-> now lives in javadoc on `CompletionService`/`BuildOutputSpy`/`CompactorDefaults`).
+> now lives in javadoc on `CompletionService`/`BuildOutputSpy`/`CompactorDefaults`). **#5, #17, #20,
+> Addendum A** (config dedup: `DefaultCompactorConfig` is now `Serializable` + `toBuilder`;
+> `resolved()` is a 6-line `toBuilder()` overlay on `DefaultCompactorConfig`; `Params` collapsed to
+> single `Property<DefaultCompactorConfig> getConfig()`).
 
 ---
 
@@ -23,7 +26,6 @@ Modules reviewed:
 |---|-----|---------------|----------|-------|---------------|
 | 3 | 🟠 Med | gradle-plugin · `GradlePropertiesInstaller` | `autoInstall` called from `LlmCompactorPlugin.java:232-234` | **Silent mutation of tracked source file.** Every enabled `apply()` writes `org.gradle.logging.level=quiet` into the user's `gradle.properties`. Idempotent, but auto-editing a version-controlled file as a side effect of running a build is surprising and hard to attribute. | Gate behind explicit opt-in (the `installLlmCompactor` task already exists) or, at minimum, log at lifecycle level when the block is first written. |
 | 4 | 🟠 Med | core · `parser/GradleParser` vs `parser/SurefireParser` | `GradleParser.java:94-123`, `SurefireParser.java:152-222` | **Duplicated, divergent source/line extraction.** Two hand-rolled stack-frame → (file,line) parsers with different behavior: Gradle returns a bare filename; Surefire resolves to a real `src/...` path. Divergence is a latent correctness/maintenance hazard. | Extract one shared frame-resolver (in `ParserUtils` or a new helper) used by both parsers; unify the "resolve to source path" behavior. |
-| 5 | 🟠 Med | gradle-plugin · `CompletionService` | `toConfig` `CompletionService.java:359-376` | **Fallback defaults inverted vs canonical.** `getShowFixTargets().getOrElse(false)` but `DEFAULT_SHOW_FIX_TARGETS=true`; `getShowSlowTests().getOrElse(true)` but `DEFAULT_SHOW_SLOW_TESTS=false`. Masked today because params are always populated from conventions, but the literals are a latent bug if a param is ever absent. | Replace literals with the `CompactorConfig.DEFAULT_*` constants. |
 | 6 | 🟠 Med | gradle-plugin · `LlmCompactorPlugin` | javadoc `:80-129` | **Stale javadoc defaults.** `getShowFixTargets` doc says "default: false" (actual `true`); `getShowSlowTests` doc says "default: true" (actual `false`). Contradicts `CompactorConfig`. | Correct the javadoc to match `CompactorConfig.DEFAULT_*`. |
 | 7 | 🟠 Med | gradle-plugin · `TestCountLogger` | `neuter` `:45-87` | **Broad reflective field replacement.** Replaces *all* non-collection interface fields (across the full superclass chain) with no-op proxies. Cross-version fragility: a future Gradle field could be neutered unintentionally, silently corrupting reporting. Behavior is documented but inherently brittle. | Narrow targeting to the known fields (`progressLogger`, `logger`) by type/name where possible; keep the FINE diagnostics. Add a cross-version guard test (already partly covered). |
 | 8 | 🟡 Low | core · `SummaryWriter` | `toHumanReadable` `:251` + `:304` | **Double stack-trace stripping.** `normalize()` already applies `StackTraceCompressor.stripPackagePrefixes` to each error; the render loop applies it again. Redundant work, no behavior change. | Drop the second `stripPackagePrefixes` call in the render loop. |
@@ -37,6 +39,7 @@ Modules reviewed:
 | 16 | 🟡 Low | docs · `gradle-design.md` | `:41,:104` | **Doc/code drift.** Design doc states a "500ms delay" for late stream restoration; code uses `2000ms`. Section numbering under "How Suppression Is Achieved" also skips "1." | Sync the doc to the actual delay (and reconcile #1's redesign if the timing changes). |
 | 22 | 🟢 Feat | **core** (new `JacocoCoverageReader`) + extension + gradle-plugin | new — *inspired by* `fix/generic-build-errors:19b762d`, **re-mechanised + relocated to core** | **Salvage (re-designed): JaCoCo coverage-failure footer, shared by both build systems.** When a coverage-gated build goes red (or passes), emit `[JACOCO_COVERAGE] Coverage: N% (...) - required: M%` so an LLM sees *why* inline. **Do NOT port the branch's `.exec`-reflection verbatim** — it is the inferior mechanism (bytecode-probe level, forced reflection, needs `org.jacoco.core` dep). **Absent from HEAD.** Confirmed non-overlapping with jvm-coverage-mcp (whose XML+StAX read is strictly richer). | **Primary mechanism = read `jacoco.xml` via DOM** (match `parser/XmlParserUtils`, *not* StAX) (`target/site/jacoco/jacoco.xml` / `jacoco-merged.xml`; Gradle `build/reports/jacoco/test/jacocoTestReport.xml`). Line/method/branch level, **no jacoco dep, no reflection**. Normally present by the time `jacoco:check` fails (report runs first). **Split:** (a) **core** — `JacocoCoverageReader` (DOM parse of `<report>`/`<counter>` → `CoverageResult`), plus optional **rough** `.exec` fallback (reflection, probe-level only) for when the report mojo hasn't run. (b) **extension** — locate XML/exec + read minimums from `MavenProject` pom check-rules (`Xpp3Dom`). (c) **gradle-plugin** — locate XML/exec + read minimums from the Jacoco DSL. **Design call first:** thread `CoverageResult` into `BuildSummary` via `SummaryBuilder` (nullable field + new telescoping ctor — see salvage §2 hazard note), not the branch's `REAL_OUT` side-channel. See [`abandoned-branch-salvage.md`](abandoned-branch-salvage.md) §2. |
 | 23 | 🟢 Feat | core · `CompilationErrorExtractor` | verify HEAD vs `fix/generic-build-errors:35f2a10` | **Salvage check: modernizer-style errors.** Confirm HEAD extracts `[ERROR] <file>:<line>: <msg>` (modernizer/plugin) lines. If missing, port the parser branch + `shouldExtractModernizerErrors` test. | Run/port the test; add regex only if it fails. |
+| 26 | 🟡 Low | core · `CompactorDefaults` (test gap) | follow-up to shipped #24 | **No unit test for the sealed null stream.** The `print`/`println`/`write(byte[])` overrides ship untested (graph flagged `nullPrintStream`/`print`/`println` untested). A direct zero-byte assertion needs an injectable sink — `nullPrintStream()` discards to an internal `OutputStream`. | Add a package-private overload (or test helper) that wraps a caller-supplied `OutputStream`; assert `println(String)`/`print(Object)` write zero bytes. Haiku. |
 | 25 | 🔴 High | gradle-plugin · suppression (regression) | `GradleBuildOutputTests.java:58-67` (test gap); should-have-fixed in `7289eb7`, `38eb919` | **Suppression only works for test failures, not compile failures.** Observed in the field (Haiku run on another project): on a `compileJava` failure the compactor emits the JSON summary correctly **but the raw Gradle failure footer still leaks to the console** — `FAILURE: Build failed with an exception.` / `* What went wrong:` / `Execution failed for task ':compileJava'` / `BUILD FAILED in 1s` all print alongside the summary. So the build error is double-reported (compacted + raw). `testNoGradleFailureSummary` asserts `doesNotContain("* What went wrong:")` etc., but it runs the **`test`** task only — it never exercises the `compileJava` path, so the regression passes CI. | Reproduce: add a `testNoGradleFailureSummary`-style assertion against the `gradle-compile-error-project` / `compileJava` task (the same project `testCompilationErrors` already uses). Then make compile-failure footers suppress the same way test-failure footers do. |
 
 ---
@@ -52,8 +55,7 @@ Goal: no path can leave a JVM/daemon with null or wrong std streams.
 
 ### Phase 2 — Config correctness & consistency
 Goal: defaults agree across core, Gradle, Maven.
-4. **#5** Replace inverted `getOrElse` literals in `CompletionService.toConfig` with `CompactorConfig.DEFAULT_*`.
-5. **#6** Fix stale javadoc defaults in `LlmCompactorPlugin`.
+4. **#6** Fix stale javadoc defaults in `LlmCompactorPlugin`.
 6. **#14** Mojo: use resolved enabled value for config.
    - Verify: a test asserting Gradle and Maven produce identical `showFixTargets`/`showSlowTests` defaults for an unconfigured project.
 
@@ -74,70 +76,12 @@ Goal: defaults agree across core, Gradle, Maven.
 
 ---
 
-## Addendum A — `CompletionService.Params` repetition (investigation)
-
-**Why `Params extends BuildServiceParameters` exists.** It is mandatory, not accidental. Gradle's
-`BuildService<P>` contract requires `P extends BuildServiceParameters`, and the parameters must be
-Gradle-*managed* types (`Property`/`ListProperty`) so the service is lazily configurable and
-serializable for the Configuration Cache (exactly what `gradle-design.md` calls "fully
-serializable … through `BuildServiceParameters`"). A plain `CompactorConfig` cannot be handed to a
-`BuildService` directly. Introduced when the plugin god-class was decomposed (`9f126a7`),
-unchanged since.
-
-**There is a *second* mandatory `Property` surface, for a different reason.** `Params` is not the
-only place the ~13 fields are mirrored as Gradle `Property` getters — `LlmCompactorPlugin`'s nested
-`LlmCompactorExtension` (`:39-145`) does too. This is **also mandatory, but not the same
-requirement**: it is the **DSL extension** (`project.getExtensions().create("llmCompactor", …)`,
-`:159`), and it is genuinely used — `llmCompactor { … }` blocks exist in
-`test-project-gradle/build.gradle:48`, the compile-error IT project, and the plugin's own
-`build.gradle:56`. Gradle requires `Property`-typed getters there for lazy DSL config +
-`.convention()`. So `Extension` (DSL surface) and `Params` (BuildService-serialization surface) are
-two distinct, independently-mandated mirrors of the same fields — **neither is deletable by fiat**.
-
-**The repetition is therefore quintuple.** Each of the ~13 config fields is restated in five places:
-
-| Place | File | Mandatory? |
-|-------|------|------------|
-| Canonical definition | `CompactorConfig` / `DefaultCompactorConfig` | yes (the model) |
-| DSL `Property<T>` getter | `LlmCompactorPlugin.LlmCompactorExtension` (`:39-145`) | yes (DSL extension — used) |
-| BuildService `Property<T>` getter | `CompletionService.Params` (`:43-176`) | reducible (see below) |
-| Extension→Params `.set(...)` bridge | `BuildSummaryEmitter` (`:49-62`) | reducible |
-| Rebuild back into a config | `CompletionService.toConfig` (`:359-376`) | reducible |
-
-Adding one config flag means editing all five. This is the single largest maintenance smell in the
-Gradle module. **The two genuinely-irreducible surfaces are the `CompactorConfig` model and the
-`LlmCompactorExtension` DSL** — the other three (Params bag, emitter bridge, `toConfig`) all
-collapse.
-
-**Optimisation.** Collapse the three reducible surfaces into one config-bearing property:
-- Make `DefaultCompactorConfig implements Serializable` (it is only primitives + `List<String>`, so trivially serializable / Configuration-Cache friendly).
-- Replace the ~13 config getters in `Params` with a single `Property<DefaultCompactorConfig> getConfig()`. Keep only the genuinely runtime-scoped getters (`sessionStartTime`, `rootDir`, `buildDir`, `allBuildDirs`, `allSourceDirs`).
-- Delete `CompletionService.toConfig` entirely; call `getConfig().get().resolved()`.
-- Collapse `BuildSummaryEmitter`'s ~13 `.set()` calls to one `params.getConfig().set(buildConfig(extension))`.
-
-Net: five edit-sites per field → **two** (the `CompactorConfig` model + the `LlmCompactorExtension`
-DSL, both irreducible). This also removes finding **#5** (the inverted `getOrElse` fallbacks vanish
-with `toConfig`).
-
-**Rejected alternative — merge Extension *into* Params.** One could make
-`LlmCompactorExtension extends BuildServiceParameters` and use the extension type as the params
-type, deleting one interface. Don't: Gradle instantiates the BuildService's params as a *separate
-instance* from the extension, so the field-by-field copy in `BuildSummaryEmitter` would remain, and
-it couples the user-facing DSL to the BuildService contract. The single-`getConfig()` route above
-removes the copy *and* keeps the surfaces decoupled — strictly better.
-
----
-
 ## Addendum B — `CompactorConfig` / `DefaultCompactorConfig` / `CompactorDefaults` optimisation
 
 | # | Sev | Target | Issue | Suggested fix |
 |---|-----|--------|-------|---------------|
-| 17 | 🟠 Med | `CompactorConfig.resolved()` (`:48-108`) | 15-method hand-written decorator that re-delegates every getter just to overlay `ModePreset` on 3 fields. Verbose; every new field must be added here too. | Add `@Builder(toBuilder = true)` to `DefaultCompactorConfig`; implement `resolved()` as `toBuilder().outputAsJson(preset.overrideOutputAsJson(outputAsJson())).showFixTargets(...).showFailedTestLogs(...).build()`. ~60 lines → ~6. (Requires `resolved()` to move to `DefaultCompactorConfig`, or a small static helper.) |
 | 18 | 🟡 Low | `CompactorConfig` ↔ `DefaultCompactorConfig` | `DEFAULT_*` constants on the interface are each restated as `@Builder.Default` on the impl. Acceptable Lombok pattern, but two lists to keep in sync. | Leave as-is unless touched; note for awareness. |
 | 19 | 🟡 Low | `CompactorDefaults` | Grab-bag of two unrelated statics: `resolveEnabled` (config policy) and `nullPrintStream` (IO util). Low cohesion. | Optional: move `nullPrintStream` to a `core/util` IO helper; keep `resolveEnabled` with config. |
-| 20 | 🟡 Low | `DefaultCompactorConfig` | Not `Serializable` — blocks the Addendum A optimisation. | Implement `Serializable` (enables single-property BuildService config). |
-
-Items 17 + 20 are the high-value ones and dovetail with Addendum A.
 
 ---
 
@@ -191,10 +135,7 @@ Haiku. Effort = the model's reasoning-effort setting.
 | 12 | `propertyMissing` → Gradle logger | T | **Haiku** | medium | Swap `System.err.println` for logger call. |
 | 14 | Mojo uses resolved enabled value | T | **Haiku** | medium | One-line source swap. |
 | 15 | Log before broad catches | S | **Haiku** | high | Several call-sites; add debug/FINE, no logic change. |
-| 17 | `resolved()` → `toBuilder()` overlay | M | **Sonnet** | high | Restructures decorator; touches CompactorConfig contract. |
 | 19 | Split `CompactorDefaults` cohesion | S | **Haiku** | medium | Move `nullPrintStream` to IO util; mechanical. |
-| 20 | `DefaultCompactorConfig implements Serializable` | S | **Sonnet** | high | Enabler for Addendum A; verify Config-Cache serialization. |
-| A | Single-property BuildService config | L | **Sonnet** | high | Touches Params/emitter/CompletionService/DefaultCompactorConfig + the `LlmCompactorExtension` DSL mirror together; subsumes #5. Sequence after #20. Quintuple→2 surfaces (see Addendum A). |
 | 21 | README docs index | S | **Haiku** | medium | Discovery + mechanical index section. Should now also index `abandoned-branch-salvage.md`. |
 | 22 | JaCoCo coverage footer (core + Maven, then Gradle) | M | **Sonnet** | high | Re-mechanised (XML/DOM, not the branch's `.exec` reflection); core/plugin split + `BuildSummary` ctor ripple + tests. Core+Maven first, Gradle follow-up. See salvage §2. |
 | 23 | Verify/port modernizer-error extraction | T | **Haiku** | medium | Run branch test against HEAD; port regex only if it fails. |
@@ -202,7 +143,7 @@ Haiku. Effort = the model's reasoning-effort setting.
 
 **Suggested batching for delegation:**
 - **Opus batch** (stream safety): #1 + #2 + #24 **shipped**. Remaining: **#25** (compile-failure footer) — same suppression machinery, but the leak is via Gradle's ERROR-level renderer, not `System.out`; needs a `compileJava` repro IT.
-- **Sonnet batch 1** (config dedup): #20 → A → #17 (+ #5 falls out). One PR.
+- **Sonnet batch 1** (config dedup): **shipped** (#5, #17, #20, Addendum A).
 - **Sonnet batch 2** (suppression robustness): #3, #7, #10, #11, #4.
 - **Sonnet batch 3** (salvage feature): **#22** core+Maven, then a self-contained Gradle follow-up PR. Standalone — no dependency on other batches.
 - **Haiku batch** (mechanical cleanup): #6, #8, #9, #12, #14, #15, #19, #21, **#23**.
@@ -267,5 +208,5 @@ shared parse/aggregate logic — they are the most worthwhile next read.
 
 ## Notes
 - No security issues found in `src/main`.
-- Largest single risks are the two stream-restoration bugs (#1, #2); the largest maintainability win is Addendum A (+ #17/#20).
+- Largest single risks are the two stream-restoration bugs (#1, #2; shipped). Addendum A config dedup (#5, #17, #20) also shipped.
 - `detect_changes` graph output exceeded the token cap; this review is from direct source reads of the changed `src/main` files.

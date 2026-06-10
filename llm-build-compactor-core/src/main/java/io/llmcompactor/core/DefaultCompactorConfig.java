@@ -1,5 +1,6 @@
 package io.llmcompactor.core;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Builder;
@@ -8,10 +9,12 @@ import lombok.Singular;
 import lombok.experimental.Accessors;
 
 /** Default implementation of {@link CompactorConfig} with a builder. */
-@Builder
+@Builder(toBuilder = true)
 @Getter
 @Accessors(fluent = true)
-public final class DefaultCompactorConfig implements CompactorConfig {
+public final class DefaultCompactorConfig implements CompactorConfig, Serializable {
+
+  private static final long serialVersionUID = 1L;
   @Builder.Default private boolean enabled = DEFAULT_ENABLED;
   private String outputPath;
   private String mode;
@@ -30,6 +33,16 @@ public final class DefaultCompactorConfig implements CompactorConfig {
 
   @Singular("blacklistEntry")
   private List<String> stackFrameBlacklist;
+
+  @Override
+  public DefaultCompactorConfig resolved() {
+    ModePreset preset = ModePreset.from(mode());
+    return toBuilder()
+        .outputAsJson(preset.overrideOutputAsJson(outputAsJson()))
+        .showFixTargets(preset.overrideShowFixTargets(showFixTargets()))
+        .showFailedTestLogs(preset.overrideShowFailedTestLogs(showFailedTestLogs()))
+        .build();
+  }
 
   /**
    * Merges the user-supplied whitelist with auto-scanned packages from multiple projects/modules.
