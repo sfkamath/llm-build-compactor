@@ -1,0 +1,25 @@
+group = 'io.github.sfkamath'
+version = '1.0.0-SNAPSHOT'
+
+// Mirrors micronaut-data's buildSrc convention (io.micronaut.build.internal.data-base): every
+// module compiles with options.fork = true. The compactor is applied in a single leaf module
+// (mod-a, see mod-a/build.gradle), not here. Forked javac runs in a worker process, so its stdout
+// never passes through the daemon's System.out redirect that the compactor installs — javac lint
+// notes from every module leak into the build log. Root applies no compactor and no -Xlint.
+subprojects {
+    apply plugin: 'java'
+
+    java {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    repositories {
+        mavenCentral()
+        mavenLocal()
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.fork = true
+    }
+}

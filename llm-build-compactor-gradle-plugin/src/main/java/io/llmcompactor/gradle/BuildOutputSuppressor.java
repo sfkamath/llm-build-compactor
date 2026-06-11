@@ -75,6 +75,9 @@ final class BuildOutputSuppressor {
                   task -> {
                     if (isEnabled) {
                       applyQuietJavaCompileOptions(task);
+                      // Re-apply at execution so options.fork=false and the quiet compiler args win
+                      // over consumer conventions that mutate JavaCompile after this configureEach.
+                      task.doFirst(ignored -> applyQuietJavaCompileOptions(task));
                     }
                   });
           p.getTasks()
@@ -130,6 +133,12 @@ final class BuildOutputSuppressor {
   }
 
   private static void applyQuietJavaCompileOptions(JavaCompile task) {
+    // Force in-daemon compilation. Forked javac runs in a worker JVM whose stdout bypasses the
+    // daemon's System.out redirect, leaking mandatory "Note: ... uses unchecked/deprecation" lines
+    // that no compiler arg can suppress. Compiling in-process routes those notes through the
+    // redirected System.out instead. Re-applied via doFirst below so it wins over consumer
+    // conventions (e.g. micronaut's data-base) that set options.fork = true after the plugin.
+    task.getOptions().setFork(false);
     task.getOptions().setWarnings(false);
     task.getOptions().setDeprecation(false);
     // Groovy DSL may populate compilerArgs with GStringImpl; normalize to plain Strings

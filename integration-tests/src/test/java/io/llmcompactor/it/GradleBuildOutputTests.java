@@ -55,6 +55,24 @@ class GradleBuildOutputTests {
   }
 
   @Test
+  @DisplayName("multi-module build suppresses javac lint noise in every module (root applies plugin)")
+  void testNoLintNoiseMultiModule() throws Exception {
+    // Regression repro for the multi-module lint guarantee dropped in 9f126a7: the plugin is
+    // applied ONCE at the root, and each subproject overwrites compilerArgs (= ['-Xlint:all'])
+    // after the plugin's configuration-time -Xlint:none. Only the execution-time doFirst
+    // re-application keeps both modules quiet; without it, mod-a and mod-b leak unchecked warnings.
+    BuildResult result =
+        GradleBuild.inProject("gradle-multimodule-project").withTask("assemble").execute();
+
+    for (String line : result.output().split("\n")) {
+      assertThat(line.trim())
+          .as("Unexpected javac lint noise in multi-module output: %s", line)
+          .doesNotStartWith("Note:")
+          .doesNotContain("warning:");
+    }
+  }
+
+  @Test
   @Disabled(
       "Open finding #25: the compactor cannot suppress Gradle's failure footer on a genuinely"
           + " failed build. The footer is rendered by Gradle's logging pipeline (BuildException"
