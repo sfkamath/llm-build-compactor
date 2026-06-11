@@ -217,6 +217,37 @@ class MavenOptionTests {
     }
 
     @Test
+    @DisplayName("showFailedTestLogs=false via pom <configuration> suppresses testLogs")
+    void testShowFailedTestLogsPomConfig() throws Exception {
+      // Drives the pom <configuration> path (Maven analog of Gradle's llmCompactor {} DSL block)
+      // via the gated ${it.showFailedTestLogs} property, not the -DllmCompactor.* property path.
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("it.showFailedTestLogs", "false")
+              .execute();
+
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors).isNotNull();
+
+      JsonNode isolationError = null;
+      for (JsonNode error : errors) {
+        String file = error.has("file") ? error.get("file").asText() : "";
+        if (file.contains("LogIsolationTest")) {
+          isolationError = error;
+          break;
+        }
+      }
+      assertThat(isolationError).as("Expected an error from LogIsolationTest").isNotNull();
+
+      assertThat(isolationError.has("testLogs"))
+          .as("pom <configuration> showFailedTestLogs=false must suppress testLogs")
+          .isFalse();
+    }
+
+    @Test
     @DisplayName("showSlowTests=false omits duration from human-readable output")
     void testNoSlowTests() throws Exception {
       BuildResult result =

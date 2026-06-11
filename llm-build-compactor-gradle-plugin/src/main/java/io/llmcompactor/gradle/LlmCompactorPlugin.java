@@ -238,7 +238,16 @@ public class LlmCompactorPlugin implements Plugin<Project> {
 
       BuildOutputSuppressor.apply(rootProject, isEnabled);
       BuildSummaryEmitter emitter = new BuildSummaryEmitter(eventsRegistry);
-      emitter.register(rootProject, extension, sessionStartTime);
+      // Defer registration until all build scripts evaluated. Realizing the
+      // CompletionService BuildService isolates its Params (the config snapshot).
+      // Doing it in apply() (before the consumer llmCompactor {} block runs) would
+      // capture convention defaults and silently drop DSL-block config.
+      // projectsEvaluated fires after the block, so the snapshot reflects user values.
+      // (-P/system properties resolve via conventions at apply() time; only the DSL
+      // path was affected.)
+      rootProject
+          .getGradle()
+          .projectsEvaluated(g -> emitter.register(rootProject, extension, sessionStartTime));
     }
   }
 

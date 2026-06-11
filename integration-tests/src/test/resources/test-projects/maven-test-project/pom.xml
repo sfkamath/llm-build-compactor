@@ -20,6 +20,10 @@
         <logback.version>1.4.11</logback.version>
         <reactor.version>2023.0.0</reactor.version>
         <log4j.version>2.20.0</log4j.version>
+        <!-- IT hook: drives the pom <configuration> path for showFailedTestLogs (the Maven analog
+             of Gradle's llmCompactor {} DSL block). Default true = no behaviour change; the
+             DSL-config IT overrides it via -Dit.showFailedTestLogs=false. -->
+        <it.showFailedTestLogs>true</it.showFailedTestLogs>
     </properties>
 
     <dependencyManagement>
@@ -146,6 +150,7 @@
                 <version>@project.version@</version>
                 <configuration>
                     <compressStackFrames>true</compressStackFrames>
+                    <showFailedTestLogs>${it.showFailedTestLogs}</showFailedTestLogs>
                 </configuration>
                 <executions>
                     <execution>
