@@ -492,8 +492,16 @@ class GradleOptionTests {
               .withProperty("llmCompactor.doesNotExist", "someValue")
               .execute();
 
-      // Build should succeed even with unknown property
-      assertThat(result.exitCode()).isEqualTo(0);
+      // An unknown property must be silently ignored: it must not break configuration nor add a
+      // failure of its own. (The build still exits non-zero from gradle-test-project's intentional
+      // test failures — that is unrelated to the property.) Proof that configuration survived and
+      // the build actually ran: the compactor summary is still emitted.
+      assertThat(result.summaryJson())
+          .as("unknown property must not break configuration; summary still emits")
+          .isNotNull();
+      assertThat(result.output())
+          .as("unknown property must not surface as a configuration error")
+          .doesNotContain("doesNotExist");
     }
   }
 

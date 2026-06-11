@@ -235,6 +235,11 @@ public abstract class CompletionService
     }
 
     TestResultAggregator testResults = new TestResultAggregator();
+    // Only attribute test-results files written during THIS build. A compile-only (or any
+    // non-Test) invocation must not adopt a previous run's leftover test-results/ XML — otherwise
+    // a stale result is replayed and masks the real outcome (see GradleParser.parse). Floor to the
+    // second to tolerate filesystem mtime granularity coarser than millis.
+    long minResultMtime = (params.getSessionStartTime().get() / 1000L) * 1000L;
     for (File buildDir : params.getAllBuildDirs().get()) {
       try {
         Path testResultsDir = buildDir.toPath().resolve("test-results");
@@ -245,7 +250,8 @@ public abstract class CompletionService
                   config.compressStackFrames(),
                   whitelist,
                   blacklist,
-                  config.showFailedTestLogs()));
+                  config.showFailedTestLogs(),
+                  minResultMtime));
         }
       } catch (Exception e) {
         org.gradle.api.logging.Logging.getLogger(CompletionService.class)

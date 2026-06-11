@@ -141,7 +141,7 @@ Run all tests with a focus tag
 ```
 Run 2 specific tests
 ```bash
-./mvnw verify -Pintegration-tests -pl :integration-tests  -Dtest="io.llmcompactor.it.GradleOptionTests\$EnabledToggleTests#testDisabledRestoresLogging,io.llmcompactor.it.GradleBuildOutputTests#testCompilationErrors"
+./mvnw verify -Pintegration-tests -pl :integration-tests  -Dit.test="io.llmcompactor.it.GradleOptionTests\$EnabledToggleTests#testDisabledRestoresLogging,io.llmcompactor.it.GradleBuildOutputTests#testCompilationErrors"
 ```
 
 The `integration-tests` module is **self-contained**: its `pom.xml` runs `install-file`

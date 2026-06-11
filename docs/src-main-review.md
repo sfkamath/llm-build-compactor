@@ -24,7 +24,13 @@ Modules reviewed:
 > dropped, `propertyMissing` routed via Gradle logger, Mojo uses resolved enabled, FINE logging
 > added to broad catches, `nullPrintStream` moved to `IoUtils`, README docs index added, modernizer
 > violation to `test-project-maven` still needed before `shouldExtractModernizerErrors` can be
-> un-parked — see finding #23).
+> un-parked — see finding #23). **#26** (stale `test-results/` replay: `emit()` re-parsed
+> `build/test-results/` ungated, so any non-Test invocation — compile-only, **or a failure like a
+> wrong task path / config error** — replayed a previous run's cached JSON and masked the real
+> outcome; field-found on `micronaut-data`. Fixed by gating `GradleParser.parse` on a
+> `minLastModifiedMillis` = build `sessionStartTime`; rationale in javadoc on `GradleParser.parse`
+> and the `CompletionService.emit()` comment. Regression guard: `GradleStaleTestResultsTests` +
+> `gradle-stale-results-project`).
 
 ---
 

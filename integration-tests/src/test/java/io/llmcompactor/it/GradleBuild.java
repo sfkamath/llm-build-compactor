@@ -24,6 +24,7 @@ public final class GradleBuild {
   private final Map<String, String> properties = new HashMap<>();
   private int timeoutMinutes = 5;
   private boolean configCache = false;
+  private final Map<String, String> stagedBuildFiles = new HashMap<>();
 
   // Shared Gradle user home for all tests in a suite run
   // This allows dependency caching while isolating from the user's real Gradle cache
@@ -151,6 +152,16 @@ public final class GradleBuild {
     return this;
   }
 
+  /**
+   * Stages a file under the project's {@code build/} directory <em>after</em> execute() wipes it,
+   * simulating an artifact left behind by a previous build (e.g. stale {@code test-results/} XML).
+   * Path is relative to {@code build/}.
+   */
+  public GradleBuild withStagedBuildFile(String relativePath, String content) {
+    stagedBuildFiles.put(relativePath, content);
+    return this;
+  }
+
   /** Sets the build timeout in minutes. */
   public GradleBuild withTimeout(int minutes) {
     this.timeoutMinutes = minutes;
@@ -167,6 +178,19 @@ public final class GradleBuild {
   public BuildResult execute() throws IOException, InterruptedException {
     // Clean build directory to ensure fresh test outputs (but keep .gradle cache for dependencies)
     deleteDirectory(projectDir.resolve("build"));
+
+    // Re-stage any artifacts that simulate leftovers from a previous build (post-clean). Backdate
+    // their mtime by an hour so they are unambiguously older than this build's start time — a
+    // faithful model of "left over from an earlier run" and immune to whether the daemon is warm
+    // (a warm daemon starts within the same second as staging, which would otherwise let a
+    // same-second file slip past the compactor's floored mtime gate).
+    long staleMtime = System.currentTimeMillis() - 3_600_000L;
+    for (Map.Entry<String, String> staged : stagedBuildFiles.entrySet()) {
+      Path target = projectDir.resolve("build").resolve(staged.getKey());
+      Files.createDirectories(target.getParent());
+      Files.write(target, staged.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      Files.setLastModifiedTime(target, java.nio.file.attribute.FileTime.fromMillis(staleMtime));
+    }
 
     // Use gradlew from the test project directory
     String gradlew = projectDir.resolve("gradlew").toString();

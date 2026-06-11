@@ -38,7 +38,7 @@ The timing and listeners matter:
 - **StandardOutputListener**: Applied to each task to capture raw stdout/stderr lines.
 - **OperationCompletionListener**: Registered once via `BuildEventsListenerRegistry` to receive `TaskFinishEvent` notifications. This allows the plugin to detect build failure state and capture top-level `TaskFailureResult` messages.
 - **CompletionService (BuildService)**: Because the summary service is a `BuildService` implementing `AutoCloseable`, its `close()` method is the reliable point for emitting the final compact summary. The service is **fully serializable**, receiving its configuration and project paths through `BuildServiceParameters`. This ensures stability across build phases and compatibility with the Configuration Cache.
-- **Late Stream Restoration**: To suppress Gradle's final "What went wrong" failure block without changing build exit codes, the plugin redirects `System.out` and `System.err` to null during the build. It then uses a background thread (restored via `CompletionService.close()`) with a 2000ms (2s) delay to restore the original streams. This "late restoration" allows Gradle's final reporting to happen against a null-redirected stream while ensuring the daemon environment is restored for future builds.
+- **Late Stream Restoration**: The plugin redirects `System.out` and `System.err` to null during the build to swallow `System.out`/`System.err`-bound task noise (compiler chatter, `println`, etc.) without changing build exit codes. It then uses a background thread (via `CompletionService.close()`) with a 2000ms (2s) delay to restore the original streams, keeping the daemon environment healthy for future builds. **Note:** this does *not* suppress Gradle's final "What went wrong" / "BUILD FAILED" footer — that footer is rendered by Gradle's logging pipeline (`BuildExceptionReporter` / `BuildResultLogger`) at `ERROR`/FAILURE priority and streamed daemon→client; it never traverses the daemon's `System.out`, so nulling the streams cannot reach it. See open finding **#25** and `docs/footer-leak-investigation.md`.
 
 The 2s does **not** add build latency: `close()` *schedules* the restore on a daemon thread and returns immediately (non-blocking). In daemon mode the delay elapses in the background during idle time before the next build. In a one-shot (non-daemon) invocation the JVM exits before the daemon thread fires, so the restore simply never runs — harmless, since the process is terminating. The trade-off is that, in a reused daemon, a delayed restore from one build can fire into the next build's window (see the stream-restoration risk noted in the `src-main-review.md` findings).
 
@@ -99,13 +99,15 @@ Because some parts of the Gradle logging pipeline may remain suppressed even aft
 
 ### 1. Global Stream Redirection (Late Restoration)
 
-To capture the "long tail" of Gradle output (including the final failure blocks), the plugin:
+To capture the `System.out`/`System.err`-bound "long tail" of build output, the plugin:
 - captures the original `System.out` and `System.err` during initialization.
 - redirects `System.out` and `System.err` to a null `PrintStream` during the build.
 - emits the final summary via **Gradle's internal quiet logger**, which bypasses the `System.out` redirection.
 - restores the original streams via a **delayed background thread** (2000ms delay) triggered in `CompletionService.close()`.
 
-This ensures that Gradle's final failure reporting (which happens after all build services close) is swallowed, while preserving the daemon's health for subsequent builds. Unlike the `ignoreFailures` strategy, this preserves correct build exit codes.
+This swallows stdout/stderr-bound noise while preserving the daemon's health for subsequent builds, and — unlike the `ignoreFailures` strategy — keeps correct build exit codes.
+
+**Limitation (#25):** stream redirection does *not* reach Gradle's final failure footer. The "What went wrong" / "BUILD FAILED" block is emitted on the logging pipeline (`BuildExceptionReporter` / `BuildResultLogger`) at `ERROR`/FAILURE priority and rendered client-side via the daemon protocol — it never passes through the daemon's `System.out`. No clean suppression API exists for it in Gradle 9.5.1 (the only mechanism that would work is a reflective overwrite of the `private final` `OutputEventListenerManager.renderer`, rejected as too brittle). See `docs/footer-leak-investigation.md`.
 
 ### 2. Task-Level Log Suppression
 
@@ -166,6 +168,8 @@ By default, the summary is also written to **`build/llm-summary.json`** in the r
 The compactor captures error information from two streams:
 1.  **Log Stream**: Regex-extracted errors from captured stdout/stderr (e.g., `JavaCompile` output).
 2.  **Event Stream**: Failure messages from `TaskFinishEvent` (e.g., "Execution failed for task ':test'").
+
+Test counts and failures come from a third source — the JUnit XML under `build/test-results/`. Gradle does not clear that directory between unrelated invocations, so the parse is **gated to the current build**: only files modified at or after the build's `sessionStartTime` are read (`GradleParser.parse(…, minLastModifiedMillis)`). Without the gate, an invocation that runs no `Test` task (a `compileJava`-only build, or one that fails at task selection/configuration) would replay a previous run's stale results and mask the real outcome. A Test task that actually runs rewrites its output dir, so its fresh files always pass the gate; the only trade-off is that an UP-TO-DATE Test task reports zero, which is honest since nothing executed.
 
 To maintain a compact and high-signal summary, the compactor follows these rules:
 -   **Prioritize Specificity**: If specific compiler errors or test failures are extracted, generic "Execution failed" messages from the event stream are suppressed.

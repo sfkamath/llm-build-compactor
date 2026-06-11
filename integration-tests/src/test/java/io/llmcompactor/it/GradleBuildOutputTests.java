@@ -55,6 +55,14 @@ class GradleBuildOutputTests {
   }
 
   @Test
+  @Disabled(
+      "Open finding #25: the compactor cannot suppress Gradle's failure footer on a genuinely"
+          + " failed build. The footer is rendered by Gradle's logging pipeline (BuildException"
+          + " Reporter / BuildResultLogger) and streamed daemon->client; it never traverses the"
+          + " daemon's System.out, so neither stream-redirection nor an OutputEventListener can"
+          + " stop it (proven). This assertion only ever passed vacuously because gradle-test-"
+          + " project sets ignoreFailures=true (build succeeds -> no footer). Re-enable only if a"
+          + " footer-suppression mechanism lands. See docs/footer-leak-investigation.md.")
   @DisplayName("build output contains no Gradle 'What went wrong' or failure block")
   void testNoGradleFailureSummary() throws Exception {
     BuildResult result =
@@ -99,11 +107,12 @@ class GradleBuildOutputTests {
 
   @Test
   @Disabled(
-      "Reproduces open finding #25: on a compileJava failure the compactor emits the summary"
-          + " correctly, but Gradle's ERROR-level renderer ALSO leaks the raw failure footer to the"
-          + " console (double-report). testNoGradleFailureSummary only covers the `test` task, so"
-          + " the compile path is unguarded. Re-enable when #25 is fixed. See"
-          + " docs/src-main-review.md #25.")
+      "Open finding #25 reproduction: on a compileJava failure the compactor emits the summary"
+          + " correctly but Gradle's failure footer also leaks. Same root cause as the disabled"
+          + " testNoGradleFailureSummary — the footer bypasses System.out and the terminal"
+          + " OutputEventRenderer always fires before any plugin-reachable listener; no clean"
+          + " suppression API exists in Gradle 9.5.1. Re-enable when #25 is fixed. See"
+          + " docs/footer-leak-investigation.md.")
   @DisplayName("compile failures suppress Gradle's failure footer (#25)")
   void testNoGradleFailureSummaryForCompileErrors() throws Exception {
     BuildResult result =

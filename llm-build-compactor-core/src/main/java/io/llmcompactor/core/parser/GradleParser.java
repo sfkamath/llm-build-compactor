@@ -30,6 +30,42 @@ public class GradleParser {
       List<String> stackFrameWhitelist,
       List<String> stackFrameBlacklist,
       boolean showFailedTestLogs) {
+    return parse(
+        testResultsDir,
+        compressStackFrames,
+        stackFrameWhitelist,
+        stackFrameBlacklist,
+        showFailedTestLogs,
+        0L);
+  }
+
+  /**
+   * Parses JUnit-style {@code test-results/} XML, optionally ignoring files left over from an
+   * earlier build.
+   *
+   * <p>Gradle does <em>not</em> clear {@code build/test-results/} between unrelated invocations, so
+   * an invocation that runs no Test task (a {@code compileJava}-only build, or a build that fails
+   * at task selection / configuration) leaves a previous run's XML in place. Parsing it
+   * unconditionally makes the compactor replay that stale result as if it belonged to the current
+   * build — masking the real outcome, including non-test failures such as a wrong task path or a
+   * config error. Field-found on {@code micronaut-data}; gated here via {@code
+   * minLastModifiedMillis}.
+   *
+   * @param minLastModifiedMillis only parse result files modified at or after this epoch-millis
+   *     timestamp. Pass {@code 0L} to parse all files. Callers pass the current build's start time
+   *     so that a leftover {@code test-results/} dir from a previous run (whose Test task did not
+   *     execute this build) is not attributed to this build. Sound because Gradle cleans a Test
+   *     task's output dir on execution, so a task that actually ran rewrites all its files fresh
+   *     (the only downgrade: an UP-TO-DATE Test task that does not rewrite its dir reports zero —
+   *     honest, since nothing ran this build).
+   */
+  public static TestResult parse(
+      Path testResultsDir,
+      boolean compressStackFrames,
+      List<String> stackFrameWhitelist,
+      List<String> stackFrameBlacklist,
+      boolean showFailedTestLogs,
+      long minLastModifiedMillis) {
     if (!Files.exists(testResultsDir)) {
       return new TestResult(0, 0, Collections.emptyList());
     }
@@ -43,6 +79,7 @@ public class GradleParser {
     try (Stream<Path> files = Files.walk(testResultsDir)) {
       files
           .filter(f -> f.toString().endsWith(".xml"))
+          .filter(f -> f.toFile().lastModified() >= minLastModifiedMillis)
           .forEach(
               file ->
                   parseTestResultFile(
