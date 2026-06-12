@@ -478,6 +478,8 @@ class MavenOptionTests {
     void testInstallExtension() throws Exception {
       Path extensionsXml =
           MavenBuild.inProject("maven-test-project").getProjectDir().resolve(".mvn/extensions.xml");
+      byte[] originalContent =
+          Files.exists(extensionsXml) ? Files.readAllBytes(extensionsXml) : null;
       try {
         MavenBuild.inProject("maven-test-project").withGoal("llm-compactor:install").execute();
 
@@ -485,7 +487,11 @@ class MavenOptionTests {
         String content = new String(Files.readAllBytes(extensionsXml));
         assertThat(content).contains("llm-build-compactor-extension");
       } finally {
-        Files.deleteIfExists(extensionsXml);
+        if (originalContent != null) {
+          Files.write(extensionsXml, originalContent);
+        } else {
+          Files.deleteIfExists(extensionsXml);
+        }
       }
     }
   }
@@ -518,9 +524,16 @@ class MavenOptionTests {
     @Test
     @DisplayName("summary status is SUCCESS and errors is empty when build succeeds")
     void testStatusSuccessOnCleanBuild() throws Exception {
+      // Invoke the maven-plugin's compact goal explicitly. The pom binds compact to defaultPhase
+      // VERIFY, so a bare clean/compile never triggers it; the only other emitter is the EventSpy
+      // extension, which loads via .mvn/extensions.xml — a gitignored file absent on a clean
+      // checkout. Relying on it made this pass locally (leftover file) but fail in CI. Driving the
+      // goal directly removes that dependency and keeps the SUCCESS assertion meaningful.
       BuildResult result =
           MavenBuild.inProject("maven-test-project")
+              .withGoal("clean")
               .withGoal("compile")
+              .withGoal("llm-compactor:compact")
               .withProperty("llmCompactor.outputAsJson", "true")
               .execute();
 

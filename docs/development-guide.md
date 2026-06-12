@@ -260,6 +260,135 @@ as `-Drevision=<new_tag>`. The `pom.xml` revision value is a local dev default o
 
 ---
 
+## Debugging CI Failures
+
+### CI job map (which checks run what — go straight to the right one)
+
+Two workflows run on every PR. Locating a failing test needs **none** of the project's internals —
+the check *name* tells you which job and what it ran:
+
+| Check name | Workflow | Step command | Runs ITs? |
+|------------|----------|--------------|-----------|
+| `Build & Test (Java 8/11/17/21/25)` | `ci.yml` (matrix) | module build + unit tests | **No** — green here ≠ ITs pass |
+| `Integration Tests (Java 17)` | `ci.yml` | `./mvnw verify -Pintegration-tests -ntp` | **Yes** |
+| `Smoke Tests (Java 17)` | `ci.yml` | `./mvnw install -Psmoke-tests -ntp` | smoke only |
+| `Option Coverage (Java 17/21)` | `test-options.yml` | `./mvnw verify -pl integration-tests -Pintegration-tests` | **Yes** |
+
+So an IT regression shows up in `Integration Tests (Java 17)` **and** `Option Coverage (Java 17)`
+(both run `-Pintegration-tests`); the `Build & Test` matrix stays green. Ignore the matrix jobs for
+IT failures.
+
+**Locating ≠ root-causing.** The failing IT's name and assertion line come straight from the
+failsafe `<<< FAILURE!` line below — no need to know that ITs spawn nested subprocess builds. That
+nested structure only matters once you ask *why* the inner build behaved differently (see
+"How the compactor emits …" below).
+
+### Confirm you're looking at the right run
+
+`gh run list` lags. Use PR check status instead — it's live and includes job IDs:
+
+```bash
+gh pr view <number> --json statusCheckRollup | python3 -c "
+import json,sys
+checks=json.load(sys.stdin)['statusCheckRollup']
+for c in sorted(checks, key=lambda x: x.get('startedAt',''), reverse=True):
+    if c.get('conclusion')=='FAILURE':
+        print(c.get('name'),'|',c.get('startedAt'),'| job',c.get('detailsUrl','').split('/')[-1])
+"
+```
+
+`detailsUrl`'s last path segment is the **job** ID (not a run ID — `gh run view <that>` 404s; use
+`--job <that>`). Cross-check the run's commit with `gh run list --branch <branch> --json
+databaseId,headSha,workflowName,conclusion` and match `headSha` to your pushed tip.
+
+### Get the actual failure (locates the test, nesting-agnostic)
+
+```bash
+gh run view --job <job-id> --log 2>&1 | grep -A3 -E "<<< (FAILURE|ERROR)!"
+```
+
+The `<<< FAILURE!` line names the test (`io.llmcompactor.it.MavenOptionTests.testStatusSuccessOnCleanBuild`);
+the `-A3` context lines give the assertion message and `...Test.java:<line>`. That is the exact
+failure — found without any project-specific knowledge.
+
+### Reproduce locally — always test the full class, not just the failing test
+
+ITs use temurin JDKs in CI. Match via jenv:
+
+```bash
+JAVA_HOME=/Users/sfk/.jenv/versions/17.0.8 PATH="$JAVA_HOME/bin:$PATH" \
+  ./mvnw verify -Pintegration-tests -pl :integration-tests \
+  -Dit.test="io.llmcompactor.it.MavenOptionTests" -ntp
+```
+
+**A test that passes in isolation does not rule out an ordering bug.** Always run the full test
+class. Then run the full suite to catch cross-class ordering issues.
+
+### How the compactor emits in `maven-test-project` — and why CI differs (read before writing summary-assert ITs)
+
+There are exactly two ways the compactor produces a summary in `maven-test-project`, and they fire
+at different times:
+
+1. **maven-plugin `compact` goal** — bound in `maven-test-project/pom.xml` with no explicit phase,
+   so it runs at the mojo's `defaultPhase = VERIFY` (`LlmCompactMojo.java:24`). It fires **only at
+   or after `verify`**. A `compile`- or `test`-phase invocation never reaches it.
+2. **EventSpy extension** — fires on **every** build (any phase), but loads only when Maven reads
+   `maven-test-project/.mvn/extensions.xml`. **That file is gitignored**
+   (`maven-test-project/.gitignore:2` = `.mvn/extensions.xml`). It is written by
+   `llm-compactor:install` / `testInstallExtension` and **never committed**, so it exists on a dev
+   machine after any install run but is **absent on a clean CI checkout**.
+
+**Consequence (this exact bug — cost a full session):** an IT that asserts a summary from a phase
+*before* `verify` (e.g. `clean compile`) gets it from emitter 2 locally and from **nothing** on CI.
+`testStatusSuccessOnCleanBuild` passed forever locally on the leftover `extensions.xml` and failed
+in CI with `summaryJson() == null`. `clean compile` does **not** fix it — CI always compiles clean;
+the missing extension is the cause.
+
+**Rule for new ITs:** if you need a summary before `verify`, either drive `llm-compactor:compact`
+directly (`.withGoal("llm-compactor:compact")` — what `testStatusSuccessOnCleanBuild` now does), or
+explicitly run `llm-compactor:install` first. **Never rely on a pre-existing `.mvn/extensions.xml`**
+— it is not in the repo. Same trap applies to any future fixture whose `.mvn/extensions.xml` is the
+only thing activating the extension.
+
+Reproduce the CI environment locally without a throwaway clone — hide the gitignored file (source
+**and** `target/` copy), run, restore:
+
+```bash
+EXT=integration-tests/src/test/resources/test-projects/maven-test-project/.mvn/extensions.xml
+mv "$EXT" "$EXT.HIDDEN"
+find integration-tests/target -path '*maven-test-project/.mvn/extensions.xml' \
+  -exec mv {} {}.HIDDEN \;
+# ...run the failing IT — now fails exactly as CI does...
+for f in $(find integration-tests -name '*.HIDDEN'); do mv "$f" "${f%.HIDDEN}"; done
+```
+
+### The nested-build trap
+
+IT tests spawn subprocess Maven/Gradle builds inside `target/test-classes/test-projects/`.
+That directory is shared across all tests in a run. A test that writes files without restoring
+them corrupts subsequent tests. The only safe pattern:
+
+```java
+byte[] original = Files.exists(path) ? Files.readAllBytes(path) : null;
+try { /* mutate */ } finally {
+    if (original != null) Files.write(path, original);
+    else Files.deleteIfExists(path);
+}
+```
+
+Deleting instead of restoring is the most common cause of ordering-dependent CI failures.
+
+### Incremental build state (a local false-pass, not a CI cause)
+
+After repeated local `verify` runs on `maven-test-project`, `target/classes/` is populated and a
+bare `compile` becomes a no-op, which can change what the extension emits. **CI never sees this** —
+it checks out clean every time. So incremental state is a source of local *false passes* (and false
+failures), not of CI failures. When local and CI disagree, run `clean` first locally to match CI's
+fresh state; if they still disagree, the cause is environmental (see "files present locally but not
+committed" above), not incremental compilation.
+
+---
+
 ## Troubleshooting
 
 ### gradle-plugin fails to build or resolve dependencies

@@ -2,13 +2,17 @@ package io.llmcompactor.core.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 class IoUtilsTest {
 
   @Test
-  void nullPrintStreamDoesNotThrow() throws java.io.IOException {
+  void nullPrintStreamDoesNotThrow() throws IOException {
     PrintStream ps = IoUtils.nullPrintStream();
     ps.write(65);
     ps.write(new byte[] {1, 2, 3});
@@ -24,7 +28,7 @@ class IoUtilsTest {
   }
 
   @Test
-  void nullPrintStreamSwallowsAllBytes() throws java.io.IOException {
+  void nullPrintStreamSwallowsAllBytes() throws IOException {
     // Seals every byte/text path against the same null sink the production factory uses.
     CountingOutputStream sink = new CountingOutputStream();
     PrintStream ps = sealingPrintStream(sink);
@@ -41,9 +45,9 @@ class IoUtilsTest {
   }
 
   /** Mirror of {@link IoUtils#nullPrintStream()} overrides, but over an observable sink. */
-  private static PrintStream sealingPrintStream(java.io.OutputStream sink) {
+  private static PrintStream sealingPrintStream(OutputStream sink) {
     try {
-      return new PrintStream(sink, true, java.nio.charset.StandardCharsets.UTF_8.name()) {
+      return new PrintStream(sink, true, StandardCharsets.UTF_8.name()) {
         @Override
         public void write(int b) {}
 
@@ -68,12 +72,12 @@ class IoUtilsTest {
         @Override
         public void println() {}
       };
-    } catch (java.io.UnsupportedEncodingException e) {
+    } catch (UnsupportedEncodingException e) {
       throw new IllegalStateException(e);
     }
   }
 
-  private static final class CountingOutputStream extends java.io.OutputStream {
+  private static final class CountingOutputStream extends OutputStream {
     int bytes;
 
     @Override
