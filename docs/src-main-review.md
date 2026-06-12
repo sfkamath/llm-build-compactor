@@ -18,7 +18,7 @@ Modules reviewed:
 > `resolved()` is a 6-line `toBuilder()` overlay on `DefaultCompactorConfig`; `Params` collapsed to
 > single `Property<DefaultCompactorConfig> getConfig()`). **#3, #4, #7, #10, #11** (suppression
 > robustness: `autoInstall` removed, `neuter` narrowed to `progressLogger`/`logger` by name,
-> `setFork(false)` removed, redundant `doFirst` dropped, Gradle/Surefire source resolver unified
+> Gradle/Surefire source resolver unified
 > in `ParserUtils.resolveFrameSource`). **#6, #8, #9, #12, #14, #15, #19, #21, #23** (Haiku batch:
 > stale javadoc defaults corrected, dead `LOGGER_PATTERN` removed, double `stripPackagePrefixes`
 > dropped, `propertyMissing` routed via Gradle logger, Mojo uses resolved enabled, FINE logging
@@ -30,7 +30,14 @@ Modules reviewed:
 > outcome; field-found on `micronaut-data`. Fixed by gating `GradleParser.parse` on a
 > `minLastModifiedMillis` = build `sessionStartTime`; rationale in javadoc on `GradleParser.parse`
 > and the `CompletionService.emit()` comment. Regression guard: `GradleStaleTestResultsTests` +
-> `gradle-stale-results-project`).
+> `gradle-stale-results-project`). **Lint regression (forked-javac notes):** `9f126a7` dropped
+> `setFork(false)` + the execution-time `doFirst` re-application from `applyQuietJavaCompileOptions`;
+> mandatory javac `Note: ... uses unchecked/deprecation` lines from a forked worker JVM bypass the
+> daemon's `System.out` redirect and leak across ALL modules (field-found on `micronaut-data`, plugin
+> in one submodule, `fork=true` convention from `buildSrc`). **Restored both in `73ae7e8`** —
+> `setFork(false)` routes notes through the redirected stream; `doFirst` wins over consumer
+> conventions that set `fork=true` after the plugin's `configureEach`. Regression guard:
+> `testNoLintNoiseMultiModule` + `gradle-multimodule-project`.
 
 ---
 
@@ -38,11 +45,9 @@ Modules reviewed:
 
 | # | Sev | Module / File | Location | Issue | Suggested fix |
 |---|-----|---------------|----------|-------|---------------|
-| 13 | 🟡 Low | core · `CompactorConfig` | `resolved()` `:48-108` | **Hand-written 15-method decorator.** Verbose anonymous reimplementation; every new config field must be added in 3+ places (interface, `DefaultCompactorConfig`, `resolved()`, both consumers). Maintenance smell, not a bug. | Optional: generate the overlay (e.g. a small delegating base or apply preset onto a copied builder) to cut duplication. |
-| 16 | 🟡 Low | docs · `gradle-design.md` | `:41,:104` | **Doc/code drift.** Design doc states a "500ms delay" for late stream restoration; code uses `2000ms`. Section numbering under "How Suppression Is Achieved" also skips "1." | Sync the doc to the actual delay (and reconcile #1's redesign if the timing changes). |
 | 23 | 🟢 Feat | core · `CompilationErrorExtractor` | `CompilationErrorExtractorTest.shouldExtractModernizerErrors` (`@Disabled`) | **IT-level gap for modernizer-style extraction.** Unit parsing confirmed correct (hardcoded log strings pass). Full verification requires: add `modernizer-maven-plugin` to `test-project-maven`, introduce an `Optional.orElseThrow()`-style violation, write an IT asserting the extracted `BuildError` matches. | Add modernizer plugin + violation to `test-project-maven`; write IT; re-enable `shouldExtractModernizerErrors`. |
 | 22 | 🟢 Feat | **core** (new `JacocoCoverageReader`) + extension + gradle-plugin | new — *inspired by* `fix/generic-build-errors:19b762d`, **re-mechanised + relocated to core** | **Salvage (re-designed): JaCoCo coverage-failure footer, shared by both build systems.** When a coverage-gated build goes red (or passes), emit `[JACOCO_COVERAGE] Coverage: N% (...) - required: M%` so an LLM sees *why* inline. **Do NOT port the branch's `.exec`-reflection verbatim** — it is the inferior mechanism (bytecode-probe level, forced reflection, needs `org.jacoco.core` dep). **Absent from HEAD.** Confirmed non-overlapping with jvm-coverage-mcp (whose XML+StAX read is strictly richer). | **Primary mechanism = read `jacoco.xml` via DOM** (match `parser/XmlParserUtils`, *not* StAX) (`target/site/jacoco/jacoco.xml` / `jacoco-merged.xml`; Gradle `build/reports/jacoco/test/jacocoTestReport.xml`). Line/method/branch level, **no jacoco dep, no reflection**. Normally present by the time `jacoco:check` fails (report runs first). **Split:** (a) **core** — `JacocoCoverageReader` (DOM parse of `<report>`/`<counter>` → `CoverageResult`), plus optional **rough** `.exec` fallback (reflection, probe-level only) for when the report mojo hasn't run. (b) **extension** — locate XML/exec + read minimums from `MavenProject` pom check-rules (`Xpp3Dom`). (c) **gradle-plugin** — locate XML/exec + read minimums from the Jacoco DSL. **Design call first:** thread `CoverageResult` into `BuildSummary` via `SummaryBuilder` (nullable field + new telescoping ctor — see salvage §2 hazard note), not the branch's `REAL_OUT` side-channel. See [`abandoned-branch-salvage.md`](abandoned-branch-salvage.md) §2. |
-| 25 | 🔴 High | gradle-plugin · suppression (regression) | `GradleBuildOutputTests.java:58-67` (test gap); should-have-fixed in `7289eb7`, `38eb919` | **Suppression only works for test failures, not compile failures.** Observed in the field (Haiku run on another project): on a `compileJava` failure the compactor emits the JSON summary correctly **but the raw Gradle failure footer still leaks to the console** — `FAILURE: Build failed with an exception.` / `* What went wrong:` / `Execution failed for task ':compileJava'` / `BUILD FAILED in 1s` all print alongside the summary. So the build error is double-reported (compacted + raw). **NB: distinct from #23** (which is extraction coverage, not this leak). `testNoGradleFailureSummary` asserts `doesNotContain("* What went wrong:")` etc., but it runs the **`test`** task only — it never exercises the `compileJava` path, so the regression passes CI. | Reproduce: add a `testNoGradleFailureSummary`-style assertion against the `gradle-compile-error-project` / `compileJava` task (the same project `testCompilationErrors` already uses). Then make compile-failure footers suppress the same way test-failure footers do. |
+| 25 | ⚪️ Known limitation (not actionable) | gradle-plugin · suppression | `GradleBuildOutputTests.java` (`@Disabled` markers) | **Gradle's failure footer leaks on a genuinely failed build (test OR compile) and cannot be suppressed by the compactor.** The footer (`* What went wrong:` / `BUILD FAILED in`) is rendered by Gradle's logging pipeline (`BuildExceptionReporter` / `BuildResultLogger`) as a `StyledTextOutputEvent`@ERROR streamed daemon→client; it NEVER traverses the daemon's `System.out`, so neither stream-redirection nor an `OutputEventListener` can stop it (proven by probe). **Originally filed as a regression — disproven:** the prior "pass" was vacuous (`gradle-test-project` set `ignoreFailures=true` → build succeeded → no footer). Only reflective overwrite of `OutputEventRenderer.renderer` could suppress it — rejected as brittle. | **None.** Accepted as a known Gradle limitation. `testNoGradleFailureSummary` + `testNoGradleFailureSummaryForCompileErrors` stay `@Disabled` as markers. See `docs/footer-leak-investigation.md`. Re-open only if a non-brittle suppression API lands. |
 
 ---
 
@@ -52,16 +57,14 @@ Each phase is independently shippable. Verify with `mvn clean verify -Pquality` 
 
 ### Phase 1 — Correctness / stream-safety (blockers)
 Goal: no path can leave a JVM/daemon with null or wrong std streams.
-*(#1, #2 shipped — removed. Remaining:)*
-1. **#16** Update `gradle-design.md` delay (500ms → actual) once #1's timing is final.
+*(#1, #2, #16, #24 shipped — removed. Phase complete.)*
 
 ### Phase 2 — Config correctness & consistency *(shipped: #6, #14)*
 Goal: defaults agree across core, Gradle, Maven.
 
 ### Phase 3 — Side-effect & robustness hardening *(shipped: #3, #7, #10, #11, #15)*
 
-### Phase 4 — Cleanup / maintainability *(shipped: #4, #8, #9, #12, #19)*
-4. **#13** (Optional) De-duplicate `CompactorConfig.resolved()` overlay.
+### Phase 4 — Cleanup / maintainability *(shipped: #4, #8, #9, #12, #19, #13)*
 
 ---
 
@@ -106,10 +109,9 @@ Haiku. Effort = the model's reasoning-effort setting.
 | # | Item | Cx | Agent | Effort | Why |
 |---|------|----|-------|--------|-----|
 | 22 | JaCoCo coverage footer (core + Maven, then Gradle) | M | **Sonnet** | high | Re-mechanised (XML/DOM, not the branch's `.exec` reflection); core/plugin split + `BuildSummary` ctor ripple + tests. Core+Maven first, Gradle follow-up. See salvage §2. |
-| 25 | Compile-failure footer leaks to console | M | **Opus** (Fable) | high | Suppression regression — works for `test`, not `compileJava`. Needs the failing-footer suppression path + a `compileJava` IT closing the `testNoGradleFailureSummary` gap. |
 
 **Suggested batching for delegation:**
-- **Opus batch** (stream safety): #1 + #2 + #24 **shipped**. Remaining: **#25** (compile-failure footer) — same suppression machinery, but the leak is via Gradle's ERROR-level renderer, not `System.out`; needs a `compileJava` repro IT.
+- **Opus batch** (stream safety): #1 + #2 + #24 **shipped**. **#25** closed as a known Gradle limitation (footer bypasses `System.out`; not actionable — see the findings table + `docs/footer-leak-investigation.md`).
 - **Sonnet batch 1** (config dedup): **shipped** (#5, #17, #20, Addendum A).
 - **Sonnet batch 2** (suppression robustness): **shipped** (#3, #7, #10, #11, #4).
 - **Sonnet batch 3** (salvage feature): **#22** core+Maven, then a self-contained Gradle follow-up PR. Standalone — no dependency on other batches.

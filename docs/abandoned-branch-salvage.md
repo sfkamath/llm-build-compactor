@@ -143,10 +143,10 @@ Commit `6272f4b` "lots of debugging around jul and which logger". Full diff is *
 - Replaces `resetSlf4j()` with `resetSlf4j(PrintStream)` that *force-injects* `nullPrint` into SLF4J's `OutputChoice.targetPrintStream` via reflection, then prints `SHOULD-BE-INVISIBLE` to test it.
 
 ### What's worth keeping (the "more in there")
-1. **A real, still-open bug it proves.** The branch overrides `write(byte[])`, `write(byte[],int,int)`, **and** `print(String)`/`println(String)`/`print(Object)`/`println(Object)` on the null `PrintStream`. HEAD's null stream (and `CompactorDefaults.nullPrintStream`) override only `write(...)`. `PrintStream.println(String)` does **not** always route through `write(int)` — encoders/`BufferedWriter` paths can leak. **This corroborates `src-main-review.md` #2 and #1's stream-safety theme**: the null stream is incompletely sealed. → filed as **Task #24**.
+1. **A real, still-open bug it proves.** The branch overrides `write(byte[])`, `write(byte[],int,int)`, **and** `print(String)`/`println(String)`/`print(Object)`/`println(Object)` on the null `PrintStream`. HEAD's null stream (and `CompactorDefaults.nullPrintStream`) override only `write(...)`. `PrintStream.println(String)` does **not** always route through `write(int)` — encoders/`BufferedWriter` paths can leak. **This corroborates `src-main-review.md` #2 and #1's stream-safety theme**: the null stream is incompletely sealed. → **shipped:** the single `IoUtils.nullPrintStream()` (used by both extension and gradle) now overrides `write(int/byte[]/byte[]+off)` + `print(String/Object)` + `println(String/Object/—)`; `IoUtilsTest.nullPrintStreamSwallowsAllBytes` asserts zero bytes across every path.
 2. **A confirmed conclusion** (commit body: *"get feeling about showFailedTestLogs was right"*) — the SLF4J `targetPrintStream` is a **separate** reference from `System.out`; redirecting `System.setOut` alone does not silence SLF4J SimpleLogger, because `OutputChoice` caches its own stream at init. Any future "why is SLF4J still printing" investigation should start here instead of re-deriving it. → captured as **Exploratory note E-1** below.
 
-Everything else (the field dumps, classpath probes, JUL toggles) is throwaway. **Delete the branch after Task #24 is filed** — its value is now captured here.
+Everything else (the field dumps, classpath probes, JUL toggles) is throwaway. **Branch is deletable** — Task #24 shipped and its value is captured here.
 
 ---
 
@@ -175,7 +175,6 @@ Reasoning:
 |----|------|-------------|----------------|
 | **#22** | JaCoCo coverage-failure footer (see §2). **Re-mechanise, don't port:** `JacocoCoverageReader` in **core** reading `jacoco.xml` (StAX), per-plugin file/threshold location, `CoverageResult` into `BuildSummary`. `.exec` reflection only as rough fallback. | *idea from* `fix/generic-build-errors:19b762d` (`extractJacocoCoverageFromReport`/`readConfiguredMinimums`); mechanism from `~/Developer/jvm-coverage-mcp` (XML+StAX) | **Sonnet, high** (cross-module + design calls) |
 | **#23** | Verify HEAD extracts modernizer-style `[ERROR] <file>:<line>: <msg>`; if not, port the parser branch + test. | `fix/generic-build-errors:35f2a10` `CompilationErrorExtractorTest.shouldExtractModernizerErrors`; HEAD `CompilationErrorExtractor.java` | **Haiku, medium** (1 test + maybe 1 regex) |
-| **#24** | Seal the null `PrintStream`: override `print(String/Object)` + `println(String/Object)` + `write(byte[])` in `CompactorDefaults.nullPrintStream` and the extension's `nullPrintStream()`. Add a test that asserts `println(String)` produces no bytes. | `jul-placeholder-rabbit-hole-wip:6272f4b` null-stream overrides; HEAD `CompactorDefaults.nullPrintStream`; ties to `src-main-review.md` #1/#2 | **Sonnet, medium** (concurrency-adjacent) |
 | **E-1** | (Note, not a task) SLF4J SimpleLogger caches its own `OutputChoice.targetPrintStream` at init — independent of `System.out`. If SLF4J output ever leaks under suppression, that field (not `System.setOut`) is the lever. Don't re-investigate from scratch. | `jul-placeholder-rabbit-hole-wip:6272f4b` `resetSlf4j(PrintStream)` | — |
 
 ---
@@ -183,7 +182,7 @@ Reasoning:
 ## 6. Branch disposition
 
 - `fix/generic-build-errors` — **delete after Task #22 + #23 land.** All other content already in HEAD.
-- `jul-placeholder-rabbit-hole-wip` — **delete after Task #24 filed** (done here). Pure diagnostics otherwise.
+- `jul-placeholder-rabbit-hole-wip` — **deletable now** (Task #24 shipped; E-1 note captured). Pure diagnostics otherwise.
 - `feat/gradle-flow-api-variants` — **keep until the Flow-API/Addendum-F work begins**, then harvest and delete. Tag it so it isn't mistaken for active work.
 
 *(Deletion is the user's call — listed as recommendation, not action.)*
