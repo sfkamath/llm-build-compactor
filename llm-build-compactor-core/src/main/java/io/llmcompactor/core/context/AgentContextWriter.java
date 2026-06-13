@@ -3,8 +3,10 @@ package io.llmcompactor.core.context;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Path;
 import java.util.Map;
+import lombok.experimental.UtilityClass;
 
-public final class AgentContextWriter {
+@UtilityClass
+public class AgentContextWriter {
 
   private static final ObjectMapper mapper = new ObjectMapper();
 
@@ -19,6 +21,4 @@ public final class AgentContextWriter {
       throw new RuntimeException(e);
     }
   }
-
-  private AgentContextWriter() {}
 }

@@ -107,8 +107,8 @@ assertThat(tree.has("fixTargets"))
     .isTrue();
 ```
 
-2. Run the full suite: `./mvnw clean install`
-3. The Surefire report for the failing test will contain the full Gradle/Maven build output inline in the failure message.
+1. Run the full suite: `./mvnw clean install`
+2. The Surefire report for the failing test will contain the full Gradle/Maven build output inline in the failure message.
 
 The full output tells you whether:
 - **`compileJava` failed** (Lombok or other compile error) — no test XML results, empty `errors` array, `fixTargets` absent

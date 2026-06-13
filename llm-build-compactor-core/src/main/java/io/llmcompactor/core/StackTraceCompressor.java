@@ -3,8 +3,10 @@ package io.llmcompactor.core;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import lombok.experimental.UtilityClass;
 
-public final class StackTraceCompressor {
+@UtilityClass
+public class StackTraceCompressor {
 
   private static final List<String> FRAMEWORK_PREFIXES =
       Arrays.asList(
@@ -15,6 +17,7 @@ public final class StackTraceCompressor {
           "jdk.",
           "org.junit.",
           "org.testng.",
+          "org.opentest4j.",
           "org.apache.maven.",
           "org.gradle.",
           "org.springframework.",
@@ -31,7 +34,7 @@ public final class StackTraceCompressor {
   /**
    * Normalizes a stack trace line by removing classloader prefixes like "app//", "bytebuddy.", etc.
    */
-  private static String normalizeLine(String line) {
+  static String normalizeLine(String line) {
     if (line == null || line.isEmpty()) {
       return line;
     }
@@ -66,6 +69,8 @@ public final class StackTraceCompressor {
     String[] lines = stackTrace.split("\n");
     StringBuilder result = new StringBuilder();
     boolean hasContent = false;
+    boolean foundFirstFrame = false;
+    boolean skippedConditionHeader = false;
 
     for (String line : lines) {
       String trimmed = line.trim();
@@ -77,7 +82,22 @@ public final class StackTraceCompressor {
           result.append(trimmed);
           hasContent = true;
         }
+        foundFirstFrame = true;
       } else if (trimmed.startsWith("Caused by:")) {
+        if (hasContent) {
+          result.append("\n");
+        }
+        result.append(trimmed);
+        hasContent = true;
+      } else if (!foundFirstFrame && !trimmed.isEmpty() && !isExceptionLine(trimmed)) {
+        // Skip "Condition not satisfied:" header as it's already extracted as the message
+        if (!skippedConditionHeader && "Condition not satisfied:".equals(trimmed)) {
+          skippedConditionHeader = true;
+          continue;
+        }
+        // Preserve assertion/condition output that appears before the first stack frame
+        // (e.g., Spock condition blocks, assertion messages, comparison output)
+        // Skip lines that look like exception declarations (contain Exception keyword)
         if (hasContent) {
           result.append("\n");
         }
@@ -87,6 +107,14 @@ public final class StackTraceCompressor {
     }
 
     return result.toString();
+  }
+
+  private static boolean isExceptionLine(String line) {
+    // Matches exception/error declaration lines, e.g.:
+    //   java.lang.NullPointerException: message
+    //   java.lang.AssertionError: expected: <1> but was: <2>
+    //   org.spockframework.runtime.ConditionNotSatisfiedError: Condition not satisfied:
+    return line.matches("^[a-zA-Z][a-zA-Z0-9.]*(Exception|Error).*:.*");
   }
 
   private static boolean isUsefulFrame(
@@ -131,6 +159,29 @@ public final class StackTraceCompressor {
   }
 
   /**
+   * Returns true if the line is a stacktrace frame from a known framework package. Checks against
+   * the built-in framework prefix list, while respecting whitelist/blacklist.
+   */
+  public static boolean isFrameworkFrame(
+      String line, List<String> whitelist, List<String> blacklist) {
+    String trimmed = line.trim();
+    if (!trimmed.startsWith("at ")) {
+      return false;
+    }
+    // A frame is a "framework frame" if it is NOT considered a "useful frame"
+    // when no project-specific package is provided for comparison.
+    return !isUsefulFrame(trimmed, null, whitelist, blacklist);
+  }
+
+  /**
+   * Returns true if the line is a stacktrace frame from a known framework package. Checks against
+   * the built-in framework prefix list only (no whitelist/blacklist).
+   */
+  public static boolean isFrameworkFrame(String line) {
+    return isFrameworkFrame(line, null, null);
+  }
+
+  /**
    * Strips package prefixes from stack trace lines for more compact output. Example: "at
    * com.example.MyClass.myMethod(MyClass.java:10)" -> "at MyClass.myMethod(MyClass.java:10)"
    */
@@ -142,6 +193,4 @@ public final class StackTraceCompressor {
     return stackTrace.replaceAll(
         "(\\s*at\\s+)(?:[a-z0-9_]+\\.)*([A-Z][a-zA-Z0-9_$]*\\.[a-zA-Z0-9_$]*\\([^)]*\\))", "$1$2");
   }
-
-  private StackTraceCompressor() {}
 }

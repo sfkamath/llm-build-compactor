@@ -4,8 +4,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import io.llmcompactor.core.util.AnsiStripper;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,15 +14,17 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import lombok.experimental.UtilityClass;
 
-public final class SummaryWriter {
+@UtilityClass
+public class SummaryWriter {
   private static final ObjectMapper mapper =
       new ObjectMapper()
           .enable(SerializationFeature.INDENT_OUTPUT)
-          .setSerializationInclusion(JsonInclude.Include.NON_NULL);
+          .setDefaultPropertyInclusion(JsonInclude.Include.NON_NULL);
 
   private static final double DEFAULT_TEST_DURATION_THRESHOLD_MS =
-      CompactorDefaults.TEST_DURATION_THRESHOLD_MS;
+      CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS;
 
   /**
    * Normalizes a BuildSummary for output by applying all message/stack trace cleaning once. This
@@ -51,32 +53,33 @@ public final class SummaryWriter {
         summary.fixTargets(),
         summary.recentChanges(),
         summary.totalBuildDurationMs(),
-        summary.testDurationPercentiles());
-  }
-
-  /** Normalizes a BuildSummary with default threshold. */
-  private static BuildSummary normalize(BuildSummary summary) {
-    return normalize(summary, DEFAULT_TEST_DURATION_THRESHOLD_MS);
+        summary.testDurationPercentiles(),
+        summary.slowTests());
   }
 
   /** SLF4J infrastructure noise patterns to filter */
   private static final Pattern SLF4J_NOISE_PATTERN = Pattern.compile("^SLF4J:.*$");
 
+  /** Test/runtime bootstrap loggers that obscure per-test diagnostics. */
+  private static final Pattern BOOTSTRAP_LOGGER_PATTERN =
+      Pattern.compile(
+          "^(o\\.testcontainers\\.|o\\.t\\.|tc\\.|i\\.m\\.c\\.DefaultApplicationContext\\$RuntimeConfiguredEnvironment\\b).*");
+
   /** Log timestamp pattern: HH:mm:ss.SSS */
   private static final Pattern TIMESTAMP_PATTERN =
       Pattern.compile("^\\d{2}:\\d{2}:\\d{2}\\.\\d{3}\\s*");
 
-  /** Log thread pattern: [thread-name] */
-  private static final Pattern THREAD_PATTERN = Pattern.compile("\\s*\\[[^\\]]+\\]\\s*");
+  /** Date pattern: MMM DD, YYYY HH:MM:SS AM/PM (java.util.logging format used by Liquibase etc.) */
+  private static final Pattern DATE_PATTERN =
+      Pattern.compile(
+          "^[A-Z][a-z]{2}\\s+\\d{1,2},\\s+\\d{4}\\s+\\d{1,2}:\\d{2}:\\d{2}\\s+[AP]M\\s*");
 
-  /** Log level pattern: INFO/DEBUG/WARN/ERROR */
-  private static final Pattern LEVEL_PATTERN = Pattern.compile("(INFO|DEBUG|WARN|ERROR|TRACE)\\s+");
+  /** Log thread pattern: [thread-name] - only at start after timestamp */
+  private static final Pattern THREAD_PATTERN = Pattern.compile("^\\s*\\[[^\\]]+\\]\\s*");
 
-  /** Logger name pattern: abbreviated or full package.class */
-  private static final Pattern LOGGER_PATTERN = Pattern.compile("[a-z][a-zA-Z0-9_.]*\\s*-\\s*");
-
-  /** ANSI escape code pattern for terminal colors */
-  private static final Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
+  /** Log level pattern: INFO/DEBUG/WARN/ERROR (space or colon+space separator) */
+  private static final Pattern LEVEL_PATTERN =
+      Pattern.compile("(INFO|DEBUG|WARN|ERROR|TRACE)(\\s+|:\\s+)");
 
   /** Cleans up test log lines by removing infrastructure noise and normalizing format. */
   public static String cleanTestLogLine(String line) {
@@ -96,30 +99,49 @@ public final class SummaryWriter {
 
     String result = line;
 
-    // Strip timestamp
+    // Strip timestamp (HH:mm:ss.SSS)
     result = TIMESTAMP_PATTERN.matcher(result).replaceFirst("");
+    // Strip date prefix (MMM DD, YYYY HH:MM:SS AM/PM — java.util.logging format used by Liquibase)
+    result = DATE_PATTERN.matcher(result).replaceFirst("");
 
     // Strip thread info
-    result = THREAD_PATTERN.matcher(result).replaceAll(" ");
+    result = THREAD_PATTERN.matcher(result).replaceFirst(" ");
 
     // Strip log level
     result = LEVEL_PATTERN.matcher(result).replaceAll("");
 
-    // Strip logger name (but keep the message after the dash)
-    // Disabled: users need to see the class name in test logs to debug failures
-    // result = LOGGER_PATTERN.matcher(result).replaceAll("");
-
-    // Strip ANSI escape codes (terminal colors)
-    result = ANSI_PATTERN.matcher(result).replaceAll("");
+    // Strip ANSI escape codes (terminal colors), including HTML-encoded forms
+    result = AnsiStripper.stripAnsi(result);
 
     // Normalize whitespace and trim for consistent alignment
-    result = result.replaceAll("\\s+", " ").trim();
+    String trimmed = result.replaceAll("\\s+", " ").trim();
+
+    // Filter out boilerplate framework stacktrace frames (micronaut, netty, spring, etc.)
+    // Check on the trimmed form since leading tabs hide the "at " prefix
+    if (trimmed.startsWith("at ") && StackTraceCompressor.isFrameworkFrame(trimmed)) {
+      return null;
+    }
+
+    // Filter out infrastructure noise (Liquibase migration logs, log level config, etc.)
+    if (trimmed.contains("liquibase")
+        || trimmed.contains("PropertiesLoggingLevelsConfigurer")
+        || BOOTSTRAP_LOGGER_PATTERN.matcher(trimmed).matches()) {
+      return null;
+    }
+
+    // Convert leading tab to 2 spaces for stacktrace frames to maintain visual hierarchy
+    // This is consistent regardless of terminal tab width settings
+    boolean hasLeadingTab = result.startsWith("\t");
+    result = trimmed;
+    if (hasLeadingTab && result.startsWith("at ")) {
+      result = "  " + result;
+    }
 
     return result.isEmpty() ? null : result;
   }
 
   /** Processes test logs, cleaning up noise and returning as array of lines. */
-  private static List<String> processTestLogs(String testLogs) {
+  public static List<String> processTestLogs(String testLogs) {
     if (testLogs == null || testLogs.isEmpty()) {
       return Collections.emptyList();
     }
@@ -140,11 +162,7 @@ public final class SummaryWriter {
       if (parent != null) {
         Files.createDirectories(parent);
       }
-      // Java 8 compatible write with explicit UTF-8 encoding
-      try (OutputStreamWriter writer =
-          new OutputStreamWriter(Files.newOutputStream(path), StandardCharsets.UTF_8)) {
-        writer.write(toJson(summary));
-      }
+      Files.write(path, toJson(summary).getBytes(StandardCharsets.UTF_8));
     } catch (IOException e) {
       throw new RuntimeException("Failed to write build summary", e);
     }
@@ -196,7 +214,8 @@ public final class SummaryWriter {
                   .collect(Collectors.toList()),
               summary.recentChanges(),
               summary.totalBuildDurationMs(),
-              summary.testDurationPercentiles());
+              summary.testDurationPercentiles(),
+              normalized.slowTests());
       return mapper.writeValueAsString(condensed);
     } catch (JsonProcessingException e) {
       throw new RuntimeException("Failed to serialize build summary to JSON", e);
@@ -222,7 +241,7 @@ public final class SummaryWriter {
   public static String toHumanReadable(
       BuildSummary summary, boolean showTestDuration, double testDurationThresholdMs) {
     // Normalize once before rendering (cleans messages, stack traces)
-    summary = normalize(summary);
+    summary = normalize(summary, testDurationThresholdMs);
 
     StringBuilder sb = new StringBuilder();
     sb.append("=== LLM Build Compactor Summary ===\n");
@@ -236,13 +255,14 @@ public final class SummaryWriter {
 
     if (summary.testDurationPercentiles() != null && !summary.testDurationPercentiles().isEmpty()) {
       sb.append("Test Duration Percentiles (ms):\n");
-      summary.testDurationPercentiles().entrySet().stream()
+      summary
+          .testDurationPercentiles()
           .forEach(
-              e ->
+              (key, value) ->
                   sb.append("  ")
-                      .append(e.getKey())
+                      .append(key)
                       .append(": ")
-                      .append(String.format("%.2f", e.getValue()))
+                      .append(String.format("%.2f", value))
                       .append("\n"));
     }
 
@@ -290,6 +310,14 @@ public final class SummaryWriter {
       }
     }
 
+    if (!summary.slowTests().isEmpty()) {
+      sb.append("\nSlow Tests:\n");
+      for (SlowTest slow : summary.slowTests()) {
+        sb.append("  - ").append(slow.className()).append("#").append(slow.testName());
+        sb.append(" (").append(String.format("%.2f", slow.testDuration())).append("ms)\n");
+      }
+    }
+
     if (!summary.fixTargets().isEmpty()) {
       sb.append("\nFix Targets:\n");
       for (FixTarget target : summary.fixTargets()) {
@@ -313,6 +341,4 @@ public final class SummaryWriter {
     // Condense internal whitespace (2+ spaces/tabs) to a single space for JSON only
     return text.replaceAll("[ \\t]{2,}", " ");
   }
-
-  private SummaryWriter() {}
 }

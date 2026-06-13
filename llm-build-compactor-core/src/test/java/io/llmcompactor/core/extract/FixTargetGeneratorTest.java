@@ -59,4 +59,27 @@ class FixTargetGeneratorTest {
 
     assertThat(targets).isEmpty();
   }
+
+  @Test
+  void shouldSkipSnippetsForTestFiles() {
+    List<BuildError> errors =
+        Arrays.asList(
+            new BuildError("TestFailure", "MyTest.java", 10, "Fail", "trace"),
+            new BuildError("TestFailure", "MyIT.java", 10, "Fail", "trace"),
+            new BuildError("TestFailure", "MyTests.java", 10, "Fail", "trace"),
+            new BuildError("TestFailure", "MySpec.groovy", 10, "Fail", "trace"),
+            new BuildError("TestFailure", "src/test/java/com/App.java", 10, "Fail", "trace"),
+            new BuildError("COMPILATION_ERROR", "src/main/java/com/App.java", 10, "Fail", "trace"));
+
+    List<FixTarget> targets = FixTargetGenerator.generate(errors);
+
+    assertThat(targets).hasSize(6);
+    assertThat(targets.get(0).snippet()).isNull(); // MyTest.java
+    assertThat(targets.get(1).snippet()).isNull(); // MyIT.java
+    assertThat(targets.get(2).snippet()).isNull(); // MyTests.java
+    assertThat(targets.get(3).snippet()).isNull(); // MySpec.groovy
+    assertThat(targets.get(4).snippet()).isNull(); // src/test/java/...
+    assertThat(targets.get(5).snippet())
+        .isNull(); // src/main/java/... (null because file doesn't exist)
+  }
 }

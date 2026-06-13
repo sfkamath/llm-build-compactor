@@ -1,22 +1,19 @@
 package io.llmcompactor.maven;
 
-import io.llmcompactor.core.BuildError;
 import io.llmcompactor.core.BuildSummary;
-import io.llmcompactor.core.FixTarget;
+import io.llmcompactor.core.CompactorConfig;
+import io.llmcompactor.core.CompactorDefaults;
+import io.llmcompactor.core.DefaultCompactorConfig;
+import io.llmcompactor.core.SummaryBuilder;
 import io.llmcompactor.core.SummaryWriter;
-import io.llmcompactor.core.extract.FixTargetGenerator;
-import io.llmcompactor.core.git.GitDiffExtractor;
+import io.llmcompactor.core.parser.ParserUtils;
 import io.llmcompactor.core.parser.SurefireParser;
 import io.llmcompactor.core.parser.TestResult;
 import java.io.File;
 import java.io.PrintStream;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.Properties;
 import org.apache.maven.execution.MavenSession;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -28,61 +25,51 @@ import org.apache.maven.plugins.annotations.Parameter;
 public class LlmCompactMojo extends AbstractMojo {
   private static final String EXTENSION_ACTIVE_PROPERTY = "llmCompactor.extension.active";
 
-  @Parameter(property = "llmCompactor.enabled", defaultValue = "true") // CompactorDefaults.ENABLED
-  private boolean enabled;
+  @Parameter(property = "llmCompactor.enabled", defaultValue = "true")
+  private boolean enabled = CompactorConfig.DEFAULT_ENABLED;
 
   @Parameter(
       property = "llmCompactor.outputPath",
-      defaultValue = "target/llm-summary.json") // CompactorDefaults.OUTPUT_PATH
+      defaultValue = "target/llm-summary.json") // CompactorConfig.OUTPUT_PATH
   private String outputPath;
 
-  /** Output mode preset. Overrides individual flags when set. */
-  public enum Mode {
-    /** JSON output with fix targets, no logs (optimized for AI agents) */
-    agent,
-    /** JSON output with fix targets and test logs (for debugging) */
-    debug,
-    /** Human-readable output, no logs (default) */
-    human
-  }
-
   @Parameter(property = "llmCompactor.mode")
-  private Mode mode;
+  private String mode;
 
   @Parameter(
       property = "llmCompactor.outputAsJson",
-      defaultValue = "true") // CompactorDefaults.OUTPUT_AS_JSON
-  private boolean outputAsJson;
+      defaultValue = "true") // CompactorConfig.DEFAULT_OUTPUT_AS_JSON
+  private boolean outputAsJson = CompactorConfig.DEFAULT_OUTPUT_AS_JSON;
 
   @Parameter(
       property = "llmCompactor.compressStackFrames",
-      defaultValue = "true") // CompactorDefaults.COMPRESS_STACK_FRAMES
-  private boolean compressStackFrames;
+      defaultValue = "true") // CompactorConfig.DEFAULT_COMPRESS_STACK_FRAMES
+  private boolean compressStackFrames = CompactorConfig.DEFAULT_COMPRESS_STACK_FRAMES;
 
   @Parameter(
       property = "llmCompactor.showFixTargets",
-      defaultValue = "true") // CompactorDefaults.SHOW_FIX_TARGETS
-  private boolean showFixTargets;
+      defaultValue = "true") // CompactorConfig.DEFAULT_SHOW_FIX_TARGETS
+  private boolean showFixTargets = CompactorConfig.DEFAULT_SHOW_FIX_TARGETS;
 
   @Parameter(
       property = "llmCompactor.showRecentChanges",
-      defaultValue = "false") // CompactorDefaults.SHOW_RECENT_CHANGES
-  private boolean showRecentChanges;
+      defaultValue = "false") // CompactorConfig.DEFAULT_SHOW_RECENT_CHANGES
+  private boolean showRecentChanges = CompactorConfig.DEFAULT_SHOW_RECENT_CHANGES;
 
   @Parameter(
       property = "llmCompactor.showSlowTests",
-      defaultValue = "true") // CompactorDefaults.SHOW_SLOW_TESTS
-  private boolean showSlowTests;
+      defaultValue = "true") // CompactorConfig.DEFAULT_SHOW_SLOW_TESTS
+  private boolean showSlowTests = CompactorConfig.DEFAULT_SHOW_SLOW_TESTS;
 
   @Parameter(
       property = "llmCompactor.showTotalDuration",
-      defaultValue = "false") // CompactorDefaults.SHOW_TOTAL_DURATION
-  private boolean showTotalDuration;
+      defaultValue = "false") // CompactorConfig.DEFAULT_SHOW_TOTAL_DURATION
+  private boolean showTotalDuration = CompactorConfig.DEFAULT_SHOW_TOTAL_DURATION;
 
   @Parameter(
       property = "llmCompactor.showDurationReport",
-      defaultValue = "false") // CompactorDefaults.SHOW_DURATION_REPORT
-  private boolean showDurationReport;
+      defaultValue = "false") // CompactorConfig.DEFAULT_SHOW_DURATION_REPORT
+  private boolean showDurationReport = CompactorConfig.DEFAULT_SHOW_DURATION_REPORT;
 
   @Parameter(property = "llmCompactor.stackFrameWhitelist")
   private String stackFrameWhitelist;
@@ -92,13 +79,13 @@ public class LlmCompactMojo extends AbstractMojo {
 
   @Parameter(
       property = "llmCompactor.showFailedTestLogs",
-      defaultValue = "false") // CompactorDefaults.SHOW_FAILED_TEST_LOGS
-  private boolean showFailedTestLogs;
+      defaultValue = "true") // CompactorConfig.DEFAULT_SHOW_FAILED_TEST_LOGS
+  private boolean showFailedTestLogs = CompactorConfig.DEFAULT_SHOW_FAILED_TEST_LOGS;
 
   @Parameter(
       property = "llmCompactor.testDurationThresholdMs",
-      defaultValue = "100") // CompactorDefaults.TEST_DURATION_THRESHOLD_MS
-  private double testDurationThresholdMs;
+      defaultValue = "100") // CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS
+  private double testDurationThresholdMs = CompactorConfig.DEFAULT_TEST_DURATION_THRESHOLD_MS;
 
   @Parameter(defaultValue = "${session}", readonly = true)
   private MavenSession session;
@@ -111,13 +98,22 @@ public class LlmCompactMojo extends AbstractMojo {
 
   public void execute() throws MojoExecutionException {
 
-    if (!enabled) {
+    // @Parameter already applied system/user props to `enabled`; supplement with project
+    // properties which @Parameter does not read (e.g. <llmCompactor.enabled> in pom.xml)
+    Properties projectProps =
+        session != null && session.getCurrentProject() != null
+            ? session.getCurrentProject().getProperties()
+            : new Properties();
+    boolean llmcePresent =
+        (session != null && session.getUserProperties().getProperty("llmce") != null)
+            || System.getProperty("llmce") != null
+            || projectProps.getProperty("llmce") != null;
+    String enabledValue =
+        projectProps.containsKey("llmCompactor.enabled")
+            ? projectProps.getProperty("llmCompactor.enabled")
+            : String.valueOf(enabled);
+    if (!CompactorDefaults.resolveEnabled(llmcePresent, enabledValue)) {
       return;
-    }
-
-    // Apply mode preset if specified (overrides individual flags)
-    if (mode != null) {
-      applyMode(mode);
     }
 
     // If BuildOutputSpy is active, it handles everything automatically via SessionEnded event.
@@ -126,104 +122,64 @@ public class LlmCompactMojo extends AbstractMojo {
       return;
     }
 
-    List<String> stackFrameWhitelistList =
-        stackFrameWhitelist == null || stackFrameWhitelist.isEmpty()
-            ? Collections.<String>emptyList()
-            : Arrays.asList(stackFrameWhitelist.split(","));
-    List<String> stackFrameBlacklistList =
-        stackFrameBlacklist == null || stackFrameBlacklist.isEmpty()
-            ? Collections.<String>emptyList()
-            : Arrays.asList(stackFrameBlacklist.split(","));
+    CompactorConfig config =
+        DefaultCompactorConfig.builder()
+            .enabled(CompactorDefaults.resolveEnabled(llmcePresent, enabledValue))
+            .outputPath(outputPath)
+            .mode(mode)
+            .outputAsJson(outputAsJson)
+            .compressStackFrames(compressStackFrames)
+            .showFixTargets(showFixTargets)
+            .showRecentChanges(showRecentChanges)
+            .showSlowTests(showSlowTests)
+            .showTotalDuration(showTotalDuration)
+            .showDurationReport(showDurationReport)
+            .showFailedTestLogs(showFailedTestLogs)
+            .testDurationThresholdMs(testDurationThresholdMs)
+            .stackFrameWhitelist(ParserUtils.splitCsv(stackFrameWhitelist))
+            .stackFrameBlacklist(ParserUtils.splitCsv(stackFrameBlacklist))
+            .build()
+            .resolved();
 
-    // Parse test results from existing reports
     long sessionStartTime =
         session != null && session.getStartTime() != null ? session.getStartTime().getTime() : 0L;
     Path targetDir = buildDirectory != null ? buildDirectory.toPath() : Paths.get("target");
     TestResult testResult =
         SurefireParser.parse(
             targetDir,
-            compressStackFrames,
-            stackFrameWhitelistList,
-            stackFrameBlacklistList,
+            config.compressStackFrames(),
+            config.stackFrameWhitelist(),
+            config.stackFrameBlacklist(),
             sessionStartTime,
-            showFailedTestLogs);
-    List<BuildError> testFailures = testResult.errors();
-    List<Double> allDurations = testResult.allDurations();
+            config.showFailedTestLogs());
 
-    // Get compilation errors (currently empty, can be populated from EventSpy)
-    List<BuildError> compileErrors = new ArrayList<>();
-
-    List<BuildError> allErrors = new ArrayList<>();
-    allErrors.addAll(compileErrors);
-    allErrors.addAll(testFailures);
-
-    allErrors = BuildSummary.aggregateErrors(allErrors);
-
-    List<FixTarget> targets =
-        showFixTargets
-            ? FixTargetGenerator.generate(allErrors)
-            : Collections.<FixTarget>emptyList();
-
-    List<String> recentChanges =
-        showRecentChanges ? GitDiffExtractor.changedFiles() : Collections.<String>emptyList();
-
-    Long totalBuildDurationMs = null;
-    if (showTotalDuration) {
-      // Mojo doesn't have session start time, use 0 as fallback or estimate
-      totalBuildDurationMs = 0L;
-    }
-
-    Map<String, Double> testDurationPercentiles = null;
-    if (showDurationReport && !allDurations.isEmpty()) {
-      testDurationPercentiles = BuildSummary.computePercentiles(allDurations);
-    }
-
+    boolean sessionHasErrors =
+        session != null && session.getResult() != null && session.getResult().hasExceptions();
     BuildSummary summary =
-        new BuildSummary(
-            allErrors.isEmpty() ? "SUCCESS" : "FAILED",
-            testResult.testsRun(),
-            testResult.failures(),
-            allErrors,
-            targets,
-            recentChanges,
-            totalBuildDurationMs,
-            testDurationPercentiles);
+        new SummaryBuilder()
+            .addErrors(testResult.errors())
+            .addDurations(testResult.allDurations())
+            .addSlowTests(testResult.slowTests())
+            .withTestsRun(testResult.testsRun())
+            .withFailures(testResult.failures())
+            .withBuildFailed(sessionHasErrors)
+            .withSessionStartTime(sessionStartTime)
+            .withConfig(config)
+            .build();
 
-    Path resolvedOutputPath = Paths.get(outputPath);
+    Path resolvedOutputPath = Paths.get(config.outputPath());
     if (!resolvedOutputPath.isAbsolute() && basedir != null) {
       resolvedOutputPath = basedir.toPath().resolve(resolvedOutputPath);
     }
     SummaryWriter.write(summary, resolvedOutputPath);
 
     PrintStream out = System.out;
-
-    if (outputAsJson) {
-      out.print(SummaryWriter.toJson(summary, testDurationThresholdMs));
+    if (config.outputAsJson()) {
+      out.print(SummaryWriter.toJson(summary, config.testDurationThresholdMs()));
     } else {
-      out.println(SummaryWriter.toHumanReadable(summary, showSlowTests, testDurationThresholdMs));
-    }
-  }
-
-  private void applyMode(Mode mode) {
-    switch (mode) {
-      case agent:
-        // JSON + fixTargets, no logs (optimized for AI agents)
-        outputAsJson = true;
-        showFixTargets = true;
-        showFailedTestLogs = false;
-        break;
-      case debug:
-        // JSON + fixTargets + logs (for debugging)
-        outputAsJson = true;
-        showFixTargets = true;
-        showFailedTestLogs = true;
-        break;
-      case human:
-        // Human-readable, no logs (default)
-        outputAsJson = false;
-        showFixTargets = true;
-        showFailedTestLogs = false;
-        break;
+      out.println(
+          SummaryWriter.toHumanReadable(
+              summary, config.showSlowTests(), config.testDurationThresholdMs()));
     }
   }
 }

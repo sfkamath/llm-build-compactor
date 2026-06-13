@@ -23,10 +23,10 @@ class FixTargetTest {
   void shouldGetJacksonProperties() {
     FixTarget target = new FixTarget("File.java", 5, "Reason", "snippet");
 
-    assertThat(target.getFile()).isEqualTo("File.java");
-    assertThat(target.getLine()).isEqualTo(5);
-    assertThat(target.getReason()).isEqualTo("Reason");
-    assertThat(target.getSnippet()).isEqualTo("snippet");
+    assertThat(target.file()).isEqualTo("File.java");
+    assertThat(target.line()).isEqualTo(5);
+    assertThat(target.reason()).isEqualTo("Reason");
+    assertThat(target.snippet()).isEqualTo("snippet");
   }
 
   @Test
@@ -48,6 +48,15 @@ class FixTargetTest {
     assertThat(target1).isEqualTo(target2);
     assertThat(target1.hashCode()).isEqualTo(target2.hashCode());
     assertThat(target1).isNotEqualTo(target3);
+  }
+
+  @Test
+  void equalsHandlesEdgeCases() {
+    FixTarget target = new FixTarget("File.java", 5, "Reason", "snippet");
+
+    assertThat(target.equals(target)).isTrue();
+    assertThat(target.equals(null)).isFalse();
+    assertThat(target.equals("wrong type")).isFalse();
   }
 
   @Test

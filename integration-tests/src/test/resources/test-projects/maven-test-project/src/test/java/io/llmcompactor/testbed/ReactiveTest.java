@@ -1,9 +1,9 @@
 package io.llmcompactor.testbed;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Mono;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test that produces Project Reactor stack traces with embedded call sites.

@@ -1,12 +1,18 @@
 package io.llmcompactor.core.extract;
 
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.parser.ParserUtils;
+import io.llmcompactor.core.util.AnsiStripper;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import lombok.experimental.UtilityClass;
 
-public final class CompilationErrorExtractor {
+@UtilityClass
+public class CompilationErrorExtractor {
 
   private static final Pattern pattern =
       Pattern.compile("(?:\\[ERROR]\\s+)?(.+\\.java):(\\d+): (.+)");
@@ -16,43 +22,89 @@ public final class CompilationErrorExtractor {
 
   private static final Pattern fatalErrorPattern = Pattern.compile("Fatal error compiling: (.+)");
 
-  private static final Pattern ANSI_PATTERN = Pattern.compile("\\x1B\\[[0-9;]*m");
+  public static String stripAnsi(String line) {
+    return AnsiStripper.stripAnsi(line);
+  }
 
-  private static String stripAnsi(String line) {
-    return line == null ? null : ANSI_PATTERN.matcher(line).replaceAll("");
+  private static final Pattern ERROR_SIGNAL =
+      Pattern.compile("(?i)\\berror\\b|\\bfailure\\b|compilation failed|could not compile");
+
+  public static List<BuildError> extractOrWrap(String output, String fallbackFile) {
+    List<BuildError> extracted = extract(Arrays.asList(output.split("\n")));
+    if (!extracted.isEmpty()) {
+      return extracted;
+    }
+    String clean = stripAnsi(output);
+    if (clean.isEmpty() || !ERROR_SIGNAL.matcher(clean).find()) {
+      return Collections.emptyList();
+    }
+    return Collections.singletonList(
+        new BuildError(
+            "COMPILATION_ERROR", fallbackFile, 1, ParserUtils.extractFirstLine(clean), clean));
   }
 
   public static List<BuildError> extract(List<String> logs) {
 
     List<BuildError> errors = new ArrayList<>();
+    int i = 0;
 
-    for (String line : logs) {
-      String cleanedLine = stripAnsi(line);
+    while (i < logs.size()) {
+      String line = stripAnsi(logs.get(i));
 
-      Matcher m = pattern.matcher(cleanedLine);
+      Matcher m = pattern.matcher(line);
       if (m.find()) {
+        int j = collectContinuationLines(logs, i + 1);
+        String message = appendContinuation(m.group(3), logs, i + 1, j);
         errors.add(
             new BuildError(
-                "COMPILATION_ERROR", m.group(1), Integer.parseInt(m.group(2)), m.group(3), ""));
+                "COMPILATION_ERROR", m.group(1), Integer.parseInt(m.group(2)), message, ""));
+        i = j;
         continue;
       }
 
-      Matcher mm = mavenPattern.matcher(cleanedLine);
+      Matcher mm = mavenPattern.matcher(line);
       if (mm.find()) {
+        int j = collectContinuationLines(logs, i + 1);
+        String message = appendContinuation(mm.group(4), logs, i + 1, j);
         errors.add(
             new BuildError(
-                "COMPILATION_ERROR", mm.group(1), Integer.parseInt(mm.group(2)), mm.group(4), ""));
+                "COMPILATION_ERROR", mm.group(1), Integer.parseInt(mm.group(2)), message, ""));
+        i = j;
         continue;
       }
 
-      Matcher fm = fatalErrorPattern.matcher(cleanedLine);
+      Matcher fm = fatalErrorPattern.matcher(line);
       if (fm.find()) {
-        errors.add(new BuildError("COMPILATION_ERROR", "pom.xml", 1, fm.group(1), cleanedLine));
+        errors.add(new BuildError("COMPILATION_ERROR", "pom.xml", 1, fm.group(1), line));
       }
+      i++;
     }
 
     return errors;
   }
 
-  private CompilationErrorExtractor() {}
+  /** Returns the index of the first line after i that is NOT a symbol/location continuation. */
+  private static int collectContinuationLines(List<String> logs, int start) {
+    int j = start;
+    while (j < logs.size()) {
+      String next = stripAnsi(logs.get(j));
+      if (next.startsWith("  symbol:") || next.startsWith("  location:")) {
+        j++;
+      } else {
+        break;
+      }
+    }
+    return j;
+  }
+
+  private static String appendContinuation(String base, List<String> logs, int from, int to) {
+    if (from >= to) {
+      return base;
+    }
+    StringBuilder sb = new StringBuilder(base);
+    for (int k = from; k < to; k++) {
+      sb.append("\n").append(stripAnsi(logs.get(k)));
+    }
+    return sb.toString();
+  }
 }

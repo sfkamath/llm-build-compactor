@@ -44,7 +44,7 @@ class SurefireParserTest {
     assertThat(result.testsRun()).isEqualTo(1);
     assertThat(result.failures()).isEqualTo(1);
     assertThat(result.errors()).hasSize(1);
-    assertThat(result.allDurations()).containsExactly(0.05);
+    assertThat(result.allDurations()).containsExactly(50.0);
 
     BuildError error = result.errors().get(0);
     assertThat(error.type()).isEqualTo("java.lang.RuntimeException");
@@ -52,7 +52,7 @@ class SurefireParserTest {
     // File and line should both be from first project frame (where error originated)
     assertThat(error.file()).contains("OrderService.java");
     assertThat(error.lines()).containsExactly(15);
-    assertThat(error.testDuration()).isEqualTo(0.05);
+    assertThat(error.testDuration()).isEqualTo(50.0);
   }
 
   @Test
@@ -288,18 +288,13 @@ class SurefireParserTest {
             + "at io.llmcompactor.testbed.OrderService.process(OrderService.java:15)\n"
             + "at io.llmcompactor.testbed.OrderServiceTest.testOrderProcessing(OrderServiceTest.java:10)\n"
             + "    </failure>\n"
+            + "    <system-out><![CDATA[INFO: Starting test\nDEBUG: Creating order\nERROR: Validation failed\n]]></system-out>\n"
             + "  </testcase>\n"
             + "</testsuite>";
 
     Files.write(
         reportsDir.resolve("TEST-io.llmcompactor.testbed.OrderServiceTest.xml"),
         xml.getBytes(),
-        StandardOpenOption.CREATE);
-
-    String testLogs = "INFO: Starting test\nDEBUG: Creating order\nERROR: Validation failed\n";
-    Files.write(
-        reportsDir.resolve("io.llmcompactor.testbed.OrderServiceTest-output.txt"),
-        testLogs.getBytes(),
         StandardOpenOption.CREATE);
 
     TestResult result =
@@ -379,5 +374,135 @@ class SurefireParserTest {
     assertThat(error.file()).contains("Service.java");
     assertThat(error.lines()).containsExactly(15);
     assertThat(error.stackTrace()).contains("GroovySpockTest.groovy:15");
+  }
+
+  @Test
+  void testLogsLabelIncludesClassAndMethodName() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"io.llmcompactor.testbed.FooTest\" tests=\"1\" failures=\"1\">\n"
+            + "  <testcase name=\"myMethod\" classname=\"io.llmcompactor.testbed.FooTest\">\n"
+            + "    <failure message=\"boom\" type=\"java.lang.AssertionError\">boom</failure>\n"
+            + "    <system-out><![CDATA[hello from test]]></system-out>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.FooTest.xml"),
+        xml.getBytes(),
+        StandardOpenOption.CREATE);
+
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, false, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    BuildError error = result.errors().get(0);
+    assertThat(error.testLogs()).contains("io.llmcompactor.testbed.FooTest#myMethod");
+    assertThat(error.testLogs()).contains("hello from test");
+  }
+
+  @Test
+  void readTestLogsReturnsNullWhenFailureParentIsNotTestcase() throws IOException {
+    // <failure> directly under <testsuite> (non-standard): no ClassCastException, returns null
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"io.llmcompactor.testbed.FooTest\" tests=\"1\" failures=\"1\">\n"
+            + "  <failure message=\"boom\" type=\"java.lang.AssertionError\">boom</failure>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-io.llmcompactor.testbed.FooTest.xml"),
+        xml.getBytes(),
+        StandardOpenOption.CREATE);
+
+    // Should not throw; errors are parsed via getElementsByTagName which won't match testcase
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, false, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    // The failure node is under testsuite, not testcase, so the parser finds no testcase node.
+    // Result may have 0 or 1 errors depending on whether getElementsByTagName("failure") picks it
+    // up; the key requirement is no ClassCastException.
+    assertThat(result).isNotNull();
+  }
+
+  @Test
+  void shouldIgnoreCorruptXml() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    Files.write(
+        reportsDir.resolve("TEST-corrupt.xml"),
+        "not xml content".getBytes(),
+        StandardOpenOption.CREATE);
+
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    assertThat(result.testsRun()).isEqualTo(0);
+    assertThat(result.errors()).isEmpty();
+  }
+
+  @Test
+  void shouldHandleMalformedStackTrace() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"com.example.Test\" tests=\"1\" failures=\"1\">\n"
+            + "  <testcase name=\"test\" classname=\"com.example.Test\">\n"
+            + "    <failure message=\"failed\" type=\"error\">\n"
+            + "at malformed.frame(NoFileAndLine)\n"
+            + "    </failure>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(
+        reportsDir.resolve("TEST-malformed.xml"), xml.getBytes(), StandardOpenOption.CREATE);
+
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    assertThat(result.errors()).hasSize(1);
+    BuildError error = result.errors().get(0);
+    // Should fallback to filename of the XML report since no project frames found
+    assertThat(error.file()).isEqualTo("TEST-malformed.xml");
+    assertThat(error.lines()).isEmpty();
+  }
+
+  @Test
+  void shouldFallbackToDefaultSourcePathWhenNotResolved() throws IOException {
+    Path reportsDir = tempDir.resolve("surefire-reports");
+    Files.createDirectories(reportsDir);
+
+    String xml =
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+            + "<testsuite name=\"com.unknown.Test\" tests=\"1\" failures=\"1\">\n"
+            + "  <testcase name=\"test\" classname=\"com.unknown.Test\">\n"
+            + "    <failure message=\"failed\" type=\"error\">\n"
+            + "at com.unknown.Test.method(Test.java:10)\n"
+            + "    </failure>\n"
+            + "  </testcase>\n"
+            + "</testsuite>";
+
+    Files.write(reportsDir.resolve("TEST-unknown.xml"), xml.getBytes(), StandardOpenOption.CREATE);
+
+    TestResult result =
+        SurefireParser.parse(
+            tempDir, true, Collections.emptyList(), Collections.emptyList(), 0, true);
+
+    assertThat(result.errors()).hasSize(1);
+    BuildError error = result.errors().get(0);
+    // resolveSourceFile defaults to src/test/java/packageName/fileName
+    assertThat(error.file()).isEqualTo("src/test/java/com/unknown/Test.java");
   }
 }

@@ -1,0 +1,15 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        mavenLocal()
+    }
+    dependencies {
+        classpath 'io.github.sfkamath:llm-build-compactor-gradle-plugin:@project.version@'
+        classpath 'io.github.sfkamath:llm-build-compactor-core:@project.version@'
+    }
+}
+
+// Only this module declares the compactor. Its suppression must still cover sibling mod-b, which
+// does not apply the plugin — that cross-module guarantee is what regressed in 9f126a7.
+apply plugin: 'io.github.sfkamath.llm-build-compactor'

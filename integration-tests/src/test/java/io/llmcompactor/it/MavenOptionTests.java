@@ -5,11 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 
 /** Integration tests for Maven plugin configuration options. */
 @DisplayName("Maven Plugin Options")
@@ -26,6 +26,19 @@ class MavenOptionTests {
           MavenBuild.inProject("maven-test-project")
               .withGoal("verify")
               .withProperty("llmCompactor.enabled", "false")
+              .execute();
+
+      assertThat(result.summaryJson()).isNull();
+      assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
+    }
+
+    @Test
+    @DisplayName("llmce alias produces no compactor summary")
+    void testLlmceAlias() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("llmce", "")
               .execute();
 
       assertThat(result.summaryJson()).isNull();
@@ -177,34 +190,127 @@ class MavenOptionTests {
 
       JsonNode tree = result.summaryTree();
       assertThat(tree).isNotNull();
-      // The test project has intentionally failing tests, so testLogs must be present
-      // inside the errors array for tests that produce output (like OrderServiceTest)
       assertThat(tree.has("errors")).isTrue();
       JsonNode errors = tree.get("errors");
       assertThat(errors.isArray()).isTrue();
 
-      boolean foundLogs = false;
+      // Find the error from LogIsolationTest.testFailingWithOutput
+      JsonNode isolationError = null;
       for (JsonNode error : errors) {
-        if (error.has("testLogs")) {
-          foundLogs = true;
-          assertThat(error.get("testLogs").isArray()).isTrue();
-          assertThat(error.get("testLogs").size()).isGreaterThan(0);
+        String file = error.has("file") ? error.get("file").asText() : "";
+        if (file.contains("LogIsolationTest")) {
+          isolationError = error;
           break;
         }
       }
-      assertThat(foundLogs).as("Expected at least one error to contain testLogs").isTrue();
+      assertThat(isolationError).as("Expected an error from LogIsolationTest").isNotNull();
+
+      // Surefire captures system-out per testcase, so only the failing test's output is present
+      assertThat(isolationError.has("testLogs")).isTrue();
+      String logsText = isolationError.get("testLogs").toString();
+      assertThat(logsText)
+          .as("Failing test's own output must appear")
+          .contains("LOG_ISOLATION_FAILING_ONLY");
+      assertThat(logsText)
+          .as("Passing test's output must not bleed into the failing test's logs")
+          .doesNotContain("LOG_ISOLATION_PASSING_ONLY");
     }
 
     @Test
-    @DisplayName("showSlowTests=false omits duration from output")
+    @DisplayName("showFailedTestLogs=false via pom <configuration> suppresses testLogs")
+    void testShowFailedTestLogsPomConfig() throws Exception {
+      // Drives the pom <configuration> path (Maven analog of Gradle's llmCompactor {} DSL block)
+      // via the gated ${it.showFailedTestLogs} property, not the -DllmCompactor.* property path.
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("it.showFailedTestLogs", "false")
+              .execute();
+
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors).isNotNull();
+
+      JsonNode isolationError = null;
+      for (JsonNode error : errors) {
+        String file = error.has("file") ? error.get("file").asText() : "";
+        if (file.contains("LogIsolationTest")) {
+          isolationError = error;
+          break;
+        }
+      }
+      assertThat(isolationError).as("Expected an error from LogIsolationTest").isNotNull();
+
+      assertThat(isolationError.has("testLogs"))
+          .as("pom <configuration> showFailedTestLogs=false must suppress testLogs")
+          .isFalse();
+    }
+
+    @Test
+    @DisplayName("showSlowTests=false omits duration from human-readable output")
     void testNoSlowTests() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("llmCompactor.outputAsJson", "false")
+              .withProperty("llmCompactor.showSlowTests", "false")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
+              .execute();
+
+      assertThat(result.output()).contains("LLM Build Compactor Summary");
+      assertThat(result.output()).doesNotContain("ms)");
+    }
+
+    @Test
+    @DisplayName("showSlowTests=true with threshold=0 includes slowTests in JSON")
+    void testShowSlowTestsJson() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("llmCompactor.showSlowTests", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
+              .execute();
+
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("slowTests")).isTrue();
+      JsonNode slowTests = tree.get("slowTests");
+      assertThat(slowTests.isArray()).isTrue();
+      assertThat(slowTests).isNotEmpty();
+      JsonNode first = slowTests.get(0);
+      assertThat(first.has("className")).isTrue();
+      assertThat(first.has("testName")).isTrue();
+      assertThat(first.has("testDuration")).isTrue();
+      assertThat(first.get("testDuration").asDouble()).isGreaterThanOrEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("showSlowTests=false omits slowTests from JSON")
+    void testSlowTestsHiddenInJson() throws Exception {
       BuildResult result =
           MavenBuild.inProject("maven-test-project")
               .withGoal("verify")
               .withProperty("llmCompactor.showSlowTests", "false")
               .execute();
 
-      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("slowTests")).isFalse();
+    }
+
+    @Test
+    @DisplayName("showSlowTests=true with threshold=0 shows Slow Tests section in human-readable output")
+    void testShowSlowTestsHumanReadable() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("llmCompactor.outputAsJson", "false")
+              .withProperty("llmCompactor.showSlowTests", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
+              .execute();
+
+      assertThat(result.output()).contains("Slow Tests:");
     }
 
     @Test
@@ -240,19 +346,55 @@ class MavenOptionTests {
   @DisplayName("Threshold Options")
   class ThresholdOptionsTests {
 
-    @ParameterizedTest
-    @ValueSource(strings = {"100", "500", "1000"})
-    @DisplayName("testDurationThresholdMs configures slow test threshold")
-    void testDurationThreshold(String thresholdMs) throws Exception {
+    @Test
+    @DisplayName("testDurationThresholdMs=0 includes testDuration in JSON errors")
+    void testDurationThresholdZero() throws Exception {
       BuildResult result =
           MavenBuild.inProject("maven-test-project")
               .withGoal("verify")
-              .withProperty("llmCompactor.showSlowTests", "true")
-              .withProperty("llmCompactor.testDurationThresholdMs", thresholdMs)
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
               .execute();
 
-      // Verify build succeeds and produces output
-      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("errors")).isTrue();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors.isArray()).isTrue();
+      assertThat(errors).isNotEmpty();
+      boolean hasDuration = false;
+      for (JsonNode error : errors) {
+        if (error.has("testDuration") && error.get("testDuration").asDouble() > 0) {
+          hasDuration = true;
+          break;
+        }
+      }
+      assertThat(hasDuration)
+          .as("At least one error should have non-zero testDuration with threshold=0")
+          .isTrue();
+    }
+
+    @Test
+    @DisplayName("testDurationThresholdMs=100000 excludes all testDuration from JSON")
+    void testDurationThresholdHigh() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "100000")
+              .execute();
+
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("errors")).isTrue();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors.isArray()).isTrue();
+      assertThat(errors).isNotEmpty();
+      for (JsonNode error : errors) {
+        assertThat(error.has("testDuration"))
+            .as("Error should not have testDuration with threshold=100000")
+            .isFalse();
+      }
     }
   }
 
@@ -327,8 +469,83 @@ class MavenOptionTests {
     }
   }
 
+  @Nested
+  @DisplayName("Install Lifecycle")
+  class InstallTests {
+
+    @Test
+    @DisplayName("install goal creates .mvn/extensions.xml")
+    void testInstallExtension() throws Exception {
+      Path extensionsXml =
+          MavenBuild.inProject("maven-test-project").getProjectDir().resolve(".mvn/extensions.xml");
+      byte[] originalContent =
+          Files.exists(extensionsXml) ? Files.readAllBytes(extensionsXml) : null;
+      try {
+        MavenBuild.inProject("maven-test-project").withGoal("llm-compactor:install").execute();
+
+        assertThat(extensionsXml).exists();
+        String content = new String(Files.readAllBytes(extensionsXml));
+        assertThat(content).contains("llm-build-compactor-extension");
+      } finally {
+        if (originalContent != null) {
+          Files.write(extensionsXml, originalContent);
+        } else {
+          Files.deleteIfExists(extensionsXml);
+        }
+      }
+    }
+  }
+
   // Helper for JSON validation - parses JSON and returns it for further assertions
+
   private static JsonNode parseJson(String json) throws IOException {
     return new ObjectMapper().readTree(json);
   }
+
+  @Nested
+  @DisplayName("Build Status")
+  class BuildStatusTests {
+
+    @Test
+    @DisplayName("summary status is FAILED when build has errors")
+    void testStatusFailedOnErrors() throws Exception {
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("verify")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = parseJson(result.summaryJson());
+      assertThat(tree.has("status")).isTrue();
+      assertThat(tree.get("status").asText()).isEqualTo("FAILED");
+    }
+
+    @Test
+    @DisplayName("summary status is SUCCESS and errors is empty when build succeeds")
+    void testStatusSuccessOnCleanBuild() throws Exception {
+      // Invoke the maven-plugin's compact goal explicitly. The pom binds compact to defaultPhase
+      // VERIFY, so a bare clean/compile never triggers it; the only other emitter is the EventSpy
+      // extension, which loads via .mvn/extensions.xml — a gitignored file absent on a clean
+      // checkout. Relying on it made this pass locally (leftover file) but fail in CI. Driving the
+      // goal directly removes that dependency and keeps the SUCCESS assertion meaningful.
+      BuildResult result =
+          MavenBuild.inProject("maven-test-project")
+              .withGoal("clean")
+              .withGoal("compile")
+              .withGoal("llm-compactor:compact")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = parseJson(result.summaryJson());
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("status")).isTrue();
+      assertThat(tree.get("status").asText()).isEqualTo("SUCCESS");
+      assertThat(tree.has("errors")).isTrue();
+      assertThat(tree.get("errors").isArray()).isTrue();
+      assertThat(tree.get("errors")).isEmpty();
+    }
+  }
 }
+

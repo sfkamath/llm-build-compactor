@@ -10,8 +10,7 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.Tag;
 
 /** Integration tests for Gradle plugin configuration options. */
 @DisplayName("Gradle Plugin Options")
@@ -33,7 +32,66 @@ class GradleOptionTests {
       assertThat(result.summaryJson()).isNull();
       assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
     }
+
+    @Tag("focus")
+    @Test
+    @DisplayName("enabled=false restores LIFECYCLE log level if QUIET was set by plugin")
+    void testDisabledRestoresLogging() throws Exception {
+      Path propsFile =
+          GradleBuild.inProject("gradle-test-project").getProjectDir().resolve("gradle.properties");
+      String markers =
+          "\n# >>> llm-compactor >>>\norg.gradle.logging.level=quiet\n# <<< llm-compactor <<<\n";
+      Files.write(propsFile, markers.getBytes());
+
+      try {
+        BuildResult result =
+            GradleBuild.inProject("gradle-test-project")
+                .withTask("test")
+                .withProperty("llmCompactor.enabled", "false")
+                .execute();
+
+        // Standard Gradle output for failing tests at LIFECYCLE level
+        // includes the test summary and specific failure details.
+        assertThat(result.output())
+            .as("Standard Gradle failure summary should be visible when compactor is disabled")
+            .contains("tests completed")
+            .contains("failed")
+            .contains("OrderServiceTest > testSlf4jFailing() FAILED")
+            .contains("OrderServiceTest.java");
+      } finally {
+        removeMarkerBlock(propsFile);
+      }
+    }
+
+    @Test
+    @DisplayName("llmce alias produces no compactor summary")
+    void testLlmceAlias() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmce", "")
+              .execute();
+
+      assertThat(result.summaryJson()).isNull();
+      assertThat(result.output()).doesNotContain("LLM Build Compactor Summary");
+    }
   }
+
+  private static void removeMarkerBlock(Path propsFile) throws Exception {
+    if (!Files.exists(propsFile)) return;
+    String content = new String(Files.readAllBytes(propsFile));
+    int start = content.indexOf(MARKER_START);
+    if (start < 0) return;
+    int end = content.indexOf(MARKER_END, start);
+    if (end < 0) return;
+    end += MARKER_END.length();
+    if (end < content.length() && content.charAt(end) == '\n') end++;
+    if (start > 0 && content.charAt(start - 1) == '\n') start--;
+    Files.write(propsFile, (content.substring(0, start) + content.substring(end)).getBytes());
+  }
+
+  private static final String MARKER_START = "# >>> llm-compactor >>>";
+  private static final String MARKER_END = "# <<< llm-compactor <<<";
 
   @Nested
   @DisplayName("Output Format")
@@ -177,34 +235,124 @@ class GradleOptionTests {
 
       JsonNode tree = result.summaryTree();
       assertThat(tree).isNotNull();
-      // The test project has intentionally failing tests, so testLogs must be present
-      // inside the errors array for tests that produce output (like OrderServiceTest)
       assertThat(tree.has("errors")).isTrue();
       JsonNode errors = tree.get("errors");
       assertThat(errors.isArray()).isTrue();
 
-      boolean foundLogs = false;
+      // Find the error from LogIsolationTest.testFailingWithOutput
+      JsonNode isolationError = null;
       for (JsonNode error : errors) {
-        if (error.has("testLogs")) {
-          foundLogs = true;
-          assertThat(error.get("testLogs").isArray()).isTrue();
-          assertThat(error.get("testLogs").size()).isGreaterThan(0);
+        String file = error.has("file") ? error.get("file").asText() : "";
+        if (file.contains("LogIsolationTest")) {
+          isolationError = error;
           break;
         }
       }
-      assertThat(foundLogs).as("Expected at least one error to contain testLogs").isTrue();
+      assertThat(isolationError).as("Expected an error from LogIsolationTest").isNotNull();
+
+      // Gradle aggregates system-out at suite level, so the failing test's output is present
+      assertThat(isolationError.has("testLogs")).isTrue();
+      String logsText = isolationError.get("testLogs").toString();
+      assertThat(logsText)
+          .as("Failing test's own output must appear in testLogs")
+          .contains("LOG_ISOLATION_FAILING_ONLY");
     }
 
     @Test
-    @DisplayName("showSlowTests=false omits duration from output")
+    @DisplayName("showFailedTestLogs=false via llmCompactor{} DSL block suppresses testLogs")
+    void testShowFailedTestLogsDslBlock() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("dslShowFailedTestLogsFalse")
+              .execute();
+
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors).isNotNull();
+
+      JsonNode isolationError = null;
+      for (JsonNode error : errors) {
+        String file = error.has("file") ? error.get("file").asText() : "";
+        if (file.contains("LogIsolationTest")) {
+          isolationError = error;
+          break;
+        }
+      }
+      assertThat(isolationError).as("Expected an error from LogIsolationTest").isNotNull();
+
+      // Config set via the DSL extension block (not -P) must be honored: with
+      // showFailedTestLogs=false the failing test's captured output must not appear.
+      assertThat(isolationError.has("testLogs"))
+          .as("DSL block showFailedTestLogs=false must suppress testLogs")
+          .isFalse();
+    }
+
+    @Test
+    @DisplayName("showSlowTests=false omits duration from human-readable output")
     void testNoSlowTests() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.outputAsJson", "false")
+              .withProperty("llmCompactor.showSlowTests", "false")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
+              .execute();
+
+      assertThat(result.output()).contains("LLM Build Compactor Summary");
+      assertThat(result.output()).doesNotContain("ms)");
+    }
+
+    @Test
+    @DisplayName("showSlowTests=true with threshold=0 includes slowTests in JSON")
+    void testShowSlowTestsJson() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.showSlowTests", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
+              .execute();
+
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("slowTests")).isTrue();
+      JsonNode slowTests = tree.get("slowTests");
+      assertThat(slowTests.isArray()).isTrue();
+      assertThat(slowTests).isNotEmpty();
+      JsonNode first = slowTests.get(0);
+      assertThat(first.has("className")).isTrue();
+      assertThat(first.has("testName")).isTrue();
+      assertThat(first.has("testDuration")).isTrue();
+      assertThat(first.get("testDuration").asDouble()).isGreaterThanOrEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("showSlowTests=false omits slowTests from JSON")
+    void testSlowTestsHiddenInJson() throws Exception {
       BuildResult result =
           GradleBuild.inProject("gradle-test-project")
               .withTask("test")
               .withProperty("llmCompactor.showSlowTests", "false")
               .execute();
 
-      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("slowTests")).isFalse();
+    }
+
+    @Test
+    @DisplayName("showSlowTests=true with threshold=0 shows Slow Tests section in human-readable output")
+    void testShowSlowTestsHumanReadable() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.outputAsJson", "false")
+              .withProperty("llmCompactor.showSlowTests", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
+              .execute();
+
+      assertThat(result.output()).contains("Slow Tests:");
     }
 
     @Test
@@ -240,18 +388,55 @@ class GradleOptionTests {
   @DisplayName("Threshold Options")
   class ThresholdOptionsTests {
 
-    @ParameterizedTest
-    @ValueSource(strings = {"100", "500", "1000"})
-    @DisplayName("testDurationThresholdMs configures slow test threshold")
-    void testDurationThreshold(String thresholdMs) throws Exception {
+    @Test
+    @DisplayName("testDurationThresholdMs=0 includes testDuration in JSON errors")
+    void testDurationThresholdZero() throws Exception {
       BuildResult result =
           GradleBuild.inProject("gradle-test-project")
               .withTask("test")
-              .withProperty("llmCompactor.showSlowTests", "true")
-              .withProperty("llmCompactor.testDurationThresholdMs", thresholdMs)
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "0")
               .execute();
 
-      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("errors")).isTrue();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors.isArray()).isTrue();
+      assertThat(errors).isNotEmpty();
+      boolean hasDuration = false;
+      for (JsonNode error : errors) {
+        if (error.has("testDuration") && error.get("testDuration").asDouble() > 0) {
+          hasDuration = true;
+          break;
+        }
+      }
+      assertThat(hasDuration)
+          .as("At least one error should have non-zero testDuration with threshold=0")
+          .isTrue();
+    }
+
+    @Test
+    @DisplayName("testDurationThresholdMs=100000 excludes all testDuration from JSON")
+    void testDurationThresholdHigh() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .withProperty("llmCompactor.testDurationThresholdMs", "100000")
+              .execute();
+
+      JsonNode tree = result.summaryTree();
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("errors")).isTrue();
+      JsonNode errors = tree.get("errors");
+      assertThat(errors.isArray()).isTrue();
+      assertThat(errors).isNotEmpty();
+      for (JsonNode error : errors) {
+        assertThat(error.has("testDuration"))
+            .as("Error should not have testDuration with threshold=100000")
+            .isFalse();
+      }
     }
   }
 
@@ -338,8 +523,16 @@ class GradleOptionTests {
               .withProperty("llmCompactor.doesNotExist", "someValue")
               .execute();
 
-      // Build should succeed even with unknown property
-      assertThat(result.exitCode()).isEqualTo(0);
+      // An unknown property must be silently ignored: it must not break configuration nor add a
+      // failure of its own. (The build still exits non-zero from gradle-test-project's intentional
+      // test failures — that is unrelated to the property.) Proof that configuration survived and
+      // the build actually ran: the compactor summary is still emitted.
+      assertThat(result.summaryJson())
+          .as("unknown property must not break configuration; summary still emits")
+          .isNotNull();
+      assertThat(result.output())
+          .as("unknown property must not surface as a configuration error")
+          .doesNotContain("doesNotExist");
     }
   }
 
@@ -387,84 +580,41 @@ class GradleOptionTests {
   }
 
   @Nested
-  @DisplayName("Init Script Lifecycle")
-  class InitScriptTests {
+  @DisplayName("Install Lifecycle")
+  class InstallTests {
 
-    private static final String INIT_SCRIPT_NAME = "llm-compactor-silence.gradle";
-    private static final String MARKER_START = "# >>> llm-compactor >>>";
-    private static final String MARKER_END = "# <<< llm-compactor <<<";
+    private Path propsFile;
+    private byte[] originalContent;
 
-    @Test
-    @DisplayName("applying the plugin auto-installs the init script")
-    void testAutoInstall() throws Exception {
-      Path initScript =
-          GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
-      Files.deleteIfExists(initScript);
+    @org.junit.jupiter.api.BeforeEach
+    void saveProps() throws Exception {
+      propsFile = GradleBuild.inProject("gradle-test-project").getProjectDir().resolve("gradle.properties");
+      originalContent = Files.exists(propsFile) ? Files.readAllBytes(propsFile) : null;
+    }
 
-      GradleBuild.inProject("gradle-test-project").withTask("test").execute();
-
-      assertThat(initScript).exists();
+    @org.junit.jupiter.api.AfterEach
+    void restoreProps() throws Exception {
+      if (originalContent != null) {
+        Files.write(propsFile, originalContent);
+      } else {
+        Files.deleteIfExists(propsFile);
+      }
     }
 
     @Test
-    @DisplayName("installLlmCompactor installs the init script")
-    void testInstall() throws Exception {
-      Path initScript =
-          GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
-      Files.deleteIfExists(initScript);
-
-      GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
-
-      assertThat(initScript).exists();
-    }
-
-    @Test
-    @DisplayName("uninstallLlmCompactor removes the init script")
-    void testUninstall() throws Exception {
-      Path initScript =
-          GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
-      // Ensure it exists first
-      GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
-      assertThat(initScript).exists();
-
-      GradleBuild.inProject("gradle-test-project").withTask("uninstallLlmCompactor").execute();
-
-      assertThat(initScript).doesNotExist();
-    }
-
-    @Test
-    @DisplayName("uninstallLlmCompactor is a no-op when script is absent")
-    void testUninstallIdempotent() throws Exception {
-      Path initScript =
-          GradleBuild.gradleTestHome().resolve("init.d").resolve(INIT_SCRIPT_NAME);
-      Files.deleteIfExists(initScript);
-
-      BuildResult result =
-          GradleBuild.inProject("gradle-test-project")
-              .withTask("uninstallLlmCompactor")
-              .execute();
-
-      assertThat(result.exitCode()).isZero();
-      assertThat(initScript).doesNotExist();
-    }
-
-    @Test
-    @DisplayName("applying the plugin auto-installs the gradle.properties block")
+    @DisplayName("applying the plugin does not auto-mutate gradle.properties (opt-in only)")
     void testAutoInstallGradleProperties() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
-      // Remove any existing marker block
       removeMarkerBlock(propsFile);
 
       GradleBuild.inProject("gradle-test-project").withTask("test").execute();
 
-      assertThat(propsFile).exists();
-      assertThat(new String(Files.readAllBytes(propsFile))).contains(MARKER_START);
+      String content = Files.exists(propsFile) ? new String(Files.readAllBytes(propsFile)) : "";
+      assertThat(content).doesNotContain(MARKER_START);
     }
 
     @Test
     @DisplayName("installLlmCompactor writes org.gradle.logging.level=quiet to gradle.properties")
     void testInstallGradleProperties() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
       removeMarkerBlock(propsFile);
 
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
@@ -478,7 +628,6 @@ class GradleOptionTests {
     @Test
     @DisplayName("installLlmCompactor is idempotent for gradle.properties")
     void testInstallGradlePropertiesIdempotent() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
       removeMarkerBlock(propsFile);
 
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
@@ -497,7 +646,6 @@ class GradleOptionTests {
     @Test
     @DisplayName("uninstallLlmCompactor removes the gradle.properties block")
     void testUninstallGradleProperties() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
       removeMarkerBlock(propsFile);
 
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
@@ -513,9 +661,6 @@ class GradleOptionTests {
     @Test
     @DisplayName("uninstallLlmCompactor preserves existing gradle.properties content")
     void testUninstallGradlePropertiesPreservesOtherContent() throws Exception {
-      Path propsFile = GradleBuild.gradleTestHome().resolve("gradle.properties");
-      removeMarkerBlock(propsFile);
-      // Write existing user content
       Files.write(propsFile, "org.gradle.parallel=true\n".getBytes());
 
       GradleBuild.inProject("gradle-test-project").withTask("installLlmCompactor").execute();
@@ -525,23 +670,50 @@ class GradleOptionTests {
       assertThat(content).contains("org.gradle.parallel=true");
       assertThat(content).doesNotContain(MARKER_START);
     }
-
-    private void removeMarkerBlock(Path propsFile) throws Exception {
-      if (!Files.exists(propsFile)) return;
-      String content = new String(Files.readAllBytes(propsFile));
-      int start = content.indexOf(MARKER_START);
-      if (start < 0) return;
-      int end = content.indexOf(MARKER_END, start);
-      if (end < 0) return;
-      end += MARKER_END.length();
-      if (end < content.length() && content.charAt(end) == '\n') end++;
-      if (start > 0 && content.charAt(start - 1) == '\n') start--;
-      Files.write(propsFile, (content.substring(0, start) + content.substring(end)).getBytes());
-    }
   }
 
   // Helper for JSON validation - parses JSON and returns it for further assertions
   private static JsonNode parseJson(String json) throws IOException {
     return new ObjectMapper().readTree(json);
+  }
+
+  @Nested
+  @DisplayName("Build Status")
+  class BuildStatusTests {
+
+    @Test
+    @DisplayName("summary status is FAILED when build has errors")
+    void testStatusFailedOnErrors() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("test")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = parseJson(result.summaryJson());
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("status")).isTrue();
+      assertThat(tree.get("status").asText()).isEqualTo("FAILED");
+    }
+
+    @Test
+    @DisplayName("summary status is SUCCESS and errors is empty when build succeeds")
+    void testStatusSuccessOnCleanBuild() throws Exception {
+      BuildResult result =
+          GradleBuild.inProject("gradle-test-project")
+              .withTask("classes")
+              .withProperty("llmCompactor.outputAsJson", "true")
+              .execute();
+
+      assertThat(result.summaryJson()).isNotNull();
+      JsonNode tree = parseJson(result.summaryJson());
+      assertThat(tree).isNotNull();
+      assertThat(tree.has("status")).isTrue();
+      assertThat(tree.get("status").asText()).isEqualTo("SUCCESS");
+      assertThat(tree.has("errors")).isTrue();
+      assertThat(tree.get("errors").isArray()).isTrue();
+      assertThat(tree.get("errors")).isEmpty();
+    }
   }
 }

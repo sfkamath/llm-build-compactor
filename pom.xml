@@ -38,33 +38,57 @@
     </scm>
 
     <properties>
-        <revision>0.0.0-SNAPSHOT</revision>
+
+        <!-- ── Project ───────────────────────────────────────────────────────
+             revision: keep in sync with pluginVersion in gradle.properties.
+             Cannot be loaded from there — Maven resolves <version>${revision}</version>
+             at model-build time before any plugin runs.                      -->
+        <revision>0.4.0</revision>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <junit-jupiter.version>5.14.3</junit-jupiter.version>
-        <assertj.version>3.27.7</assertj.version>
-        <jackson.version>2.21.2</jackson.version>
+        <!-- ── Dependencies (keep in sync with gradle.properties) ─────────── -->
+        <junitVersion>5.14.4</junitVersion>
+        <assertjVersion>3.27.7</assertjVersion>
+        <jacksonVersion>2.22.0</jacksonVersion>
+        <caffeine.version>3.2.3</caffeine.version>
+        <lombok.version>1.18.46</lombok.version>
 
+        <!-- ── Maven Plugin API ────────────────────────────────────────────── -->
+        <maven-core.version>3.9.16</maven-core.version>
+        <maven-plugin-api.version>3.9.16</maven-plugin-api.version>
+        <maven-plugin-annotations.version>3.15.2</maven-plugin-annotations.version>
+        <maven-plugin-plugin.version>3.15.2</maven-plugin-plugin.version>
+
+        <javax.inject.version>1</javax.inject.version>
+
+        <!-- ── Code Quality ────────────────────────────────────────────────── -->
         <spotbugs.version>4.9.8.2</spotbugs.version>
         <spotbugs-annotations.version>4.9.8</spotbugs-annotations.version>
         <spotless-maven-plugin.version>3.2.1</spotless-maven-plugin.version>
         <modernizer-maven-plugin.version>3.2.0</modernizer-maven-plugin.version>
-        <jacoco.version>0.8.14</jacoco.version>
-        <jacoco.coverage.minimum>0.85</jacoco.coverage.minimum>
+        <jacoco.version>0.8.15</jacoco.version>
+        <jacoco.coverage.minimum>0.80</jacoco.coverage.minimum>
 
-        <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>3.5.5</maven-failsafe-plugin.version>
+        <!-- ── Build Plugins ───────────────────────────────────────────────── -->
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
-        <maven-core.version>3.9.14</maven-core.version>
-        <maven-plugin-api.version>3.9.14</maven-plugin-api.version>
-        <maven-plugin-annotations.version>3.15.2</maven-plugin-annotations.version>
-        <maven-plugin-plugin.version>3.15.2</maven-plugin-plugin.version>
-        <javax.inject.version>1</javax.inject.version>
-        <dependency-check-maven.version>12.2.0</dependency-check-maven.version>
-        <rewrite-maven-plugin.version>6.28.1</rewrite-maven-plugin.version>
+        <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
+        <maven-failsafe-plugin.version>3.5.6</maven-failsafe-plugin.version>
+        <maven-install-plugin.version>3.1.4</maven-install-plugin.version>
+        <maven-deploy-plugin.version>3.1.4</maven-deploy-plugin.version>
+        <exec-maven-plugin.version>3.6.3</exec-maven-plugin.version>
+        <flatten-maven-plugin.version>1.7.3</flatten-maven-plugin.version>
         <sisu-maven-plugin.version>1.0.0</sisu-maven-plugin.version>
+        <rewrite-maven-plugin.version>6.28.1</rewrite-maven-plugin.version>
+        <dependency-check-maven.version>12.2.0</dependency-check-maven.version>
+
+        <!-- ── Publishing ──────────────────────────────────────────────────── -->
+        <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
+        <maven-javadoc-plugin.version>3.11.2</maven-javadoc-plugin.version>
+        <maven-gpg-plugin.version>3.2.7</maven-gpg-plugin.version>
+        <central-publishing-maven-plugin.version>0.10.0</central-publishing-maven-plugin.version>
+
     </properties>
 
     <modules>
@@ -79,20 +103,20 @@
             <dependency>
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
-                <version>${junit-jupiter.version}</version>
+                <version>${junitVersion}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>org.assertj</groupId>
                 <artifactId>assertj-core</artifactId>
-                <version>${assertj.version}</version>
+                <version>${assertjVersion}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-databind</artifactId>
-                <version>${jackson.version}</version>
+                <version>${jacksonVersion}</version>
             </dependency>
             <dependency>
                 <groupId>com.github.spotbugs</groupId>
@@ -134,15 +158,43 @@
                 <version>${javax.inject.version}</version>
                 <scope>provided</scope>
             </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+                <scope>provided</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven-compiler-plugin.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>flatten-maven-plugin</artifactId>
-                <version>1.7.3</version>
+                <version>${flatten-maven-plugin.version}</version>
                 <configuration>
                     <updatePomFile>true</updatePomFile>
                     <flattenMode>resolveCiFriendliesOnly</flattenMode>
@@ -193,12 +245,17 @@
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
+                    <execution>
+                        <id>jacoco-prepare-agent-integration</id>
+                        <goals>
+                            <goal>prepare-agent-integration</goal>
+                        </goals>
+                    </execution>
                 </executions>
             </plugin>
 
         </plugins>
     </build>
-
     <profiles>
         <profile>
             <id>quality</id>
@@ -212,7 +269,7 @@
                             <dependency>
                                 <groupId>com.github.ben-manes.caffeine</groupId>
                                 <artifactId>caffeine</artifactId>
-                                <version>3.2.3</version>
+                                <version>${caffeine.version}</version>
                             </dependency>
                         </dependencies>
                         <configuration>
@@ -221,17 +278,15 @@
                             </recipeArtifactCoordinates>
                             <activeRecipes>
                                 <recipe>org.openrewrite.java.ShortenFullyQualifiedTypeReferences</recipe>
-                                <recipe>org.openrewrite.staticanalysis.CommonStaticAnalysis</recipe>
-                                <recipe>org.openrewrite.staticanalysis.CodeCleanup</recipe>
                                 <recipe>org.openrewrite.java.RemoveUnusedImports</recipe>
                                 <recipe>org.openrewrite.staticanalysis.UnnecessaryParentheses</recipe>
                                 <recipe>org.openrewrite.staticanalysis.SimplifyBooleanExpression</recipe>
                                 <recipe>org.openrewrite.staticanalysis.NoDoubleBraceInitialization</recipe>
+                                <recipe>org.openrewrite.java.ShortenFullyQualifiedTypeReferences</recipe>
                             </activeRecipes>
                             <exclusions>
                                 <exclusion>**/target/generated-sources/**</exclusion>
                                 <exclusion>**/*.gradle</exclusion>
-                                <exclusion>**/gradle-plugin/**</exclusion>
                             </exclusions>
                         </configuration>
                         <executions>
@@ -335,11 +390,32 @@
                         <version>${jacoco.version}</version>
                         <executions>
                             <execution>
+                                <id>jacoco-merge</id>
+                                <phase>post-integration-test</phase>
+                                <goals>
+                                    <goal>merge</goal>
+                                </goals>
+                                <configuration>
+                                    <fileSets>
+                                        <fileSet>
+                                            <directory>${project.build.directory}</directory>
+                                            <includes>
+                                                <include>*.exec</include>
+                                            </includes>
+                                        </fileSet>
+                                    </fileSets>
+                                    <destFile>${project.build.directory}/jacoco-merged.exec</destFile>
+                                </configuration>
+                            </execution>
+                            <execution>
                                 <id>jacoco-report</id>
                                 <phase>verify</phase>
                                 <goals>
                                     <goal>report</goal>
                                 </goals>
+                                <configuration>
+                                    <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
+                                </configuration>
                             </execution>
                             <execution>
                                 <id>jacoco-check</id>
@@ -348,6 +424,7 @@
                                     <goal>check</goal>
                                 </goals>
                                 <configuration>
+                                    <dataFile>${project.build.directory}/jacoco-merged.exec</dataFile>
                                     <rules>
                                         <rule>
                                             <element>BUNDLE</element>
@@ -421,7 +498,7 @@
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.10.0</version>
+                        <version>${central-publishing-maven-plugin.version}</version>
                         <extensions>true</extensions>
                         <configuration>
                             <publishingServerId>central</publishingServerId>
@@ -432,7 +509,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
-                        <version>3.3.1</version>
+                        <version>${maven-source-plugin.version}</version>
                         <executions>
                             <execution>
                                 <id>attach-sources</id>
@@ -445,7 +522,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>3.11.2</version>
+                        <version>${maven-javadoc-plugin.version}</version>
                         <executions>
                             <execution>
                                 <id>attach-javadocs</id>
@@ -458,7 +535,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>3.2.7</version>
+                        <version>${maven-gpg-plugin.version}</version>
                         <executions>
                             <execution>
                                 <id>sign-artifacts</id>

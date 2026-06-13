@@ -1,5 +1,6 @@
 package io.llmcompactor.core;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -7,18 +8,34 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.TreeMap;
+import lombok.Getter;
+import lombok.Value;
+import lombok.experimental.Accessors;
 
+@Getter
+@Accessors(fluent = true)
+@JsonAutoDetect(
+    fieldVisibility = JsonAutoDetect.Visibility.ANY,
+    getterVisibility = JsonAutoDetect.Visibility.NONE,
+    isGetterVisibility = JsonAutoDetect.Visibility.NONE)
 public class BuildSummary {
   private final String status;
   private final int testsRun;
   private final int failures;
   private final List<BuildError> errors;
+
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
   private final List<FixTarget> fixTargets;
+
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
   private final List<String> recentChanges;
+
   private final Long totalBuildDurationMs;
   private final Map<String, Double> testDurationPercentiles;
+
+  @JsonInclude(JsonInclude.Include.NON_EMPTY)
+  private final List<SlowTest> slowTests;
 
   public BuildSummary(
       String status,
@@ -28,7 +45,8 @@ public class BuildSummary {
       List<FixTarget> fixTargets,
       List<String> recentChanges,
       Long totalBuildDurationMs,
-      Map<String, Double> testDurationPercentiles) {
+      Map<String, Double> testDurationPercentiles,
+      List<SlowTest> slowTests) {
     this.status = status;
     this.testsRun = testsRun;
     this.failures = failures;
@@ -44,8 +62,33 @@ public class BuildSummary {
     this.totalBuildDurationMs = totalBuildDurationMs;
     this.testDurationPercentiles =
         testDurationPercentiles != null
-            ? Collections.unmodifiableMap(new TreeMap<String, Double>(testDurationPercentiles))
+            ? Collections.unmodifiableMap(new TreeMap<>(testDurationPercentiles))
             : null;
+    this.slowTests =
+        slowTests != null
+            ? Collections.unmodifiableList(slowTests)
+            : Collections.<SlowTest>emptyList();
+  }
+
+  public BuildSummary(
+      String status,
+      int testsRun,
+      int failures,
+      List<BuildError> errors,
+      List<FixTarget> fixTargets,
+      List<String> recentChanges,
+      Long totalBuildDurationMs,
+      Map<String, Double> testDurationPercentiles) {
+    this(
+        status,
+        testsRun,
+        failures,
+        errors,
+        fixTargets,
+        recentChanges,
+        totalBuildDurationMs,
+        testDurationPercentiles,
+        Collections.emptyList());
   }
 
   public BuildSummary(
@@ -58,73 +101,6 @@ public class BuildSummary {
     this(status, testsRun, failures, errors, fixTargets, recentChanges, null, null);
   }
 
-  public String status() {
-    return status;
-  }
-
-  public int testsRun() {
-    return testsRun;
-  }
-
-  public int failures() {
-    return failures;
-  }
-
-  public List<BuildError> errors() {
-    return Collections.unmodifiableList(errors);
-  }
-
-  public List<FixTarget> fixTargets() {
-    return fixTargets;
-  }
-
-  public List<String> recentChanges() {
-    return recentChanges;
-  }
-
-  public Long totalBuildDurationMs() {
-    return totalBuildDurationMs;
-  }
-
-  public Map<String, Double> testDurationPercentiles() {
-    return testDurationPercentiles;
-  }
-
-  // Jackson getters
-  public String getStatus() {
-    return status;
-  }
-
-  public int getTestsRun() {
-    return testsRun;
-  }
-
-  public int getFailures() {
-    return failures;
-  }
-
-  public List<BuildError> getErrors() {
-    return Collections.unmodifiableList(errors);
-  }
-
-  @JsonInclude(JsonInclude.Include.NON_EMPTY)
-  public List<FixTarget> getFixTargets() {
-    return fixTargets;
-  }
-
-  @JsonInclude(JsonInclude.Include.NON_EMPTY)
-  public List<String> getRecentChanges() {
-    return recentChanges;
-  }
-
-  public Long getTotalBuildDurationMs() {
-    return totalBuildDurationMs;
-  }
-
-  public Map<String, Double> getTestDurationPercentiles() {
-    return testDurationPercentiles;
-  }
-
   /** Computes test duration percentiles (p50, p90, p95, p99, max) from a list of durations. */
   public static Map<String, Double> computePercentiles(List<Double> durations) {
     if (durations == null || durations.isEmpty()) {
@@ -133,12 +109,25 @@ public class BuildSummary {
     List<Double> sorted = new ArrayList<>(durations);
     Collections.sort(sorted);
     Map<String, Double> percentiles = new TreeMap<>();
-    percentiles.put("p50", sorted.get((int) (sorted.size() * 0.50)));
-    percentiles.put("p90", sorted.get((int) (sorted.size() * 0.90)));
-    percentiles.put("p95", sorted.get((int) (sorted.size() * 0.95)));
-    percentiles.put("p99", sorted.get((int) (sorted.size() * 0.99)));
+    percentiles.put("p50", sorted.get(sorted.size() * 50 / 100));
+    percentiles.put("p90", sorted.get(sorted.size() * 90 / 100));
+    percentiles.put("p95", sorted.get(sorted.size() * 95 / 100));
+    percentiles.put("p99", sorted.get(sorted.size() * 99 / 100));
     percentiles.put("max", sorted.get(sorted.size() - 1));
     return percentiles;
+  }
+
+  public static List<SlowTest> filterSlowTests(List<SlowTest> tests, double thresholdMs) {
+    if (tests == null) {
+      return Collections.emptyList();
+    }
+    List<SlowTest> result = new ArrayList<>();
+    for (SlowTest e : tests) {
+      if (e.testDuration() >= thresholdMs) {
+        result.add(e);
+      }
+    }
+    return result;
   }
 
   public static List<BuildError> aggregateErrors(List<BuildError> rawErrors) {
@@ -181,40 +170,12 @@ public class BuildSummary {
     return Collections.unmodifiableList(result);
   }
 
+  @Value
   private static class ErrorGroup {
-    private final String type;
-    private final String file;
-    private final String message;
-    private final String stackTrace;
-    private final double testDuration;
-
-    ErrorGroup(String type, String file, String message, String stackTrace, double testDuration) {
-      this.type = type;
-      this.file = file;
-      this.message = message;
-      this.stackTrace = stackTrace;
-      this.testDuration = testDuration;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-      ErrorGroup that = (ErrorGroup) o;
-      return Double.compare(that.testDuration, testDuration) == 0
-          && Objects.equals(type, that.type)
-          && Objects.equals(file, that.file)
-          && Objects.equals(message, that.message)
-          && Objects.equals(stackTrace, that.stackTrace);
-    }
-
-    @Override
-    public int hashCode() {
-      return Objects.hash(type, file, message, stackTrace, testDuration);
-    }
+    String type;
+    String file;
+    String message;
+    String stackTrace;
+    double testDuration;
   }
 }

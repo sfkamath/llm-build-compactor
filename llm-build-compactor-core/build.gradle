@@ -2,8 +2,6 @@ plugins {
     id 'java'
 }
 
-import java.util.Properties
-
 def rootProps = new Properties()
 rootProps.load(new FileInputStream(file('../gradle.properties')))
 
@@ -15,13 +13,19 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.2'
+    compileOnly "org.projectlombok:lombok:${rootProps['lombokVersion']}"
+    annotationProcessor "org.projectlombok:lombok:${rootProps['lombokVersion']}"
 
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.14.3'
-    testImplementation 'org.junit.jupiter:junit-jupiter-engine:5.14.3'
-    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.14.3'
-    testImplementation 'org.assertj:assertj-core:3.27.7'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.14.3'
+    testCompileOnly "org.projectlombok:lombok:${rootProps['lombokVersion']}"
+    testAnnotationProcessor "org.projectlombok:lombok:${rootProps['lombokVersion']}"
+
+    implementation "com.fasterxml.jackson.core:jackson-databind:${rootProps['jacksonVersion']}"
+
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${rootProps['junitVersion']}"
+    testImplementation "org.junit.jupiter:junit-jupiter-engine:${rootProps['junitVersion']}"
+    testImplementation "org.junit.jupiter:junit-jupiter-params:${rootProps['junitVersion']}"
+    testImplementation "org.assertj:assertj-core:${rootProps['assertjVersion']}"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher:${rootProps['junitPlatformVersion']}"
 }
 
 java {

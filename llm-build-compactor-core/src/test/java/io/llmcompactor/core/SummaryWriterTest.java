@@ -27,7 +27,8 @@ class SummaryWriterTest {
             "FAILED",
             10,
             2,
-            Arrays.asList(new BuildError("TestFailure", "src/Test.java", 10, "Fail", "at frame")),
+            Collections.singletonList(
+                new BuildError("TestFailure", "src/Test.java", 10, "Fail", "at frame")),
             Collections.emptyList(),
             Collections.emptyList());
     Path path = tempDir.resolve("llm-summary.json");
@@ -57,11 +58,11 @@ class SummaryWriterTest {
             "FAILED",
             10,
             2,
-            Arrays.asList(
+            Collections.singletonList(
                 new BuildError(
                     "TestFailure", "src/Test.java", 10, "Fail message", "at frame\nCaused by: x")),
             Collections.emptyList(),
-            Arrays.asList("README.md"));
+            Collections.singletonList("README.md"));
 
     String human = SummaryWriter.toHumanReadable(summary, true);
 
@@ -103,6 +104,190 @@ class SummaryWriterTest {
             SummaryWriter.cleanTestLogLine(
                 "12:34:56.789 [main] INFO  c.e.MyClass - SLF4J: Actual message"))
         .isEqualTo("c.e.MyClass - SLF4J: Actual message");
+
+    // Brackets in log messages should be preserved (like SLF4J {} placeholder content)
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "14:02:21.911 [main] INFO  i.l.testbed.OrderServiceTest - Stubs reset. Active: [file1.json, file2.json]"))
+        .isEqualTo("i.l.testbed.OrderServiceTest - Stubs reset. Active: [file1.json, file2.json]");
+
+    // Test name in brackets should be preserved
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "14:02:21.913 [main] INFO  i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]"))
+        .isEqualTo(
+            "i.l.testbed.OrderServiceTest - Test [testIdentifier] configured stubs: [file1.json, file2.json]");
+
+    // Framework stacktrace frames should be filtered (micronaut, netty, spring, etc.)
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at io.micronaut.context.AbstractExecutableMethodsDefinition$DispatchedExecutableMethod.invoke(AbstractExecutableMethodsDefinition.java:456)"))
+        .isNull();
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at io.netty.channel.AbstractChannelHandlerContext.fireChannelRead(AbstractChannelHandlerContext.java:357)"))
+        .isNull();
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at org.springframework.web.servlet.FrameworkServlet.doGet(FrameworkServlet.java:900)"))
+        .isNull();
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at java.base/java.util.Optional.map(Optional.java:260)"))
+        .isNull();
+
+    // Project frames should be preserved
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "at com.radioprojections.service.SessionService.toRound(SessionService.java:150)"))
+        .isEqualTo(
+            "at com.radioprojections.service.SessionService.toRound(SessionService.java:150)");
+
+    // Leading tab on stacktrace frames should be converted to 2 spaces for visual hierarchy
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "\tat com.radioprojections.service.SessionService.toRound(SessionService.java:150)"))
+        .isEqualTo(
+            "  at com.radioprojections.service.SessionService.toRound(SessionService.java:150)");
+
+    // Framework frames with leading tab should still be filtered
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "\tat io.micronaut.context.AbstractExecutableMethodsDefinition$DispatchedExecutableMethod.invoke(AbstractExecutableMethodsDefinition.java:456)"))
+        .isNull();
+
+    // Non-at lines should be preserved even if they mention framework packages
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "i.m.http.server.RouteExecutor - Unexpected error occurred"))
+        .isEqualTo("i.m.http.server.RouteExecutor - Unexpected error occurred");
+
+    // java.util.logging date format (Liquibase) should be stripped and then filtered
+    assertThat(SummaryWriter.cleanTestLogLine("May 23, 2026 12:52:09 AM liquibase.changelog"))
+        .isNull();
+
+    // java.util.logging level with colon should be stripped
+    assertThat(SummaryWriter.cleanTestLogLine("INFO: Creating database changelog table"))
+        .isEqualTo("Creating database changelog table");
+
+    // java.util.logging level with colon and timestamp should be stripped
+    assertThat(SummaryWriter.cleanTestLogLine("Oct 25, 2024 10:30:45 AM INFO: Log message"))
+        .isEqualTo("Log message");
+
+    // Liquibase class references in log lines should be filtered entirely
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "May 23, 2026 12:52:09 AM liquibase.changelog INFO: Creating database changelog table"))
+        .isNull();
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "May 23, 2026 12:52:09 AM liquibase.lockservice INFO: Successfully released change log lock"))
+        .isNull();
+
+    // Micronaut log level configuration should be filtered
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "i.m.l.PropertiesLoggingLevelsConfigurer - Setting log level 'INFO' for logger: 'io.micronaut.data'"))
+        .isNull();
+
+    // Test/runtime bootstrap noise should be filtered from failed-test logs.
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "o.testcontainers.DockerClientFactory - Testcontainers version: 2.0.5"))
+        .isNull();
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "o.t.d.DockerClientProviderStrategy - Found Docker environment with Docker accessed via Unix socket"))
+        .isNull();
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "tc.mongo:latest - Container mongo:latest started in PT0.22301S"))
+        .isNull();
+    assertThat(
+            SummaryWriter.cleanTestLogLine(
+                "i.m.c.DefaultApplicationContext$RuntimeConfiguredEnvironment - Established active environments: [test]"))
+        .isNull();
+
+    // [system-out] and [system-err] should be preserved
+    assertThat(SummaryWriter.cleanTestLogLine("[system-out] some output"))
+        .isEqualTo("[system-out] some output");
+    assertThat(SummaryWriter.cleanTestLogLine("[system-err] some error"))
+        .isEqualTo("[system-err] some error");
+
+    // Empty or null lines
+    assertThat(SummaryWriter.cleanTestLogLine("")).isEqualTo("");
+    assertThat(SummaryWriter.cleanTestLogLine(null)).isNull();
+  }
+
+  @Test
+  void shouldFormatHumanReadableWithSlowTestsAndFixTargets() {
+    SlowTest slow = new SlowTest("com.example.SlowTest", "slowMethod", 5000.0);
+    FixTarget target = new FixTarget("src/Main.java", 42, "Null pointer", "if (obj == null)");
+
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            1,
+            1,
+            Collections.emptyList(),
+            Collections.singletonList(target),
+            Collections.emptyList(),
+            10000L,
+            Collections.emptyMap(),
+            Collections.singletonList(slow));
+
+    String human = SummaryWriter.toHumanReadable(summary, true);
+
+    assertThat(human).contains("Slow Tests:");
+    assertThat(human).contains("com.example.SlowTest#slowMethod (5000.00ms)");
+    assertThat(human).contains("Fix Targets:");
+    assertThat(human).contains("src/Main.java:42");
+    assertThat(human).contains("Reason: Null pointer");
+    assertThat(human).contains("Snippet:");
+    assertThat(human).contains("if (obj == null)");
+  }
+
+  @Test
+  void shouldCondenseWhitespaceInJson() {
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(
+                new BuildError(
+                    "Error", "File.java", 1, "Message with  double  space", "stack   with   tabs")),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String json = SummaryWriter.toJson(summary);
+
+    assertThat(json).contains("Message with double space");
+    assertThat(json).contains("stack with tabs");
+  }
+
+  @Test
+  void shouldStripComplexExceptionPackages() {
+    assertThat(SummaryWriter.stripExceptionPackage("com.foo.Bar$InnerException: msg"))
+        .isEqualTo("Bar$InnerException: msg");
+    assertThat(SummaryWriter.stripExceptionPackage("a.b.c.D: message with: colons"))
+        .isEqualTo("D: message with: colons");
+  }
+
+  @Test
+  void toJsonHandlesNullMessageAndStackTrace() {
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(
+                new BuildError("Error", "File.java", null, null, null, 0.0, null)),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String json = SummaryWriter.toJson(summary);
+    assertThat(json).contains("\"status\" : \"FAILED\"");
   }
 
   @Test
@@ -186,6 +371,87 @@ class SummaryWriterTest {
   }
 
   @Test
+  void shouldIncludePercentilesInHumanReadable() {
+    Map<String, Double> percentiles = new HashMap<>();
+    percentiles.put("p50", 150.0);
+    percentiles.put("p99", 950.0);
+    BuildSummary summary =
+        new BuildSummary(
+            "SUCCESS",
+            10,
+            0,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            5000L,
+            percentiles);
+
+    String human = SummaryWriter.toHumanReadable(summary, false);
+    assertThat(human).contains("Test Duration Percentiles (ms):");
+    assertThat(human).contains("p50: 150.00");
+    assertThat(human).contains("p99: 950.00");
+  }
+
+  @Test
+  void shouldHandleErrorWithoutFileInHumanReadable() {
+    BuildError error = new BuildError("TestFailure", null, 10, "msg", "stack");
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(error),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String human = SummaryWriter.toHumanReadable(summary, false);
+    assertThat(human).contains("TestFailure");
+    assertThat(human).contains("msg");
+  }
+
+  @Test
+  void shouldHandleErrorWithEmptyLinesInHumanReadable() {
+    BuildError error = new BuildError("Error", "File.java", -1, "msg", "stack");
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(error),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String human = SummaryWriter.toHumanReadable(summary, false);
+    assertThat(human).contains("File.java");
+    assertThat(human).doesNotContain("File.java:");
+  }
+
+  @Test
+  void shouldIncludeTestLogsInHumanReadable() {
+    BuildError error =
+        new BuildError(
+            "Error",
+            "File.java",
+            Collections.singletonList(10),
+            "msg",
+            "stack",
+            0.0,
+            "Test log line");
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            0,
+            1,
+            Collections.singletonList(error),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String human = SummaryWriter.toHumanReadable(summary, true);
+    assertThat(human).contains("Test logs (File.java):");
+    assertThat(human).contains("Test log line");
+  }
+
+  @Test
   void shouldIncludeBuildDuration() {
     BuildSummary summary =
         new BuildSummary(
@@ -259,13 +525,42 @@ class SummaryWriterTest {
     String logs =
         "12:34:56.789 [main] INFO  Test - Message 1\n"
             + "SLF4J: Noise\n"
-            + "12:34:56.790 [main] INFO  Test - Message 2";
+            + "12:34:56.790 [main] INFO  Test - Message 2\n"
+            + "at io.micronaut.foo.Bar.baz(Bar.java:10)\n"
+            + "at com.myproject.MyClass.myMethod(MyClass.java:20)";
 
     BuildError error = new BuildError("Type", "File.java", 1, "Msg", "Stack", 0.0, logs);
     List<String> logsArray = error.getTestLogsAsArray();
 
-    // SLF4J lines filtered, other lines cleaned
-    assertThat(logsArray).hasSize(2);
+    // SLF4J lines filtered, framework frames filtered, project frames and log messages preserved
+    assertThat(logsArray).hasSize(3);
+    assertThat(logsArray.get(0)).isEqualTo("Test - Message 1");
+    assertThat(logsArray.get(1)).isEqualTo("Test - Message 2");
+    assertThat(logsArray.get(2)).isEqualTo("at com.myproject.MyClass.myMethod(MyClass.java:20)");
+  }
+
+  @Test
+  void shouldStripPackagePrefixesFromStackTraceInHumanReadable() {
+    String rawTrace =
+        "at com.example.MyClass.myMethod(MyClass.java:10)\n"
+            + "at com.example.other.Helper.doWork(Helper.java:42)";
+    BuildError error =
+        new BuildError("TestFailure", "src/Test.java", 5, "assertion failed", rawTrace);
+    BuildSummary summary =
+        new BuildSummary(
+            "FAILED",
+            1,
+            1,
+            Collections.singletonList(error),
+            Collections.emptyList(),
+            Collections.emptyList());
+
+    String human = SummaryWriter.toHumanReadable(summary, false);
+
+    assertThat(human).contains("at MyClass.myMethod(MyClass.java:10)");
+    assertThat(human).contains("at Helper.doWork(Helper.java:42)");
+    assertThat(human).doesNotContain("at com.example.MyClass");
+    assertThat(human).doesNotContain("at com.example.other.Helper");
   }
 
   @Test

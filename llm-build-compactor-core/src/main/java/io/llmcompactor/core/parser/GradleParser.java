@@ -1,221 +1,207 @@
 package io.llmcompactor.core.parser;
 
 import io.llmcompactor.core.BuildError;
+import io.llmcompactor.core.SlowTest;
 import io.llmcompactor.core.StackTraceCompressor;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.logging.Logger;
 import java.util.stream.Stream;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import lombok.experimental.UtilityClass;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-/** Parses Gradle test result XML files (typically in build/test-results/test/*.xml). */
-public final class GradleParser {
-
-  private static final Pattern LINE_NUMBER_PATTERN = Pattern.compile("\\.java:(\\d+)");
-  private static final Pattern GROOVY_LINE_NUMBER_PATTERN = Pattern.compile("\\.groovy:(\\d+)");
+@UtilityClass
+public class GradleParser {
+  private static final Logger LOGGER = Logger.getLogger(GradleParser.class.getName());
 
   public static TestResult parse(
       Path testResultsDir,
       boolean compressStackFrames,
       List<String> stackFrameWhitelist,
       List<String> stackFrameBlacklist,
-      long sessionStartTime,
       boolean showFailedTestLogs) {
+    return parse(
+        testResultsDir,
+        compressStackFrames,
+        stackFrameWhitelist,
+        stackFrameBlacklist,
+        showFailedTestLogs,
+        0L);
+  }
+
+  /**
+   * Parses JUnit-style {@code test-results/} XML, optionally ignoring files left over from an
+   * earlier build.
+   *
+   * <p>Gradle does <em>not</em> clear {@code build/test-results/} between unrelated invocations, so
+   * an invocation that runs no Test task (a {@code compileJava}-only build, or a build that fails
+   * at task selection / configuration) leaves a previous run's XML in place. Parsing it
+   * unconditionally makes the compactor replay that stale result as if it belonged to the current
+   * build — masking the real outcome, including non-test failures such as a wrong task path or a
+   * config error. Field-found on {@code micronaut-data}; gated here via {@code
+   * minLastModifiedMillis}.
+   *
+   * @param minLastModifiedMillis only parse result files modified at or after this epoch-millis
+   *     timestamp. Pass {@code 0L} to parse all files. Callers pass the current build's start time
+   *     so that a leftover {@code test-results/} dir from a previous run (whose Test task did not
+   *     execute this build) is not attributed to this build. Sound because Gradle cleans a Test
+   *     task's output dir on execution, so a task that actually ran rewrites all its files fresh
+   *     (the only downgrade: an UP-TO-DATE Test task that does not rewrite its dir reports zero —
+   *     honest, since nothing ran this build).
+   */
+  public static TestResult parse(
+      Path testResultsDir,
+      boolean compressStackFrames,
+      List<String> stackFrameWhitelist,
+      List<String> stackFrameBlacklist,
+      boolean showFailedTestLogs,
+      long minLastModifiedMillis) {
     if (!Files.exists(testResultsDir)) {
       return new TestResult(0, 0, Collections.emptyList());
     }
 
     List<BuildError> failures = new ArrayList<>();
     List<Double> allDurations = new ArrayList<>();
+    List<SlowTest> slowTests = new ArrayList<>();
     AtomicInteger totalTests = new AtomicInteger(0);
     AtomicInteger testFailures = new AtomicInteger(0);
 
     try (Stream<Path> files = Files.walk(testResultsDir)) {
       files
           .filter(f -> f.toString().endsWith(".xml"))
-          .filter(p -> p.toFile().lastModified() >= sessionStartTime)
+          .filter(f -> f.toFile().lastModified() >= minLastModifiedMillis)
           .forEach(
-              file -> {
-                try {
-                  DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-                  DocumentBuilder builder = factory.newDocumentBuilder();
-                  Document doc = builder.parse(file.toFile());
-
-                  String tests = doc.getDocumentElement().getAttribute("tests");
-                  if (!tests.isEmpty()) {
-                    totalTests.addAndGet(Integer.parseInt(tests));
-                  }
-
-                  // Collect all durations
-                  NodeList testCaseNodes = doc.getElementsByTagName("testcase");
-                  for (int i = 0; i < testCaseNodes.getLength(); i++) {
-                    Element testCase = (Element) testCaseNodes.item(i);
-                    String timeAttr = testCase.getAttribute("time");
-                    if (timeAttr != null && !timeAttr.isEmpty()) {
-                      try {
-                        allDurations.add(Double.parseDouble(timeAttr));
-                      } catch (NumberFormatException e) {
-                        // Ignore
-                      }
-                    }
-                  }
-
-                  NodeList failureNodes = doc.getElementsByTagName("failure");
-                  for (int i = 0; i < failureNodes.getLength(); i++) {
-                    Node node = failureNodes.item(i);
-                    String message = node.getTextContent().trim();
-                    String type = ((Element) node).getAttribute("type");
-
-                    // In Gradle, the test case name and class are in the parent element
-                    Element testCase = (Element) node.getParentNode();
-                    String className = testCase.getAttribute("classname");
-                    String timeAttr = testCase.getAttribute("time");
-                    double duration = 0.0;
-                    if (timeAttr != null && !timeAttr.isEmpty()) {
-                      try {
-                        duration = Double.parseDouble(timeAttr);
-                      } catch (NumberFormatException e) {
-                        // Ignore
-                      }
-                    }
-
-                    String testLogs = null;
-                    if (showFailedTestLogs) {
-                      testLogs = readTestLogs(testCase);
-                    }
-
-                    String sourceFile = null;
-                    int line = -1;
-
-                    // Try to find the first project frame (supports both Java and Groovy)
-                    String[] lines = message.split("\n");
-                    for (String l : lines) {
-                      boolean hasJavaFile = l.contains(".java:");
-                      boolean hasGroovyFile = l.contains(".groovy:");
-                      if ((hasJavaFile || hasGroovyFile) && isProjectFrame(l, className)) {
-                        Matcher m = LINE_NUMBER_PATTERN.matcher(l);
-                        boolean found = m.find();
-                        if (!found) {
-                          m = GROOVY_LINE_NUMBER_PATTERN.matcher(l);
-                          found = m.find();
-                        }
-                        if (found) {
-                          line = Integer.parseInt(m.group(1));
-                          sourceFile = resolveSourceFile(className);
-                          break;
-                        }
-                      }
-                    }
-
-                    String stackTrace =
-                        compressStackFrames
-                            ? StackTraceCompressor.compress(
-                                message, null, stackFrameWhitelist, stackFrameBlacklist)
-                            : message;
-
-                    failures.add(
-                        new BuildError(
-                            type,
-                            sourceFile != null ? sourceFile : className,
-                            line,
-                            ParserUtils.extractFirstLine(message),
-                            stackTrace,
-                            duration,
-                            testLogs));
-                    testFailures.incrementAndGet();
-                  }
-
-                } catch (ParserConfigurationException | SAXException | IOException e) {
-                  // Ignore corrupt XML
-                }
-              });
+              file ->
+                  parseTestResultFile(
+                      file,
+                      totalTests,
+                      testFailures,
+                      allDurations,
+                      slowTests,
+                      failures,
+                      showFailedTestLogs,
+                      compressStackFrames,
+                      stackFrameWhitelist,
+                      stackFrameBlacklist));
     } catch (IOException e) {
-      // Ignore IO errors
+      LOGGER.fine("Error reading test results from " + testResultsDir + ": " + e.getMessage());
     }
 
-    return new TestResult(totalTests.get(), testFailures.get(), failures, allDurations);
+    return new TestResult(totalTests.get(), testFailures.get(), failures, allDurations, slowTests);
   }
 
-  private static String readTestLogs(Element testCase) {
-    StringBuilder logs = new StringBuilder();
+  private static void parseTestResultFile(
+      Path file,
+      AtomicInteger totalTests,
+      AtomicInteger testFailures,
+      List<Double> allDurations,
+      List<SlowTest> slowTests,
+      List<BuildError> failures,
+      boolean showFailedTestLogs,
+      boolean compressStackFrames,
+      List<String> stackFrameWhitelist,
+      List<String> stackFrameBlacklist) {
+    try {
+      Document doc = XmlParserUtils.parseDocument(file);
+      totalTests.addAndGet(XmlParserUtils.extractTestCount(doc));
+      XmlParserUtils.collectDurationsAndSlowTests(doc, allDurations, slowTests);
 
-    // First check for system-out/system-err as direct children of testcase
-    NodeList children = testCase.getChildNodes();
-    for (int i = 0; i < children.getLength(); i++) {
-      Node child = children.item(i);
-      if ("system-out".equals(child.getNodeName()) || "system-err".equals(child.getNodeName())) {
-        String content = child.getTextContent();
-        if (content != null && !content.trim().isEmpty()) {
-          if (logs.length() > 0) {
-            logs.append("\n");
-          }
-          logs.append("[").append(child.getNodeName()).append("]\n").append(content);
+      NodeList failureNodes = doc.getElementsByTagName("failure");
+      for (int i = 0; i < failureNodes.getLength(); i++) {
+        Node node = failureNodes.item(i);
+        String message = node.getTextContent().trim();
+        String type = ((Element) node).getAttribute("type");
+
+        Element testCase = (Element) node.getParentNode();
+        String className = testCase.getAttribute("classname");
+        double duration = XmlParserUtils.parseDurationSecToMs(testCase);
+
+        String testLogs = null;
+        if (showFailedTestLogs) {
+          testLogs = TestLogReader.read(testCase, true, "[%s]");
         }
-      }
-    }
 
-    // Fallback: if no testcase-level output, use parent testsuite output.
-    // Note: suite-level output contains logs from ALL tests in the class, not only the failing one.
-    if (logs.length() == 0) {
-      Node parent = testCase.getParentNode();
-      if (parent instanceof Element) {
-        Element testsuite = (Element) parent;
-        NodeList suiteChildren = testsuite.getChildNodes();
-        for (int i = 0; i < suiteChildren.getLength(); i++) {
-          Node child = suiteChildren.item(i);
-          if ("system-out".equals(child.getNodeName())
-              || "system-err".equals(child.getNodeName())) {
-            String content = child.getTextContent();
-            if (content != null && !content.trim().isEmpty()) {
-              if (logs.length() > 0) {
-                logs.append("\n");
+        String sourceFile = null;
+        int line = -1;
+
+        String[] lines = message.split("\n");
+        String testPackage = className.substring(0, Math.max(0, className.lastIndexOf(".")));
+
+        for (String l : lines) {
+          if (l.contains(".java:") || l.contains(".groovy:")) {
+            boolean isFramework = StackTraceCompressor.isFrameworkFrame(l);
+            boolean isFromTestPackage = !testPackage.isEmpty() && l.contains(testPackage);
+
+            if (!isFramework || isFromTestPackage) {
+              int lastColon = l.lastIndexOf(":");
+              int lastParen = l.lastIndexOf(")");
+
+              if (lastColon > 0 && lastParen > lastColon) {
+                line = parseCandidateLine(l, lastColon, lastParen, className, line);
+                if (line > 0) {
+                  int openParen = l.lastIndexOf("(", lastColon);
+                  if (openParen > 0) {
+                    String resolved = ParserUtils.resolveFrameSource(l);
+                    sourceFile =
+                        resolved != null ? resolved : l.substring(openParen + 1, lastColon);
+                  }
+                  if (l.contains(className)) {
+                    break;
+                  }
+                }
               }
-              logs.append("[class-level ")
-                  .append(child.getNodeName())
-                  .append("]\n")
-                  .append(content);
             }
           }
         }
+
+        String stackTrace =
+            compressStackFrames
+                ? StackTraceCompressor.compress(
+                    message, null, stackFrameWhitelist, stackFrameBlacklist)
+                : message;
+
+        failures.add(
+            new BuildError(
+                type,
+                sourceFile != null ? sourceFile : className,
+                line,
+                ParserUtils.extractFirstLine(message),
+                stackTrace,
+                duration,
+                testLogs));
+        testFailures.incrementAndGet();
       }
-    }
 
-    return logs.length() > 0 ? logs.toString() : null;
+    } catch (ParserConfigurationException | SAXException | IOException e) {
+      // Ignore corrupt XML
+    }
   }
 
-  private static String resolveSourceFile(String className) {
-    String relativePath = className.replace(".", "/") + ".java";
-    String[] roots = {
-      "src/main/java/", "src/test/java/", "src/it/java/", "src/integration-test/java/"
-    };
-
-    for (String root : roots) {
-      String fullPath = root + relativePath;
-      if (Files.exists(Paths.get(fullPath))) {
-        return fullPath;
+  private static int parseCandidateLine(
+      String l, int lastColon, int lastParen, String className, int currentLine) {
+    try {
+      int candidateLine = Integer.parseInt(l.substring(lastColon + 1, lastParen));
+      int openParen = l.lastIndexOf("(", lastColon);
+      if (openParen > 0) {
+        if (currentLine == -1) {
+          return candidateLine; // first valid frame
+        }
+        if (l.contains(className)) {
+          return candidateLine; // prefer test class frame
+        }
       }
+    } catch (NumberFormatException ignored) {
     }
-    // Default to src/test/java if not found
-    return "src/test/java/" + relativePath;
+    return currentLine;
   }
-
-  private static boolean isProjectFrame(String line, String className) {
-    return line.contains(className);
-  }
-
-  private GradleParser() {}
 }

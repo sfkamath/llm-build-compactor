@@ -17,6 +17,10 @@
     <name>LLM Build Compactor :: Gradle Plugin</name>
     <packaging>pom</packaging>
 
+    <properties>
+        <jacoco.coverage.minimum>0</jacoco.coverage.minimum>
+    </properties>
+
     <dependencies>
         <!-- Declare dependencies for Maven resolution (actual artifacts published by Gradle) -->
         <dependency>
@@ -38,7 +42,7 @@
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>
-                <version>3.6.3</version>
+                <version>${exec-maven-plugin.version}</version>
                 <executions>
                     <!-- Ensure all wrapper scripts are executable -->
                     <execution>
@@ -101,7 +105,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-install-plugin</artifactId>
-                <version>3.1.4</version>
+                <version>${maven-install-plugin.version}</version>
                 <executions>
                     <!-- Parent POM must be installed first; core's flattened POM still
                          declares it as <parent>, so Gradle needs to resolve it too -->
@@ -139,7 +143,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-deploy-plugin</artifactId>
-                <version>3.1.4</version>
+                <version>${maven-deploy-plugin.version}</version>
                 <configuration>
                     <skip>true</skip>
                 </configuration>

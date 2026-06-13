@@ -47,7 +47,24 @@ sourceSets {
 
 test {
     useJUnitPlatform()
-    ignoreFailures = true
+    testLogging {
+        events "failed"
+    }
+}
+
+tasks.register('failBuild') {
+    doLast {
+        throw new RuntimeException('Intentional build failure for testing')
+    }
 }
 
 apply plugin: 'io.github.sfkamath.llm-build-compactor'
+
+// IT hook: exercise the llmCompactor {} DSL extension path (binds via the extension at
+// configuration time, unlike -P properties which resolve via conventions). Gated behind a
+// marker property so only the DSL-config IT activates it and other tests are unaffected.
+if (project.hasProperty('dslShowFailedTestLogsFalse')) {
+    llmCompactor {
+        showFailedTestLogs = false
+    }
+}

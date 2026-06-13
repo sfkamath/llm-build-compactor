@@ -23,6 +23,8 @@ public final class GradleBuild {
   private final List<String> tasks = new ArrayList<>();
   private final Map<String, String> properties = new HashMap<>();
   private int timeoutMinutes = 5;
+  private boolean configCache = false;
+  private final Map<String, String> stagedBuildFiles = new HashMap<>();
 
   // Shared Gradle user home for all tests in a suite run
   // This allows dependency caching while isolating from the user's real Gradle cache
@@ -40,9 +42,27 @@ public final class GradleBuild {
       if (Files.exists(wrapperDists)) {
         copyDirectory(wrapperDists, GRADLE_TEST_HOME.resolve("wrapper/dists"));
       }
+
+      // Stop any running daemon so it restarts and picks up the latest plugin JAR
+      stopDaemon(GRADLE_TEST_HOME);
     } catch (IOException e) {
       throw new RuntimeException("Failed to initialize shared Gradle test home", e);
     }
+  }
+
+  private static void stopDaemon(Path gradleTestHome) {
+    try {
+      URL resource = GradleBuild.class.getClassLoader().getResource("test-projects/gradle-test-project");
+      if (resource == null) return;
+      Path projectDir = Paths.get(resource.toURI());
+      Path root = findRootWithFile(projectDir, "gradlew");
+      if (root == null) return;
+      ProcessBuilder pb = new ProcessBuilder(root.resolve("gradlew").toString(), "--stop");
+      pb.environment().put("GRADLE_USER_HOME", gradleTestHome.toAbsolutePath().toString());
+      pb.redirectErrorStream(true);
+      Process p = pb.start();
+      p.waitFor(30, TimeUnit.SECONDS);
+    } catch (Exception ignored) {}
   }
 
   private GradleBuild(Path projectDir) {
@@ -132,9 +152,25 @@ public final class GradleBuild {
     return this;
   }
 
+  /**
+   * Stages a file under the project's {@code build/} directory <em>after</em> execute() wipes it,
+   * simulating an artifact left behind by a previous build (e.g. stale {@code test-results/} XML).
+   * Path is relative to {@code build/}.
+   */
+  public GradleBuild withStagedBuildFile(String relativePath, String content) {
+    stagedBuildFiles.put(relativePath, content);
+    return this;
+  }
+
   /** Sets the build timeout in minutes. */
   public GradleBuild withTimeout(int minutes) {
     this.timeoutMinutes = minutes;
+    return this;
+  }
+
+  /** Enables Gradle's configuration cache for this build (default: disabled). */
+  public GradleBuild withConfigurationCache() {
+    this.configCache = true;
     return this;
   }
 
@@ -142,6 +178,19 @@ public final class GradleBuild {
   public BuildResult execute() throws IOException, InterruptedException {
     // Clean build directory to ensure fresh test outputs (but keep .gradle cache for dependencies)
     deleteDirectory(projectDir.resolve("build"));
+
+    // Re-stage any artifacts that simulate leftovers from a previous build (post-clean). Backdate
+    // their mtime by an hour so they are unambiguously older than this build's start time — a
+    // faithful model of "left over from an earlier run" and immune to whether the daemon is warm
+    // (a warm daemon starts within the same second as staging, which would otherwise let a
+    // same-second file slip past the compactor's floored mtime gate).
+    long staleMtime = System.currentTimeMillis() - 3_600_000L;
+    for (Map.Entry<String, String> staged : stagedBuildFiles.entrySet()) {
+      Path target = projectDir.resolve("build").resolve(staged.getKey());
+      Files.createDirectories(target.getParent());
+      Files.write(target, staged.getValue().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      Files.setLastModifiedTime(target, java.nio.file.attribute.FileTime.fromMillis(staleMtime));
+    }
 
     // Use gradlew from the test project directory
     String gradlew = projectDir.resolve("gradlew").toString();
@@ -153,7 +202,8 @@ public final class GradleBuild {
     cmd.add(gradlew);
     cmd.add("--daemon"); // Daemon is scoped to GRADLE_USER_HOME so safe to reuse across tests
     cmd.add("--no-build-cache"); // Prevent cached test results with stale timestamps
-    cmd.add("--no-configuration-cache"); // Prevent stale task graph from hiding test results
+    // Default off: prevents a stale task graph from hiding test results. Opt-in for CC-specific tests.
+    cmd.add(configCache ? "--configuration-cache" : "--no-configuration-cache");
 
     // Add project properties
     for (Map.Entry<String, String> prop : properties.entrySet()) {
@@ -218,11 +268,6 @@ public final class GradleBuild {
   /** Returns the project directory. */
   public Path getProjectDir() {
     return projectDir;
-  }
-
-  /** Returns the shared Gradle test home directory (useful for inspecting init.d contents). */
-  public static Path gradleTestHome() {
-    return GRADLE_TEST_HOME;
   }
 
   /** Cleans up the shared Gradle test home directory. Should be called after all tests complete. */

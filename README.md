@@ -30,7 +30,7 @@ A universal, zero-config tool that extracts **actionable build diagnostics** fro
 The compactor uses a Maven Extension to achieve complete build silence. Install it using:
 
 ```bash
-mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.2.3:install
+mvn io.github.sfkamath:llm-build-compactor-maven-plugin:0.4.0:install
 ```
 
 This creates `.mvn/extensions.xml` in your project, enabling the Core Extension that suppresses all build output during execution.
@@ -45,7 +45,7 @@ To customize the output format and features, add the plugin configuration to you
         <plugin>
             <groupId>io.github.sfkamath</groupId>
             <artifactId>llm-build-compactor-maven-plugin</artifactId>
-            <version>0.2.3</version>
+            <version>0.4.0</version>
             <configuration>
                 <outputAsJson>false</outputAsJson>
                 <compressStackFrames>true</compressStackFrames>
@@ -76,7 +76,7 @@ Add the plugin to your `build.gradle.kts` (Kotlin DSL):
 
 ```kotlin
 plugins {
-    id("io.github.sfkamath.llm-build-compactor") version "0.2.3"
+    id("io.github.sfkamath.llm-build-compactor") version "0.4.0"
 }
 ```
 
@@ -84,7 +84,7 @@ Or `build.gradle` (Groovy DSL):
 
 ```groovy
 plugins {
-    id 'io.github.sfkamath.llm-build-compactor' version '0.2.3'
+    id 'io.github.sfkamath.llm-build-compactor' version '0.4.0'
 }
 ```
 
@@ -114,43 +114,31 @@ llmCompactor {
 }
 ```
 
-### 3. Global Settings (Auto-Installed)
+### 3. Local Auto-Installation
 
-When you first apply the plugin, it automatically installs two global suppressions:
+When you first apply the plugin, it automatically adds the following to your project's **`gradle.properties`**:
 
-| File | What it adds |
-|------|-------------|
-| `~/.gradle/init.d/llm-compactor-silence.gradle` | Init script that suppresses Gradle lifecycle output during the initialization phase, before plugin code runs |
-| `~/.gradle/gradle.properties` | `org.gradle.logging.level=quiet` wrapped in `# >>> llm-compactor >>>` markers, which silences per-test pass/fail lines (e.g. Spock's `MySpec some test PASSED`) |
+```properties
+# >>> llm-compactor >>>
+org.gradle.logging.level=quiet
+# <<< llm-compactor <<<
+```
 
-Both are managed as a unit by `installLlmCompactor` / `uninstallLlmCompactor`.
-
-> **Warning:** These settings affect **all Gradle builds on your machine**, not just
-> projects that use this plugin. A one-line notice is printed the first time they are installed.
+This ensures that Gradle's default lifecycle noise (like task start/finish lines) is silenced, allowing the compactor to provide a clean summary.
 
 #### Uninstalling
 
-If you want to remove both suppressions (e.g. when removing the plugin from your project):
+If you want to remove the suppression (e.g. when removing the plugin from your project):
 
 ```bash
 ./gradlew uninstallLlmCompactor
-./gradlew --stop
 ```
 
-The `./gradlew --stop` is **required**. The running Gradle daemon loaded the init script at
-startup and will continue suppressing output for all builds until it is restarted.
-
-> **If you remove the plugin from your build file without running `uninstallLlmCompactor`
-> first**, both suppressions remain active. Run `./gradlew uninstallLlmCompactor && ./gradlew --stop`
-> from any project that still has the plugin applied, or remove them manually:
-> ```
-> rm ~/.gradle/init.d/llm-compactor-silence.gradle
-> # remove the llm-compactor block from ~/.gradle/gradle.properties
-> ```
+This will remove the marker block from your project's `gradle.properties`.
 
 #### Re-installing manually
 
-If the settings are ever lost (e.g. after cleaning `~/.gradle`), reinstall them with:
+If the block is ever removed, you can reinstall it with:
 
 ```bash
 ./gradlew installLlmCompactor
@@ -164,7 +152,7 @@ Settings can be configured in your `pom.xml` (Maven), `build.gradle` (Gradle), o
 
 ### Available Options
 
-**Note:** Defaults are centralized in [`CompactorDefaults.java`](llm-build-compactor-core/src/main/java/io/llmcompactor/core/CompactorDefaults.java) and referenced by all build tools.
+**Note:** Defaults are centralized in [`CompactorConfig.java`](llm-build-compactor-core/src/main/java/io/llmcompactor/core/CompactorConfig.java) and referenced by all build tools.
 
 | Property                               | Default  | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 |----------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -175,11 +163,11 @@ Settings can be configured in your `pom.xml` (Maven), `build.gradle` (Gradle), o
 | `llmCompactor.showRecentChanges`       | `false`  | Include the list of files changed in git recently.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `llmCompactor.stackFrameWhitelist`     | (empty)  | Comma-separated list of packages to *always* include in stack traces (whitelist). Use this to see framework stack traces like Micronaut or Spring that are normally filtered. The compactor automatically scans your `src/main`, `src/test`, and `src/it` to identify and preserve project-specific packages.                                                                                                                                                                                                                                                            |
 | `llmCompactor.stackFrameBlacklist`     | (empty)  | Comma-separated list of packages to *always* exclude from stack traces (blacklist). Use this to filter additional framework packages beyond the defaults, or to exclude specific project packages from stack traces. **Default Framework Exclusions:** The following packages are automatically excluded from stack traces: `java.*`, `javax.*`, `sun.*`, `com.sun.*`, `jdk.*`, `org.junit.*`, `org.testng.*`, `org.apache.maven.*`, `org.gradle.*`, `org.springframework.*`, `org.hibernate.*`, `io.projectreactor.*`, `reactor.core.*`, `io.micronaut.*`, `io.netty.*` |
-| `llmCompactor.showSlowTests`           | `true`   | Show test duration only for slow tests (≥ threshold).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `llmCompactor.showSlowTests`           | `false`  | Show test duration only for slow tests (≥ threshold).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `llmCompactor.showTotalDuration`       | `false`  | Include the total build execution time in the summary.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `llmCompactor.showDurationReport`      | `false`  | Include a heuristic percentile report of test durations (p50, p90, p95, p99, max).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `llmCompactor.outputPath`              | (varies) | Path where the summary is saved (e.g., `target/llm-summary.json`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `llmCompactor.showFailedTestLogs`      | `false`  | Capture and display test output logs for failed tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `llmCompactor.showFailedTestLogs`      | `true`   | Capture and display test output logs for failed tests.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `llmCompactor.testDurationThresholdMs` | `100`    | Threshold in milliseconds for considering a test "slow" (used by `showSlowTests`).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ### Advanced Options
@@ -226,7 +214,7 @@ mvn test -DllmCompactor.mode=human
 
 ## Capturing Test Logs
 
-When `showFailedTestLogs` is enabled (default: `false`), the compactor captures and displays test output logs for failed tests:
+When `showFailedTestLogs` is enabled (default: `true`), the compactor captures and displays test output logs for failed tests:
 
 ### What Gets Captured
 
@@ -241,7 +229,7 @@ When `showFailedTestLogs` is enabled (default: `false`), the compactor captures 
 <plugin>
     <groupId>io.github.sfkamath</groupId>
     <artifactId>llm-build-compactor-maven-plugin</artifactId>
-    <version>0.2.3</version>
+    <version>0.4.0</version>
     <configuration>
         <showFailedTestLogs>true</showFailedTestLogs>
     </configuration>
@@ -414,3 +402,18 @@ cd test-project-maven && mvn clean verify
 ```
 
 **Java Version Support:** Java 8 through 25. See [`docs/development-guide.md`](docs/development-guide.md) for the Gradle wrapper strategy and multi-version testing.
+
+---
+
+## Documentation
+
+| File | Description |
+|------|-------------|
+| [`docs/development-guide.md`](docs/development-guide.md) | Developer setup, Gradle wrapper strategy, multi-version testing, and release workflow. |
+| [`docs/gradle-design.md`](docs/gradle-design.md) | Architecture of the Gradle plugin: suppression lifecycle, stream safety, daemon reuse, and BuildService design. |
+| [`docs/maven-design.md`](docs/maven-design.md) | Architecture of the Maven plugin and extension: lifecycle hooks, session events, and output suppression. |
+| [`docs/maven-extension-model.md`](docs/maven-extension-model.md) | Detailed model for the Maven extension: how `BuildOutputSpy` integrates with the Maven session. |
+| [`docs/abandoned-branch-salvage.md`](docs/abandoned-branch-salvage.md) | Notes on salvaging features from the `fix/generic-build-errors` branch, including JaCoCo coverage footer design. |
+| [`docs/src-main-review.md`](docs/src-main-review.md) | Code-review findings for `src/main`, phased fix plan, and agent delegation batching guide. |
+| [`docs/TODO.md`](docs/TODO.md) | Outstanding tasks and known issues. |
+| [`docs/version-sync.md`](docs/version-sync.md) | How plugin versions are kept in sync across Maven Central and the Gradle Plugin Portal. |
